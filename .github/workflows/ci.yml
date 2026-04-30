@@ -24,9 +24,12 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-26
+          - macos-26-intel
+          - windows-2025
+          - windows-11-arm
         qt_version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.qt_version) || '["6.8.0","6.11.0"]') }}
 
     steps:
@@ -37,7 +40,7 @@ jobs:
           persist-credentials: false
 
       - name: Install system dependencies
-        if: matrix.runner == 'ubuntu-latest'
+        if: startsWith(matrix.runner, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
@@ -48,17 +51,29 @@ jobs:
         shell: bash
         run: |
           case "${{ matrix.runner }}" in
-            ubuntu-latest)
+            ubuntu-24.04)
               host=linux
               arch=linux_gcc_64
               ;;
-            macos-latest)
+            ubuntu-24.04-arm)
+              host=linux_arm64
+              arch=linux_gcc_arm64
+              ;;
+            macos-26)
               host=mac
               arch=clang_64
               ;;
-            windows-latest)
+            macos-26-intel)
+              host=mac
+              arch=clang_64
+              ;;
+            windows-2025)
               host=windows
               arch=win64_msvc2022_64
+              ;;
+            windows-11-arm)
+              host=windows
+              arch=win64_msvc2022_arm64_cross_compiled
               ;;
           esac
 

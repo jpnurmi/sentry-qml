@@ -33,6 +33,14 @@ target_compile_definitions(SentryQml
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
 )
 
+if(WIN32)
+    target_compile_definitions(SentryQml
+        PRIVATE
+            NOMINMAX
+            WIN32_LEAN_AND_MEAN
+    )
+endif()
+
 target_link_libraries(SentryQml
     PUBLIC
         Qt6::Core

@@ -23,19 +23,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: ubuntu-latest
-            qt_version: ${{ inputs.qt_version || '6.11.0' }}
-            qt_host: linux
-            qt_arch: linux_gcc_64
-          - runner: macos-latest
-            qt_version: ${{ inputs.qt_version || '6.11.0' }}
-            qt_host: mac
-            qt_arch: clang_64
-          - runner: windows-latest
-            qt_version: ${{ inputs.qt_version || '6.11.0' }}
-            qt_host: windows
-            qt_arch: win64_msvc2022_64
+        runner:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        qt_version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.qt_version) || '["6.8.0","6.11.0"]') }}
 
     steps:
       - name: Check out sources
@@ -51,13 +43,36 @@ jobs:
           sudo apt-get install --yes \
             libcurl4-openssl-dev
 
+      - name: Select Qt package
+        id: qt
+        shell: bash
+        run: |
+          case "${{ matrix.runner }}" in
+            ubuntu-latest)
+              host=linux
+              arch=linux_gcc_64
+              ;;
+            macos-latest)
+              host=mac
+              arch=clang_64
+              ;;
+            windows-latest)
+              host=windows
+              arch=win64_msvc2022_64
+              ;;
+          esac
+
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          echo "Qt ${{ matrix.qt_version }}: $host $arch"
+
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ matrix.qt_version }}
-          host: ${{ matrix.qt_host }}
+          host: ${{ steps.qt.outputs.host }}
           target: desktop
-          arch: ${{ matrix.qt_arch }}
+          arch: ${{ steps.qt.outputs.arch }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107

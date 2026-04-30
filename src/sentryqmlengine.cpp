@@ -9,11 +9,14 @@
 
 #include <QtCore/qlist.h>
 #include <QtCore/qurl.h>
-#include <QtQml/private/qqmlengine_p.h>
-#include <QtQml/private/qv4debugging_p.h>
-#include <QtQml/private/qv4engine_p.h>
 #include <QtQml/qqmlengine.h>
 #include <QtQml/qqmlerror.h>
+
+#if defined(SENTRY_QML_HAS_QML_PRIVATE)
+#    include <QtQml/private/qqmlengine_p.h>
+#    include <QtQml/private/qv4debugging_p.h>
+#    include <QtQml/private/qv4engine_p.h>
+#endif
 
 namespace {
 
@@ -78,7 +81,7 @@ bool stackTraceMatchesError(const QStringList &stackTrace, const QQmlError &erro
     return error.column() <= 0 || columnNumber <= 0 || columnNumber == error.column();
 }
 
-#if QT_CONFIG(qml_debug)
+#if defined(SENTRY_QML_HAS_QML_PRIVATE) && QT_CONFIG(qml_debug)
 class SentryQmlDebugger final : public QV4::Debugging::Debugger
 {
 public:
@@ -214,13 +217,21 @@ QString SentryQmlEngine::captureException(const QJSValue &exception)
 
 void SentryQmlEngine::installThrowHook()
 {
-#if QT_CONFIG(qml_debug)
+#if defined(SENTRY_QML_HAS_QML_PRIVATE) && QT_CONFIG(qml_debug)
     QQmlEnginePrivate *enginePrivate = m_engine ? QQmlEnginePrivate::get(m_engine) : nullptr;
-    if (!enginePrivate || !enginePrivate->v4Engine) {
+    if (!enginePrivate) {
         return;
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
     QV4::ExecutionEngine *v4Engine = enginePrivate->v4Engine.get();
+#else
+    QV4::ExecutionEngine *v4Engine = QQmlEnginePrivate::getV4Engine(m_engine);
+#endif
+    if (!v4Engine) {
+        return;
+    }
+
     if (v4Engine->debugger()) {
         return;
     }

@@ -5,7 +5,6 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
-#include <QtCore/qjsonparseerror.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qstringlist.h>

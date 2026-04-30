@@ -6,6 +6,12 @@ target_compile_definitions(tst_sentryqml PRIVATE
     SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
 )
 
+if(TARGET Qt6::QmlPrivate)
+    target_compile_definitions(tst_sentryqml PRIVATE
+        SENTRY_QML_HAS_QML_PRIVATE
+    )
+endif()
+
 target_link_libraries(tst_sentryqml
     PRIVATE
         SentryQml

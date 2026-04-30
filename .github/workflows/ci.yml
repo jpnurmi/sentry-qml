@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      qt_version:
+        description: Qt version to install
+        required: true
+        default: "6.11.0"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.runner }}, Qt ${{ matrix.qt_version }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            qt_version: ${{ inputs.qt_version || '6.11.0' }}
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - runner: macos-latest
+            qt_version: ${{ inputs.qt_version || '6.11.0' }}
+            qt_host: mac
+            qt_arch: clang_64
+          - runner: windows-latest
+            qt_version: ${{ inputs.qt_version || '6.11.0' }}
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install system dependencies
+        if: matrix.runner == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libcurl4-openssl-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ matrix.qt_version }}
+          host: ${{ matrix.qt_host }}
+          target: desktop
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config RelWithDebInfo --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen

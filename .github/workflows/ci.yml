@@ -49,8 +49,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
-            libcurl4-openssl-dev \
-            ninja-build
+            libcurl4-openssl-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -61,14 +60,15 @@ jobs:
           arch: ${{ matrix.qt_arch }}
           cache: true
           install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --config RelWithDebInfo --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --build-config RelWithDebInfo --output-on-failure
         env:
           QT_QPA_PLATFORM: offscreen

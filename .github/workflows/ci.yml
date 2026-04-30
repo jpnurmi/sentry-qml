@@ -6,11 +6,6 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-    inputs:
-      qt_version:
-        description: Qt version to install
-        required: true
-        default: "6.11.0"
 
 permissions:
   contents: read
@@ -23,14 +18,61 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
-          - macos-26
-          - macos-26-intel
-          - windows-2025
-          - windows-11-arm
-        qt_version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.qt_version) || '["6.8.0","6.11.0"]') }}
+        # List available Qt versions and architectures with:
+        #   pipx run aqtinstall aqt list-qt linux desktop
+        #   pipx run aqtinstall aqt list-qt linux_arm64 desktop
+        #   pipx run aqtinstall aqt list-qt mac desktop
+        #   pipx run aqtinstall aqt list-qt windows desktop
+        #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
+        include:
+          - runner: ubuntu-24.04
+            qt_version: "6.8.0"
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - runner: ubuntu-24.04
+            qt_version: "6.11.0"
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - runner: ubuntu-24.04-arm
+            qt_version: "6.8.0"
+            qt_host: linux_arm64
+            qt_arch: linux_gcc_arm64
+          - runner: ubuntu-24.04-arm
+            qt_version: "6.11.0"
+            qt_host: linux_arm64
+            qt_arch: linux_gcc_arm64
+          - runner: macos-15
+            qt_version: "6.8.0"
+            qt_host: mac
+            qt_arch: clang_64
+          - runner: macos-15-intel
+            qt_version: "6.8.0"
+            qt_host: mac
+            qt_arch: clang_64
+          - runner: macos-26
+            qt_version: "6.11.0"
+            qt_host: mac
+            qt_arch: clang_64
+          - runner: macos-26-intel
+            qt_version: "6.11.0"
+            qt_host: mac
+            qt_arch: clang_64
+          - runner: windows-2025
+            qt_version: "6.8.0"
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+          - runner: windows-2025
+            qt_version: "6.11.0"
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+          - runner: windows-11-arm
+            qt_version: "6.8.0"
+            qt_host: windows
+            qt_arch: win64_msvc2022_arm64_cross_compiled
+          - runner: windows-11-arm
+            qt_version: "6.11.0"
+            qt_host: windows
+            qt_arch: win64_msvc2022_arm64_cross_compiled
 
     steps:
       - name: Check out sources
@@ -46,48 +88,13 @@ jobs:
           sudo apt-get install --yes \
             libcurl4-openssl-dev
 
-      - name: Select Qt package
-        id: qt
-        shell: bash
-        run: |
-          case "${{ matrix.runner }}" in
-            ubuntu-24.04)
-              host=linux
-              arch=linux_gcc_64
-              ;;
-            ubuntu-24.04-arm)
-              host=linux_arm64
-              arch=linux_gcc_arm64
-              ;;
-            macos-26)
-              host=mac
-              arch=clang_64
-              ;;
-            macos-26-intel)
-              host=mac
-              arch=clang_64
-              ;;
-            windows-2025)
-              host=windows
-              arch=win64_msvc2022_64
-              ;;
-            windows-11-arm)
-              host=windows
-              arch=win64_msvc2022_arm64_cross_compiled
-              ;;
-          esac
-
-          echo "host=$host" >> "$GITHUB_OUTPUT"
-          echo "arch=$arch" >> "$GITHUB_OUTPUT"
-          echo "Qt ${{ matrix.qt_version }}: $host $arch"
-
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ matrix.qt_version }}
-          host: ${{ steps.qt.outputs.host }}
+          host: ${{ matrix.qt_host }}
           target: desktop
-          arch: ${{ steps.qt.outputs.arch }}
+          arch: ${{ matrix.qt_arch }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107

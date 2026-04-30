@@ -33,6 +33,17 @@ target_compile_definitions(SentryQml
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
 )
 
+if(TARGET Qt6::QmlPrivate)
+    target_compile_definitions(SentryQml
+        PRIVATE
+            SENTRY_QML_HAS_QML_PRIVATE
+    )
+    target_link_libraries(SentryQml
+        PRIVATE
+            Qt6::QmlPrivate
+    )
+endif()
+
 if(WIN32)
     target_compile_definitions(SentryQml
         PRIVATE
@@ -46,7 +57,6 @@ target_link_libraries(SentryQml
         Qt6::Core
         Qt6::Qml
     PRIVATE
-        Qt6::QmlPrivate
         sentry::sentry
 )
 

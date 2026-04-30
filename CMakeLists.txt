@@ -10,9 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Qml QmlPrivate Quick QuickControls2 Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Qml Quick QuickControls2 Test)
+find_package(Qt6 6.8 QUIET COMPONENTS QmlPrivate)
 
-qt_standard_project_setup(REQUIRES 6.5)
+qt_standard_project_setup(REQUIRES 6.8)
 
 include(GNUInstallDirs)
 include(CTest)

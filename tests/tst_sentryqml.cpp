@@ -209,7 +209,11 @@ void SentryQmlTest::capturesUncaughtQmlError()
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("initialized").toBool(), true);
     QTRY_COMPARE_WITH_TIMEOUT(object->property("callbackCalled").toBool(), true, 5000);
+#if defined(SENTRY_QML_HAS_QML_PRIVATE)
     QVERIFY(object->property("frameCount").toInt() > 1);
+#else
+    QCOMPARE(object->property("frameCount").toInt(), 1);
+#endif
     QCOMPARE(object->property("eventPlatform").toString(), QStringLiteral("javascript"));
     QCOMPARE(object->property("framePlatform").toString(), QStringLiteral("javascript"));
     QCOMPARE(object->property("frameInApp").toBool(), true);

@@ -3,6 +3,9 @@
 
 #include <QtCore/qdir.h>
 #include <QtCore/qtemporarydir.h>
+#include <QtNetwork/qhostaddress.h>
+#include <QtNetwork/qtcpserver.h>
+#include <QtNetwork/qtcpsocket.h>
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
@@ -18,10 +21,82 @@ class SentryQmlTest : public QObject
 private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
+    void sendsEnvelopeWithQtTransport();
     void capturesManualException();
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
+};
+
+class EnvelopeServer : public QTcpServer
+{
+    Q_OBJECT
+
+public:
+    using QTcpServer::QTcpServer;
+
+    QByteArray request() const { return m_request; }
+    QByteArray body() const { return m_body; }
+    QString path() const { return m_path; }
+    bool receivedRequest() const { return m_receivedRequest; }
+
+protected:
+    void incomingConnection(qintptr socketDescriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        if (!socket->setSocketDescriptor(socketDescriptor)) {
+            socket->deleteLater();
+            return;
+        }
+
+        connect(socket, &QTcpSocket::readyRead, this,
+                [this, socket]
+                {
+                    m_request += socket->readAll();
+
+                    const qsizetype headerEnd = m_request.indexOf("\r\n\r\n");
+                    if (headerEnd < 0) {
+                        return;
+                    }
+
+                    const QByteArray headers = m_request.left(headerEnd);
+                    const QByteArray body = m_request.mid(headerEnd + 4);
+                    qsizetype contentLength = 0;
+                    const QList<QByteArray> lines = headers.split('\n');
+                    for (const QByteArray &line : lines) {
+                        const qsizetype separator = line.indexOf(':');
+                        if (separator < 0) {
+                            continue;
+                        }
+                        if (line.left(separator).trimmed().compare("content-length", Qt::CaseInsensitive) == 0) {
+                            contentLength = line.mid(separator + 1).trimmed().toLongLong();
+                        }
+                    }
+
+                    if (body.size() < contentLength) {
+                        return;
+                    }
+
+                    const QList<QByteArray> requestLine = lines.value(0).trimmed().split(' ');
+                    m_path = QString::fromUtf8(requestLine.value(1));
+                    m_body = body.left(contentLength);
+                    m_receivedRequest = true;
+
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    emit received();
+                });
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+    }
+
+signals:
+    void received();
+
+private:
+    QByteArray m_request;
+    QByteArray m_body;
+    QString m_path;
+    bool m_receivedRequest = false;
 };
 
 void SentryQmlTest::importsQmlModule()
@@ -81,6 +156,35 @@ void SentryQmlTest::initializesAndCapturesMessage()
     QVERIFY(sentry.flush(2000));
     QVERIFY(sentry.close());
     QCOMPARE(sentry.isInitialized(), false);
+}
+
+void SentryQmlTest::sendsEnvelopeWithQtTransport()
+{
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    options.setShutdownTimeout(2000);
+
+    QVERIFY(sentry.init(&options));
+
+    const QString eventId = sentry.captureMessage(QStringLiteral("Sent through QtNetwork"));
+    QCOMPARE(eventId.size(), 36);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
+    QVERIFY(server.path().endsWith(QStringLiteral("/api/42/envelope/")));
+    const QByteArray request = server.request().toLower();
+    QVERIFY(request.contains("x-sentry-auth:"));
+    QVERIFY(request.contains("application/x-sentry-envelope"));
+    QVERIFY(server.body().contains("Sent through QtNetwork"));
+
+    QVERIFY(sentry.close());
 }
 
 void SentryQmlTest::capturesManualException()

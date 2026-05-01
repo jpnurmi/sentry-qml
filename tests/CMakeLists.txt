@@ -16,6 +16,7 @@ target_link_libraries(tst_sentryqml
     PRIVATE
         SentryQml
         Qt6::Core
+        Qt6::Network
         Qt6::Qml
         Qt6::Test
 )

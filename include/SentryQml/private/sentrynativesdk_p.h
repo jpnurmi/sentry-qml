@@ -9,6 +9,8 @@
 
 class Sentry;
 struct SentryNativeEventHookState;
+struct SentryNativeCrashHookState;
+struct SentryNativeValue;
 class SentryOptions;
 union sentry_value_u;
 typedef sentry_value_u sentry_value_t;
@@ -55,6 +57,7 @@ public:
                       const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
+    void applyFingerprintToEvent(sentry_value_t event) const;
 
 signals:
     void initializedChanged();
@@ -72,6 +75,8 @@ private:
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendLogState;
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
+    std::unique_ptr<SentryNativeCrashHookState> m_crashHookState;
+    std::unique_ptr<SentryNativeValue> m_fingerprint;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;
 };

@@ -12,7 +12,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
-#include <QtCore/qlist.h>
+#include <QtCore/qstringlist.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopedvaluerollback.h>
 #include <QtCore/qthread.h>
@@ -22,7 +22,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <utility>
 
 #ifndef SENTRY_QML_SDK_NAME
 #    define SENTRY_QML_SDK_NAME "sentry.native.qml"
@@ -35,6 +34,33 @@ struct SentryNativeEventHookState
     QJSValue callback;
     QThread *thread = nullptr;
     QString propertyName;
+};
+
+struct SentryNativeCrashHookState
+{
+    SentryNativeSdk *sdk = nullptr;
+    SentryNativeEventHookState *qmlHook = nullptr;
+};
+
+struct SentryNativeValue
+{
+    SentryNativeValue()
+        : value(sentry_value_new_null())
+    {
+    }
+
+    ~SentryNativeValue()
+    {
+        sentry_value_decref(value);
+    }
+
+    void reset(sentry_value_t newValue = sentry_value_new_null())
+    {
+        sentry_value_decref(value);
+        value = newValue;
+    }
+
+    sentry_value_t value;
 };
 
 namespace {
@@ -128,11 +154,6 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState 
     return replacement;
 }
 
-sentry_value_t passThroughOnCrash(const sentry_ucontext_t *, sentry_value_t event, void *)
-{
-    return event;
-}
-
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
     return invokeValueHook(event, static_cast<SentryNativeEventHookState *>(userData));
@@ -140,7 +161,14 @@ sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
 {
-    return invokeValueHook(event, static_cast<SentryNativeEventHookState *>(userData));
+    auto *state = static_cast<SentryNativeCrashHookState *>(userData);
+    if (!state) {
+        return event;
+    }
+    if (state->sdk) {
+        state->sdk->applyFingerprintToEvent(event);
+    }
+    return invokeValueHook(event, state->qmlHook);
 }
 
 sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
@@ -231,10 +259,15 @@ QVariantMap userFromVariantMap(const QVariantMap &user)
     return nativeUser;
 }
 
-template <size_t... Indices>
-void setNativeFingerprint(const QList<QByteArray> &fingerprint, std::index_sequence<Indices...>)
+sentry_value_t fingerprintFromStringList(const QStringList &fingerprint)
 {
-    sentry_set_fingerprint(fingerprint[Indices].constData()..., nullptr);
+    sentry_value_t nativeFingerprint = sentry_value_new_list();
+    for (const QString &part : fingerprint) {
+        const QByteArray utf8 = part.toUtf8();
+        sentry_value_append(
+            nativeFingerprint, sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size())));
+    }
+    return nativeFingerprint;
 }
 
 sentry_level_t logLevelFromInt(int level)
@@ -275,6 +308,7 @@ SentryNativeSdk *SentryNativeSdk::instance()
 
 SentryNativeSdk::SentryNativeSdk(QObject *parent)
     : QObject(parent)
+    , m_fingerprint(std::make_unique<SentryNativeValue>())
 {
 }
 
@@ -356,6 +390,9 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
     }
+    auto crashHookState = std::make_unique<SentryNativeCrashHookState>();
+    crashHookState->sdk = this;
+    crashHookState->qmlHook = onCrashState.get();
 
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
@@ -390,11 +427,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         sentry_options_set_before_send(nativeOptions, beforeSendCallback, beforeSendState.get());
     }
 
-    if (onCrashState) {
-        sentry_options_set_on_crash(nativeOptions, onCrashCallback, onCrashState.get());
-    } else if (beforeSendState) {
-        sentry_options_set_on_crash(nativeOptions, passThroughOnCrash, nullptr);
-    }
+    sentry_options_set_on_crash(nativeOptions, onCrashCallback, crashHookState.get());
 
     if (!options->databasePath().isEmpty()) {
         const QString nativePath = QDir::toNativeSeparators(options->databasePath());
@@ -414,6 +447,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         beforeSendMetricState.reset();
         beforeSendState.reset();
         onCrashState.reset();
+        crashHookState.reset();
         emit sentry->errorOccurred(QStringLiteral("sentry_init failed with code %1.").arg(result));
         return false;
     }
@@ -423,6 +457,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
+    m_crashHookState = std::move(crashHookState);
     const SentryUser *user = options->user();
     if (user && !user->isEmpty()) {
         sentry_set_user(SentryEvent::fromVariant(user->toVariantMap()));
@@ -454,7 +489,9 @@ bool SentryNativeSdk::close()
     m_beforeSendLogState.reset();
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
+    m_crashHookState.reset();
     m_onCrashState.reset();
+    m_fingerprint->reset();
     setInitialized(false);
     return true;
 }
@@ -683,49 +720,8 @@ bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerpr
         return false;
     }
 
-    QList<QByteArray> parts;
-    parts.reserve(fingerprint.size());
-    for (const QString &part : fingerprint) {
-        parts.append(part.toUtf8());
-    }
-
-    switch (parts.size()) {
-    case 1:
-        setNativeFingerprint(parts, std::make_index_sequence<1>());
-        return true;
-    case 2:
-        setNativeFingerprint(parts, std::make_index_sequence<2>());
-        return true;
-    case 3:
-        setNativeFingerprint(parts, std::make_index_sequence<3>());
-        return true;
-    case 4:
-        setNativeFingerprint(parts, std::make_index_sequence<4>());
-        return true;
-    case 5:
-        setNativeFingerprint(parts, std::make_index_sequence<5>());
-        return true;
-    case 6:
-        setNativeFingerprint(parts, std::make_index_sequence<6>());
-        return true;
-    case 7:
-        setNativeFingerprint(parts, std::make_index_sequence<7>());
-        return true;
-    case 8:
-        setNativeFingerprint(parts, std::make_index_sequence<8>());
-        return true;
-    case 9:
-        setNativeFingerprint(parts, std::make_index_sequence<9>());
-        return true;
-    case 10:
-        setNativeFingerprint(parts, std::make_index_sequence<10>());
-        return true;
-    default:
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry fingerprint must contain at most 10 parts."));
-        }
-        return false;
-    }
+    m_fingerprint->reset(fingerprintFromStringList(fingerprint));
+    return true;
 }
 
 bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
@@ -744,6 +740,7 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
         return false;
     }
 
+    m_fingerprint->reset();
     sentry_remove_fingerprint();
     return true;
 }
@@ -967,7 +964,29 @@ QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, Sent
         return {};
     }
 
-    return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
+    if (!m_fingerprint || sentry_value_is_null(m_fingerprint->value)) {
+        return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
+    }
+
+    sentry_scope_t *scope = sentry_local_scope_new();
+    if (!scope) {
+        applyFingerprintToEvent(event);
+        return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
+    }
+
+    sentry_value_incref(m_fingerprint->value);
+    sentry_scope_set_fingerprints(scope, m_fingerprint->value);
+    return SentryEvent::eventIdFromUuid(sentry_capture_event_with_scope(event, scope));
+}
+
+void SentryNativeSdk::applyFingerprintToEvent(sentry_value_t event) const
+{
+    if (!m_fingerprint || sentry_value_is_null(m_fingerprint->value)) {
+        return;
+    }
+
+    sentry_value_incref(m_fingerprint->value);
+    sentry_value_set_by_key(event, "fingerprint", m_fingerprint->value);
 }
 
 void SentryNativeSdk::setInitialized(bool initialized)

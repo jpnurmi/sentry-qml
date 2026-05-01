@@ -177,6 +177,18 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set Release")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setRelease(releaseField.text)
+                    statusLabel.text = ok
+                        ? qsTr("Release set")
+                        : qsTr("Release was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Set Tag")
                 enabled: Sentry.initialized
 

@@ -487,6 +487,34 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_onCrashState);
 }
 
+bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setRelease cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting releases."));
+        }
+        return false;
+    }
+
+    if (release.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry release must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Release = release.toUtf8();
+    sentry_set_release_n(utf8Release.constData(), static_cast<size_t>(utf8Release.size()));
+    return true;
+}
+
 bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (hookDepth > 0) {

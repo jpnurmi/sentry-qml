@@ -22,6 +22,7 @@ private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
+    void setsRelease();
     void setsUser();
     void setsTags();
     void setsContexts();
@@ -202,6 +203,62 @@ void SentryQmlTest::sendsEnvelopeWithQtTransport()
     QVERIFY(server.body().contains("Sent through QtNetwork"));
 
     QVERIFY(sentry.close());
+}
+
+void SentryQmlTest::setsRelease()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool releaseSet: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property string capturedRelease: ""
+            property string eventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    capturedRelease = event.release || ""
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                releaseSet = Sentry.setRelease("sentry-qml@1.2.3")
+                eventId = Sentry.captureMessage("Release event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryReleaseTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("releaseSet").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("capturedRelease").toString(), QStringLiteral("sentry-qml@1.2.3"));
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlTest::setsUser()

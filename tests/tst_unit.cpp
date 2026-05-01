@@ -16,7 +16,7 @@
 
 #include <memory>
 
-class SentryQmlTest : public QObject
+class SentryQmlUnitTest : public QObject
 {
     Q_OBJECT
 
@@ -112,7 +112,7 @@ private:
     bool m_receivedRequest = false;
 };
 
-void SentryQmlTest::importsQmlModule()
+void SentryQmlUnitTest::importsQmlModule()
 {
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
@@ -161,7 +161,7 @@ void SentryQmlTest::importsQmlModule()
     QCOMPARE(object->property("sessionsReady").toBool(), true);
 }
 
-void SentryQmlTest::initializesAndCapturesMessage()
+void SentryQmlUnitTest::initializesAndCapturesMessage()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -179,7 +179,7 @@ void SentryQmlTest::initializesAndCapturesMessage()
     QCOMPARE(sentry.isInitialized(), true);
     QCOMPARE(initializedSpy.count(), 1);
 
-    const QString eventId = sentry.captureMessage(QStringLiteral("Hello from tst_sentryqml"));
+    const QString eventId = sentry.captureMessage(QStringLiteral("Hello from tst_unit"));
     QCOMPARE(eventId.size(), 36);
 
     QVERIFY(sentry.flush(2000));
@@ -187,7 +187,7 @@ void SentryQmlTest::initializesAndCapturesMessage()
     QCOMPARE(sentry.isInitialized(), false);
 }
 
-void SentryQmlTest::sendsEnvelopeWithQtTransport()
+void SentryQmlUnitTest::sendsEnvelopeWithQtTransport()
 {
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -216,7 +216,7 @@ void SentryQmlTest::sendsEnvelopeWithQtTransport()
     QVERIFY(sentry.close());
 }
 
-void SentryQmlTest::setsRelease()
+void SentryQmlUnitTest::setsRelease()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -272,7 +272,7 @@ void SentryQmlTest::setsRelease()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::setsEnvironment()
+void SentryQmlUnitTest::setsEnvironment()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -328,7 +328,7 @@ void SentryQmlTest::setsEnvironment()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::setsUser()
+void SentryQmlUnitTest::setsUser()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -437,7 +437,7 @@ void SentryQmlTest::setsUser()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::setsTags()
+void SentryQmlUnitTest::setsTags()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -503,7 +503,7 @@ void SentryQmlTest::setsTags()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::setsContexts()
+void SentryQmlUnitTest::setsContexts()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -580,7 +580,7 @@ void SentryQmlTest::setsContexts()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::setsFingerprint()
+void SentryQmlUnitTest::setsFingerprint()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -670,7 +670,7 @@ void SentryQmlTest::setsFingerprint()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::attachesFilesAndBytes()
+void SentryQmlUnitTest::attachesFilesAndBytes()
 {
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -785,7 +785,7 @@ void SentryQmlTest::attachesFilesAndBytes()
     QVERIFY(!body.contains("cleared attachment payload"));
 }
 
-void SentryQmlTest::tracksSessions()
+void SentryQmlUnitTest::tracksSessions()
 {
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -852,7 +852,7 @@ void SentryQmlTest::tracksSessions()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::addsBreadcrumbs()
+void SentryQmlUnitTest::addsBreadcrumbs()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -955,7 +955,7 @@ void SentryQmlTest::addsBreadcrumbs()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::sendsLogs()
+void SentryQmlUnitTest::sendsLogs()
 {
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -1037,7 +1037,7 @@ void SentryQmlTest::sendsLogs()
     QVERIFY(server.body().contains("qml.test.hook"));
 }
 
-void SentryQmlTest::sendsMetrics()
+void SentryQmlUnitTest::sendsMetrics()
 {
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -1129,7 +1129,7 @@ void SentryQmlTest::sendsMetrics()
     QVERIFY(server.body().contains("qml.test.hook"));
 }
 
-void SentryQmlTest::capturesManualException()
+void SentryQmlUnitTest::capturesManualException()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -1156,7 +1156,7 @@ void SentryQmlTest::capturesManualException()
             Component.onCompleted: {
                 initialized = Sentry.init(options)
                 try {
-                    throw new Error("Caught by tst_sentryqml")
+                    throw new Error("Caught by tst_unit")
                 } catch (exception) {
                     eventId = Sentry.captureException(exception)
                 }
@@ -1177,7 +1177,7 @@ void SentryQmlTest::capturesManualException()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::capturesUncaughtQmlError()
+void SentryQmlUnitTest::capturesUncaughtQmlError()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -1270,7 +1270,7 @@ void SentryQmlTest::capturesUncaughtQmlError()
     QVERIFY(sentry.close());
 }
 
-void SentryQmlTest::beforeSendCanDropMessage()
+void SentryQmlUnitTest::beforeSendCanDropMessage()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -1320,7 +1320,7 @@ void SentryQmlTest::beforeSendCanDropMessage()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-void SentryQmlTest::beforeSendCannotCaptureMessage()
+void SentryQmlUnitTest::beforeSendCannotCaptureMessage()
 {
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
@@ -1384,6 +1384,6 @@ void SentryQmlTest::beforeSendCannotCaptureMessage()
     QCOMPARE(object->property("closed").toBool(), true);
 }
 
-QTEST_MAIN(SentryQmlTest)
+QTEST_MAIN(SentryQmlUnitTest)
 
-#include "tst_sentryqml.moc"
+#include "tst_unit.moc"

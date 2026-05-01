@@ -114,3 +114,7 @@ jobs:
         run: ctest --test-dir build --build-config RelWithDebInfo --output-on-failure
         env:
           QT_QPA_PLATFORM: offscreen
+
+      - name: Dump CTest log
+        if: failure()
+        run: cmake -E cat build/Testing/Temporary/LastTest.log

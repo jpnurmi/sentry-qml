@@ -1,10 +1,6 @@
 function(add_sentry_qml_test target)
-    qt_add_executable(${target}
+    add_executable(${target}
         ${ARGN}
-    )
-
-    set_target_properties(${target} PROPERTIES
-        WIN32_EXECUTABLE FALSE
     )
 
     target_compile_definitions(${target} PRIVATE
@@ -32,7 +28,7 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    add_test(NAME ${target} COMMAND ${target})
+    add_test(NAME ${target} COMMAND ${target} -o -,txt)
 endfunction()
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)

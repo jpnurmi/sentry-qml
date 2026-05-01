@@ -114,7 +114,7 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState 
         return sentry_value_new_null();
     }
 
-    sentry_value_t replacement = SentryEvent::fromVariant(result.toVariant(QJSValue::RetainJSObjects));
+    sentry_value_t replacement = SentryEvent::fromVariant(result.toVariant());
     if (sentry_value_is_null(replacement)) {
         sentry_value_decref(value);
         return replacement;

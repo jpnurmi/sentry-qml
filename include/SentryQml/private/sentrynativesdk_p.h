@@ -40,9 +40,12 @@ private:
     explicit SentryNativeSdk(QObject *parent = nullptr);
     ~SentryNativeSdk() override;
 
+    void closeBeforeApplicationShutdown();
+    void connectToApplicationShutdown();
     void setInitialized(bool initialized);
 
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
+    QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;
 };

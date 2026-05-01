@@ -8,7 +8,7 @@
 #include <include/sentry.h>
 
 #include <QtCore/qbytearray.h>
-#include <QtCore/qdebug.h>
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qpointer.h>
@@ -125,19 +125,16 @@ sentry_value_t invokeEventHook(sentry_value_t event, SentryNativeEventHookState 
 
 sentry_value_t passThroughOnCrash(const sentry_ucontext_t *, sentry_value_t event, void *)
 {
-    qDebug("### passThroughOnCrash");
     return event;
 }
 
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
-    qDebug("### beforeSendCallback");
     return invokeEventHook(event, static_cast<SentryNativeEventHookState *>(userData));
 }
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
 {
-    qDebug("### onCrashCallback");
     return invokeEventHook(event, static_cast<SentryNativeEventHookState *>(userData));
 }
 
@@ -156,8 +153,8 @@ SentryNativeSdk::SentryNativeSdk(QObject *parent)
 
 SentryNativeSdk::~SentryNativeSdk()
 {
-    if (m_initialized) {
-        sentry_close();
+    if (m_initialized && QCoreApplication::instance() && !QCoreApplication::closingDown()) {
+        close();
     }
 }
 
@@ -204,7 +201,6 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
 
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
-        emit sentry->errorOccurred(QStringLiteral("Failed to allocate sentry-native options."));
         return false;
     }
 
@@ -249,6 +245,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     setInitialized(true);
+    connectToApplicationShutdown();
     return true;
 }
 
@@ -268,10 +265,30 @@ bool SentryNativeSdk::close()
     }
 
     sentry_close();
+    QObject::disconnect(m_applicationShutdownConnection);
+    m_applicationShutdownConnection = {};
     m_beforeSendState.reset();
     m_onCrashState.reset();
     setInitialized(false);
     return true;
+}
+
+void SentryNativeSdk::closeBeforeApplicationShutdown()
+{
+    close();
+}
+
+void SentryNativeSdk::connectToApplicationShutdown()
+{
+    if (m_applicationShutdownConnection || !QCoreApplication::instance()) {
+        return;
+    }
+
+    m_applicationShutdownConnection = QObject::connect(QCoreApplication::instance(),
+                                                       &QCoreApplication::aboutToQuit,
+                                                       this,
+                                                       &SentryNativeSdk::closeBeforeApplicationShutdown,
+                                                       Qt::DirectConnection);
 }
 
 void SentryNativeSdk::detachSentry(Sentry *sentry)

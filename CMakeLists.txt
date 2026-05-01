@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Qml Quick QuickControls2 Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 Test)
 find_package(Qt6 6.8 QUIET COMPONENTS QmlPrivate)
 
 qt_standard_project_setup(REQUIRES 6.8)
@@ -44,6 +44,12 @@ set(SENTRY_BUILD_TESTS OFF CACHE BOOL "Build sentry-native tests" FORCE)
 set(SENTRY_BUILD_EXAMPLES OFF CACHE BOOL "Build sentry-native examples" FORCE)
 set(SENTRY_BUILD_BENCHMARKS OFF CACHE BOOL "Build sentry-native benchmarks" FORCE)
 
+if(NOT DEFINED SENTRY_TRANSPORT)
+    set(SENTRY_TRANSPORT "custom" CACHE STRING
+        "sentry-native HTTP transport. Sentry QML provides a Qt transport."
+    )
+endif()
+
 if(NOT DEFINED SENTRY_BACKEND)
     set(SENTRY_BACKEND "native" CACHE STRING
         "sentry-native crash backend. Use 'crashpad', 'breakpad', 'inproc', 'native', or 'none'."
@@ -59,6 +65,28 @@ add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 if(TARGET sentry-crash)
     target_sources(sentry-crash PRIVATE src/sentryqtlogging.cpp)
     target_link_libraries(sentry-crash PRIVATE Qt6::Core)
+endif()
+
+if(SENTRY_TRANSPORT STREQUAL "custom")
+    set(SENTRY_QML_QT_TRANSPORT_SOURCE "${PROJECT_SOURCE_DIR}/src/sentryqttransport.cpp")
+
+    target_sources(sentry PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
+    target_include_directories(sentry PRIVATE "${SENTRY_NATIVE_DIR}")
+    target_link_libraries(sentry PRIVATE Qt6::Core Qt6::Network)
+
+    if(WIN32)
+        target_compile_definitions(sentry PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    if(TARGET sentry-crash)
+        target_sources(sentry-crash PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
+        target_include_directories(sentry-crash PRIVATE "${SENTRY_NATIVE_DIR}")
+        target_link_libraries(sentry-crash PRIVATE Qt6::Core Qt6::Network)
+
+        if(WIN32)
+            target_compile_definitions(sentry-crash PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+        endif()
+    endif()
 endif()
 
 add_subdirectory(src)

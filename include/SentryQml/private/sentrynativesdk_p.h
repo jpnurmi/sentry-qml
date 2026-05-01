@@ -72,6 +72,11 @@ private:
 
     void closeBeforeApplicationShutdown();
     void connectToApplicationShutdown();
+    bool ensureCanCall(Sentry *sentry,
+                       const char *method,
+                       const char *action,
+                       const char *hookType = "event hooks") const;
+    bool ensureInitialized(Sentry *sentry, const char *action) const;
     void setInitialized(bool initialized);
 
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;

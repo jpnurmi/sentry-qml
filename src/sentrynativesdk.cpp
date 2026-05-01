@@ -539,19 +539,38 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_onCrashState);
 }
 
-bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
+bool SentryNativeSdk::ensureCanCall(Sentry *sentry,
+                                    const char *method,
+                                    const char *action,
+                                    const char *hookType) const
 {
     if (hookDepth > 0) {
         if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setRelease cannot be called from Sentry event hooks."));
+            emit sentry->errorOccurred(QStringLiteral("Sentry.%1 cannot be called from Sentry %2.")
+                                           .arg(QString::fromLatin1(method), QString::fromLatin1(hookType)));
         }
         return false;
     }
 
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting releases."));
-        }
+    return ensureInitialized(sentry, action);
+}
+
+bool SentryNativeSdk::ensureInitialized(Sentry *sentry, const char *action) const
+{
+    if (m_initialized) {
+        return true;
+    }
+
+    if (sentry) {
+        emit sentry->errorOccurred(
+            QStringLiteral("Sentry must be initialized before %1.").arg(QString::fromLatin1(action)));
+    }
+    return false;
+}
+
+bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
+{
+    if (!ensureCanCall(sentry, "setRelease", "setting releases")) {
         return false;
     }
 
@@ -569,17 +588,7 @@ bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
 
 bool SentryNativeSdk::setEnvironment(Sentry *sentry, const QString &environment)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setEnvironment cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting environments."));
-        }
+    if (!ensureCanCall(sentry, "setEnvironment", "setting environments")) {
         return false;
     }
 
@@ -597,17 +606,7 @@ bool SentryNativeSdk::setEnvironment(Sentry *sentry, const QString &environment)
 
 bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setUser cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting users."));
-        }
+    if (!ensureCanCall(sentry, "setUser", "setting users")) {
         return false;
     }
 
@@ -624,17 +623,7 @@ bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
 
 bool SentryNativeSdk::removeUser(Sentry *sentry)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.removeUser cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing users."));
-        }
+    if (!ensureCanCall(sentry, "removeUser", "removing users")) {
         return false;
     }
 
@@ -644,17 +633,7 @@ bool SentryNativeSdk::removeUser(Sentry *sentry)
 
 bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &value)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setTag cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting tags."));
-        }
+    if (!ensureCanCall(sentry, "setTag", "setting tags")) {
         return false;
     }
 
@@ -676,17 +655,7 @@ bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &
 
 bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.removeTag cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing tags."));
-        }
+    if (!ensureCanCall(sentry, "removeTag", "removing tags")) {
         return false;
     }
 
@@ -704,17 +673,7 @@ bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
 
 bool SentryNativeSdk::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setContext cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting contexts."));
-        }
+    if (!ensureCanCall(sentry, "setContext", "setting contexts")) {
         return false;
     }
 
@@ -734,17 +693,7 @@ bool SentryNativeSdk::setContext(Sentry *sentry, const QString &key, const QVari
 
 bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.removeContext cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing contexts."));
-        }
+    if (!ensureCanCall(sentry, "removeContext", "removing contexts")) {
         return false;
     }
 
@@ -762,17 +711,7 @@ bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
 
 bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.setFingerprint cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting fingerprints."));
-        }
+    if (!ensureCanCall(sentry, "setFingerprint", "setting fingerprints")) {
         return false;
     }
 
@@ -789,17 +728,7 @@ bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerpr
 
 bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.removeFingerprint cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing fingerprints."));
-        }
+    if (!ensureCanCall(sentry, "removeFingerprint", "removing fingerprints")) {
         return false;
     }
 
@@ -810,17 +739,7 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
 
 bool SentryNativeSdk::startSession(Sentry *sentry)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.startSession cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before starting sessions."));
-        }
+    if (!ensureCanCall(sentry, "startSession", "starting sessions")) {
         return false;
     }
 
@@ -830,17 +749,7 @@ bool SentryNativeSdk::startSession(Sentry *sentry)
 
 bool SentryNativeSdk::endSession(Sentry *sentry, int status)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.endSession cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before ending sessions."));
-        }
+    if (!ensureCanCall(sentry, "endSession", "ending sessions")) {
         return false;
     }
 
@@ -866,17 +775,7 @@ bool SentryNativeSdk::endSession(Sentry *sentry, int status)
 
 bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.addBreadcrumb cannot be called from Sentry event hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before adding breadcrumbs."));
-        }
+    if (!ensureCanCall(sentry, "addBreadcrumb", "adding breadcrumbs")) {
         return false;
     }
 
@@ -893,17 +792,7 @@ bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrum
 
 bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.log cannot be called from Sentry hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before logging."));
-        }
+    if (!ensureCanCall(sentry, "log", "logging", "hooks")) {
         return false;
     }
 
@@ -925,17 +814,7 @@ bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, con
 
 bool SentryNativeSdk::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.count cannot be called from Sentry hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
-        }
+    if (!ensureCanCall(sentry, "count", "recording metrics", "hooks")) {
         return false;
     }
 
@@ -958,17 +837,7 @@ bool SentryNativeSdk::gauge(Sentry *sentry,
                             const QString &unit,
                             const QVariantMap &attributes)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.gauge cannot be called from Sentry hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
-        }
+    if (!ensureCanCall(sentry, "gauge", "recording metrics", "hooks")) {
         return false;
     }
 
@@ -1001,17 +870,7 @@ bool SentryNativeSdk::distribution(Sentry *sentry,
                                    const QString &unit,
                                    const QVariantMap &attributes)
 {
-    if (hookDepth > 0) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry.distribution cannot be called from Sentry hooks."));
-        }
-        return false;
-    }
-
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
-        }
+    if (!ensureCanCall(sentry, "distribution", "recording metrics", "hooks")) {
         return false;
     }
 
@@ -1041,10 +900,7 @@ bool SentryNativeSdk::distribution(Sentry *sentry,
 
 QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)
 {
-    if (!m_initialized) {
-        if (sentry) {
-            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before capturing messages."));
-        }
+    if (!ensureInitialized(sentry, "capturing messages")) {
         return {};
     }
 

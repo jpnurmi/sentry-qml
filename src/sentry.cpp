@@ -106,6 +106,21 @@ bool Sentry::removeFingerprint()
     return SentryNativeSdk::instance()->removeFingerprint(this);
 }
 
+bool Sentry::startSession()
+{
+    return SentryNativeSdk::instance()->startSession(this);
+}
+
+bool Sentry::endSession()
+{
+    return SentryNativeSdk::instance()->endSession(this, -1);
+}
+
+bool Sentry::endSession(SessionStatus status)
+{
+    return SentryNativeSdk::instance()->endSession(this, static_cast<int>(status));
+}
+
 bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
 {
     return SentryNativeSdk::instance()->addBreadcrumb(this, breadcrumb);

@@ -43,6 +43,15 @@ public:
     };
     Q_ENUM(MetricType)
 
+    enum SessionStatus
+    {
+        SessionOk = 0,
+        SessionCrashed = 1,
+        SessionAbnormal = 2,
+        SessionExited = 3
+    };
+    Q_ENUM(SessionStatus)
+
     explicit Sentry(QObject *parent = nullptr);
     ~Sentry() override;
 
@@ -63,6 +72,9 @@ public:
     Q_INVOKABLE bool removeContext(const QString &key);
     Q_INVOKABLE bool setFingerprint(const QStringList &fingerprint);
     Q_INVOKABLE bool removeFingerprint();
+    Q_INVOKABLE bool startSession();
+    Q_INVOKABLE bool endSession();
+    Q_INVOKABLE bool endSession(SessionStatus status);
     Q_INVOKABLE bool addBreadcrumb(const QVariantMap &breadcrumb);
     bool addBreadcrumb(const QString &message,
                        const QString &category = QString(),

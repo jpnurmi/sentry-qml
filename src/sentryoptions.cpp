@@ -142,6 +142,21 @@ void SentryOptions::setEnableMetrics(bool enableMetrics)
     emit enableMetricsChanged();
 }
 
+bool SentryOptions::autoSessionTracking() const
+{
+    return m_autoSessionTracking;
+}
+
+void SentryOptions::setAutoSessionTracking(bool autoSessionTracking)
+{
+    if (m_autoSessionTracking == autoSessionTracking) {
+        return;
+    }
+
+    m_autoSessionTracking = autoSessionTracking;
+    emit autoSessionTrackingChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;

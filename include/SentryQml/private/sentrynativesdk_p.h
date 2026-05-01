@@ -44,6 +44,8 @@ public:
     bool removeContext(Sentry *sentry, const QString &key);
     bool setFingerprint(Sentry *sentry, const QStringList &fingerprint);
     bool removeFingerprint(Sentry *sentry);
+    bool startSession(Sentry *sentry);
+    bool endSession(Sentry *sentry, int status);
     bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
     bool log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes);
     bool count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes);

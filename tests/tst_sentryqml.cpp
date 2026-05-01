@@ -2,6 +2,7 @@
 #include <SentryQml/sentryoptions.h>
 
 #include <QtCore/qdir.h>
+#include <QtCore/qmetaobject.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qtcpserver.h>
@@ -28,6 +29,7 @@ private slots:
     void setsTags();
     void setsContexts();
     void setsFingerprint();
+    void tracksSessions();
     void addsBreadcrumbs();
     void sendsLogs();
     void sendsMetrics();
@@ -134,6 +136,10 @@ void SentryQmlTest::importsQmlModule()
             property bool metricsReady: Sentry.Count === 0
                 && Sentry.Gauge === 1
                 && Sentry.Distribution === 2
+            property bool sessionsReady: Sentry.SessionOk === 0
+                && Sentry.SessionCrashed === 1
+                && Sentry.SessionAbnormal === 2
+                && Sentry.SessionExited === 3
 
             Component.onCompleted: {
                 options.shutdownTimeout = 100
@@ -150,6 +156,7 @@ void SentryQmlTest::importsQmlModule()
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("levelsReady").toBool(), true);
     QCOMPARE(object->property("metricsReady").toBool(), true);
+    QCOMPARE(object->property("sessionsReady").toBool(), true);
 }
 
 void SentryQmlTest::initializesAndCapturesMessage()
@@ -658,6 +665,73 @@ void SentryQmlTest::setsFingerprint()
     QCOMPARE(object->property("secondHasFingerprint").toBool(), false);
     QCOMPARE(object->property("firstEventId").toString(), QString());
     QCOMPARE(object->property("secondEventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::tracksSessions()
+{
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool started: false
+            property bool ended: false
+            property bool flushed: false
+            property bool closed: false
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                autoSessionTracking: false
+                release: "sentry-qml@1.2.3"
+                environment: "test"
+                shutdownTimeout: 2000
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                started = Sentry.startSession()
+                ended = Sentry.endSession(Sentry.SessionExited)
+            }
+
+            function finish() {
+                flushed = Sentry.flush(2000)
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentrySessionTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("started").toBool(), true);
+    QCOMPARE(object->property("ended").toBool(), true);
+    QTRY_VERIFY_WITH_TIMEOUT(server.body().contains("\"type\":\"session\""), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(server.body().contains("\"status\":\"exited\""), 5000);
+    QVERIFY(server.body().contains("\"release\":\"sentry-qml@1.2.3\""));
+    QVERIFY(server.body().contains("\"environment\":\"test\""));
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
+    QCOMPARE(object->property("flushed").toBool(), true);
     QCOMPARE(object->property("closed").toBool(), true);
 }
 

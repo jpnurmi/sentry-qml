@@ -412,6 +412,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_set_debug(nativeOptions, options->debug() ? 1 : 0);
     sentry_options_set_enable_logs(nativeOptions, options->enableLogs() ? 1 : 0);
     sentry_options_set_enable_metrics(nativeOptions, options->enableMetrics() ? 1 : 0);
+    sentry_options_set_auto_session_tracking(nativeOptions, options->autoSessionTracking() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
@@ -804,6 +805,62 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
 
     m_fingerprint->reset();
     sentry_remove_fingerprint();
+    return true;
+}
+
+bool SentryNativeSdk::startSession(Sentry *sentry)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.startSession cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before starting sessions."));
+        }
+        return false;
+    }
+
+    sentry_start_session();
+    return true;
+}
+
+bool SentryNativeSdk::endSession(Sentry *sentry, int status)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.endSession cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before ending sessions."));
+        }
+        return false;
+    }
+
+    switch (status) {
+    case -1:
+        sentry_end_session();
+        break;
+    case SENTRY_SESSION_STATUS_OK:
+    case SENTRY_SESSION_STATUS_CRASHED:
+    case SENTRY_SESSION_STATUS_ABNORMAL:
+    case SENTRY_SESSION_STATUS_EXITED:
+        sentry_end_session_with_status(static_cast<sentry_session_status_t>(status));
+        break;
+    default:
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Unsupported Sentry session status."));
+        }
+        return false;
+    }
+
     return true;
 }
 

@@ -279,6 +279,14 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 {
     QFETCH(QString, crashType);
 
+#if defined(Q_OS_WIN)
+    if (crashType == QLatin1String("assert-failure")
+        || crashType == QLatin1String("abort")
+        || crashType == QLatin1String("fastfail")) {
+        QSKIP("The Windows native backend currently captures unhandled SEH exceptions only.");
+    }
+#endif
+
     CrashEnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 

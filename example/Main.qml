@@ -157,6 +157,22 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set User")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setUser({
+                        id: "example-user",
+                        username: "qml",
+                        email: "qml@example.invalid"
+                    })
+                    statusLabel.text = ok
+                        ? qsTr("User set")
+                        : qsTr("User was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Set Tag")
                 enabled: Sentry.initialized
 

@@ -216,6 +216,18 @@ sentry_value_t breadcrumbFromVariantMap(const QVariantMap &breadcrumb)
     return nativeBreadcrumb;
 }
 
+QVariantMap userFromVariantMap(const QVariantMap &user)
+{
+    QVariantMap nativeUser = user;
+    const QString ipAddressKey = QStringLiteral("ipAddress");
+    const QString protocolIpAddressKey = QStringLiteral("ip_address");
+    if (nativeUser.contains(ipAddressKey) && !nativeUser.contains(protocolIpAddressKey)) {
+        nativeUser.insert(protocolIpAddressKey, nativeUser.value(ipAddressKey));
+        nativeUser.remove(ipAddressKey);
+    }
+    return nativeUser;
+}
+
 sentry_level_t logLevelFromInt(int level)
 {
     switch (level) {
@@ -468,6 +480,53 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_beforeSendLogState);
     detach(m_beforeSendMetricState);
     detach(m_onCrashState);
+}
+
+bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setUser cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting users."));
+        }
+        return false;
+    }
+
+    if (user.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry user must not be empty."));
+        }
+        return false;
+    }
+
+    sentry_set_user(SentryEvent::fromVariant(userFromVariantMap(user)));
+    return true;
+}
+
+bool SentryNativeSdk::removeUser(Sentry *sentry)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.removeUser cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing users."));
+        }
+        return false;
+    }
+
+    sentry_remove_user();
+    return true;
 }
 
 bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &value)

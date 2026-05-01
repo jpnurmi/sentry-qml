@@ -5,6 +5,7 @@ qt_add_qml_module(SentryQml
     VERSION ${SENTRY_QML_IMPORT_VERSION}
     OUTPUT_DIRECTORY "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}"
     SOURCES
+        ../include/SentryQml/sentryattachment.h
         ../include/SentryQml/sentry.h
         ../include/SentryQml/sentryoptions.h
         ../include/SentryQml/sentryqmlglobal.h
@@ -13,6 +14,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/private/sentrynativesdk_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
         sentry.cpp
+        sentryattachment.cpp
         sentryevent.cpp
         sentrynativesdk.cpp
         sentryoptions.cpp

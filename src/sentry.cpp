@@ -106,6 +106,26 @@ bool Sentry::removeFingerprint()
     return SentryNativeSdk::instance()->removeFingerprint(this);
 }
 
+SentryAttachment *Sentry::attachFile(const QString &path, const QString &contentType)
+{
+    return SentryNativeSdk::instance()->attachFile(this, path, contentType);
+}
+
+SentryAttachment *Sentry::attachBytes(const QByteArray &bytes, const QString &filename, const QString &contentType)
+{
+    return SentryNativeSdk::instance()->attachBytes(this, bytes, filename, contentType);
+}
+
+bool Sentry::removeAttachment(SentryAttachment *attachment)
+{
+    return SentryNativeSdk::instance()->removeAttachment(this, attachment);
+}
+
+bool Sentry::clearAttachments()
+{
+    return SentryNativeSdk::instance()->clearAttachments(this);
+}
+
 bool Sentry::startSession()
 {
     return SentryNativeSdk::instance()->startSession(this);

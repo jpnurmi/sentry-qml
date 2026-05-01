@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QtCore/qbytearray.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
@@ -8,6 +10,7 @@
 #include <memory>
 
 class Sentry;
+class SentryAttachment;
 struct SentryNativeEventHookState;
 struct SentryNativeCrashHookState;
 struct SentryNativeValue;
@@ -44,6 +47,13 @@ public:
     bool removeContext(Sentry *sentry, const QString &key);
     bool setFingerprint(Sentry *sentry, const QStringList &fingerprint);
     bool removeFingerprint(Sentry *sentry);
+    SentryAttachment *attachFile(Sentry *sentry, const QString &path, const QString &contentType);
+    SentryAttachment *attachBytes(Sentry *sentry,
+                                  const QByteArray &bytes,
+                                  const QString &filename,
+                                  const QString &contentType);
+    bool removeAttachment(Sentry *sentry, SentryAttachment *attachment);
+    bool clearAttachments(Sentry *sentry);
     bool startSession(Sentry *sentry);
     bool endSession(Sentry *sentry, int status);
     bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
@@ -67,6 +77,8 @@ signals:
     void initializedChanged();
 
 private:
+    friend class SentryAttachment;
+
     explicit SentryNativeSdk(QObject *parent = nullptr);
     ~SentryNativeSdk() override;
 
@@ -77,6 +89,11 @@ private:
                        const char *action,
                        const char *hookType = "event hooks") const;
     bool ensureInitialized(Sentry *sentry, const char *action) const;
+    void trackAttachment(SentryAttachment *attachment);
+    void detachAttachment(SentryAttachment *attachment);
+    void invalidateAttachments();
+    void setAttachmentFilename(SentryAttachment *attachment, const QString &filename);
+    void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
     void setInitialized(bool initialized);
 
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;
@@ -86,6 +103,7 @@ private:
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
     std::unique_ptr<SentryNativeCrashHookState> m_crashHookState;
     std::unique_ptr<SentryNativeValue> m_fingerprint;
+    QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;
 };

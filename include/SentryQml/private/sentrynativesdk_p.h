@@ -2,6 +2,7 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qvariant.h>
 
 #include <memory>
 
@@ -30,6 +31,7 @@ public:
     bool close();
     void detachSentry(Sentry *sentry);
 
+    bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
 
@@ -45,6 +47,7 @@ private:
     void setInitialized(bool initialized);
 
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;
+    std::unique_ptr<SentryNativeEventHookState> m_beforeBreadcrumbState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;

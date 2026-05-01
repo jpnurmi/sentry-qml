@@ -54,6 +54,28 @@ bool Sentry::close()
     return SentryNativeSdk::instance()->close();
 }
 
+bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
+{
+    return SentryNativeSdk::instance()->addBreadcrumb(this, breadcrumb);
+}
+
+bool Sentry::addBreadcrumb(const QString &message,
+                           const QString &category,
+                           const QString &type,
+                           const QString &level,
+                           const QVariantMap &data)
+{
+    QVariantMap breadcrumb;
+    breadcrumb.insert(QStringLiteral("message"), message);
+    breadcrumb.insert(QStringLiteral("category"), category);
+    breadcrumb.insert(QStringLiteral("type"), type);
+    breadcrumb.insert(QStringLiteral("level"), level);
+    if (!data.isEmpty()) {
+        breadcrumb.insert(QStringLiteral("data"), data);
+    }
+    return addBreadcrumb(breadcrumb);
+}
+
 QString Sentry::captureMessage(const QString &message, const QString &level)
 {
     return SentryNativeSdk::instance()->captureMessage(this, message, level);

@@ -153,6 +153,10 @@ sentry_value_t fromVariant(const QVariant &value)
 
 QJSValue toScriptValue(QJSEngine *engine, sentry_value_t event)
 {
+    if (!engine) {
+        return {};
+    }
+
     char *json = sentry_value_to_json(event);
     if (!json) {
         return {};
@@ -166,7 +170,7 @@ QJSValue toScriptValue(QJSEngine *engine, sentry_value_t event)
         return {};
     }
 
-    return engine->toScriptValue(document.object().toVariantMap());
+    return engine->toScriptValue(document.object());
 }
 
 int levelFromString(const QString &level)

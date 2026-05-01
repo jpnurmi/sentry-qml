@@ -459,6 +459,7 @@ bool SentryNativeSdk::close()
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
     m_onCrashState.reset();
+    m_fingerprint.clear();
     setInitialized(false);
     return true;
 }
@@ -687,7 +688,7 @@ bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerpr
         return false;
     }
 
-    sentry_set_fingerprints(fingerprintFromStringList(fingerprint));
+    m_fingerprint = fingerprint;
     return true;
 }
 
@@ -707,7 +708,7 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
         return false;
     }
 
-    sentry_remove_fingerprint();
+    m_fingerprint.clear();
     return true;
 }
 
@@ -928,6 +929,10 @@ QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, Sent
     if (!m_initialized) {
         sentry_value_decref(event);
         return {};
+    }
+
+    if (!m_fingerprint.isEmpty() && sentry_value_is_null(sentry_value_get_by_key(event, "fingerprint"))) {
+        sentry_value_set_by_key(event, "fingerprint", fingerprintFromStringList(m_fingerprint));
     }
 
     return SentryEvent::eventIdFromUuid(sentry_capture_event(event));

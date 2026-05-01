@@ -73,5 +73,6 @@ private:
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
     QMetaObject::Connection m_applicationShutdownConnection;
+    QStringList m_fingerprint;
     bool m_initialized = false;
 };

@@ -1,3 +1,4 @@
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qjsondocument.h>
@@ -13,6 +14,7 @@
 #include <QtTest/qtest.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <memory>
 
 class SentryQmlIntegrationTest : public QObject
@@ -315,6 +317,14 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(byteAttachment.payload, QByteArrayLiteral("integration bytes payload"));
 }
 
-QTEST_MAIN(SentryQmlIntegrationTest)
+int main(int argc, char *argv[])
+{
+    std::fputs("tst_integration: starting\n", stderr);
+    QCoreApplication app(argc, argv);
+    SentryQmlIntegrationTest test;
+    const int result = QTest::qExec(&test, argc, argv);
+    std::fprintf(stderr, "tst_integration: finished with %d\n", result);
+    return result;
+}
 
 #include "tst_integration.moc"

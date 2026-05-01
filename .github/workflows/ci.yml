@@ -118,3 +118,15 @@ jobs:
       - name: Dump CTest log
         if: failure()
         run: cmake -E cat build/Testing/Temporary/LastTest.log
+
+      - name: Dump QtTest unit log
+        if: failure() && hashFiles('build/tests/tst_unit.log') != ''
+        run: cmake -E cat build/tests/tst_unit.log
+
+      - name: Dump QtTest integration log
+        if: failure() && hashFiles('build/tests/tst_integration.log') != ''
+        run: cmake -E cat build/tests/tst_integration.log
+
+      - name: Dump QtTest crash log
+        if: failure() && hashFiles('build/tests/tst_crash.log') != ''
+        run: cmake -E cat build/tests/tst_crash.log

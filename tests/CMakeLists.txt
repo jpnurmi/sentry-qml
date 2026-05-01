@@ -28,7 +28,9 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    add_test(NAME ${target} COMMAND ${target} -o -,txt)
+    add_test(NAME ${target} COMMAND ${target}
+        -o "${CMAKE_CURRENT_BINARY_DIR}/${target}.log,txt"
+    )
 endfunction()
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)

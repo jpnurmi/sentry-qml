@@ -23,6 +23,7 @@
 
 #include <cassert>
 #include <csignal>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -203,6 +204,8 @@ public:
 
 int runCrashTarget(int argc, char *argv[])
 {
+    std::fputs("tst_crash: starting target\n", stderr);
+
     QCoreApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Sentry"));
     QCoreApplication::setApplicationName(QStringLiteral("Sentry QML Crash Test Target"));
@@ -308,13 +311,17 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 
 int main(int argc, char *argv[])
 {
+    std::fputs("tst_crash: starting\n", stderr);
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == QLatin1String("--crash")) {
         return runCrashTarget(argc, argv);
     }
 
     QCoreApplication app(argc, argv);
     SentryQmlCrashTest test;
-    return QTest::qExec(&test, argc, argv);
+    const int result = QTest::qExec(&test, argc, argv);
+    std::fprintf(stderr, "tst_crash: finished with %d\n", result);
+    return result;
 }
 
 #include "tst_crash.moc"

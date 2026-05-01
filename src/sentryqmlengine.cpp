@@ -164,7 +164,7 @@ void SentryQmlEngine::installWarningHandler()
                                                                    SentryEvent::stacktraceFromQmlError(warning, stackTrace),
                                                                    stackTrace.join(QLatin1Char('\n')),
                                                                    false);
-                SentryNativeSdk::instance()->captureEvent(event);
+                SentryNativeSdk::instance()->captureEvent(nullptr, event, SentryNativeCaptureMode::Automatic);
             }
         });
 }
@@ -212,7 +212,7 @@ QString SentryQmlEngine::captureException(const QJSValue &exception)
 
     sentry_value_t event = SentryEvent::exceptionEvent(
         type, value, SentryEvent::stacktraceFromQmlStack(stack), stack, true);
-    return SentryNativeSdk::instance()->captureEvent(event);
+    return SentryNativeSdk::instance()->captureEvent(m_sentry, event, SentryNativeCaptureMode::Manual);
 }
 
 void SentryQmlEngine::installThrowHook()

@@ -21,6 +21,7 @@ private slots:
     void capturesManualException();
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
+    void beforeSendCannotCaptureMessage();
 };
 
 void SentryQmlTest::importsQmlModule()
@@ -270,6 +271,70 @@ void SentryQmlTest::beforeSendCanDropMessage()
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("callbackCalled").toBool(), true);
     QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::beforeSendCannotCaptureMessage()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool callbackCalled: false
+            property bool initialized: false
+            property bool closed: false
+            property string eventId: ""
+            property string nestedEventId: ""
+            property string errorMessage: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    callbackCalled = true
+                    nestedEventId = Sentry.captureMessage("Nested message")
+                    return null
+                }
+            }
+
+            property Connections sentryConnections: Connections {
+                target: Sentry
+
+                function onErrorOccurred(message) {
+                    errorMessage = message
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                eventId = Sentry.captureMessage("Message from beforeSend test")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryBeforeSendNestedCaptureTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("callbackCalled").toBool(), true);
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("nestedEventId").toString(), QString());
+    QCOMPARE(object->property("errorMessage").toString(),
+             QStringLiteral("Sentry.capture* cannot be called from beforeSend or onCrash."));
     QCOMPARE(object->property("closed").toBool(), true);
 }
 

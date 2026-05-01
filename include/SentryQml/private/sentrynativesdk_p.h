@@ -11,6 +11,12 @@ class SentryOptions;
 union sentry_value_u;
 typedef sentry_value_u sentry_value_t;
 
+enum class SentryNativeCaptureMode
+{
+    Manual,
+    Automatic
+};
+
 class SentryNativeSdk : public QObject
 {
     Q_OBJECT
@@ -25,7 +31,7 @@ public:
     void detachSentry(Sentry *sentry);
 
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
-    QString captureEvent(sentry_value_t event);
+    QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
 
 signals:
     void initializedChanged();

@@ -566,6 +566,34 @@ bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
     return true;
 }
 
+bool SentryNativeSdk::setEnvironment(Sentry *sentry, const QString &environment)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setEnvironment cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting environments."));
+        }
+        return false;
+    }
+
+    if (environment.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry environment must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Environment = environment.toUtf8();
+    sentry_set_environment_n(utf8Environment.constData(), static_cast<size_t>(utf8Environment.size()));
+    return true;
+}
+
 bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (hookDepth > 0) {

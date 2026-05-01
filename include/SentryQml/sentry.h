@@ -23,6 +23,17 @@ class SENTRYQML_EXPORT Sentry : public QObject
     Q_PROPERTY(bool initialized READ isInitialized NOTIFY initializedChanged)
 
 public:
+    enum Level
+    {
+        Trace = -2,
+        Debug = -1,
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+        Fatal = 3
+    };
+    Q_ENUM(Level)
+
     explicit Sentry(QObject *parent = nullptr);
     ~Sentry() override;
 
@@ -39,6 +50,13 @@ public:
                        const QString &type = QStringLiteral("default"),
                        const QString &level = QStringLiteral("info"),
                        const QVariantMap &data = {});
+    Q_INVOKABLE bool log(Level level, const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool trace(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool debug(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool info(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool warn(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool error(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool fatal(const QString &message, const QVariantMap &attributes = {});
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
     Q_INVOKABLE QString captureException(const QJSValue &exception);
 

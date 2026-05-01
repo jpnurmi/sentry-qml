@@ -32,6 +32,7 @@ public:
     void detachSentry(Sentry *sentry);
 
     bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
+    bool log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
 
@@ -48,6 +49,7 @@ private:
 
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;
     std::unique_ptr<SentryNativeEventHookState> m_beforeBreadcrumbState;
+    std::unique_ptr<SentryNativeEventHookState> m_beforeSendLogState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;

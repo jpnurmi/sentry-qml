@@ -144,6 +144,11 @@ sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userDat
     return invokeValueHook(breadcrumb, static_cast<SentryNativeEventHookState *>(userData));
 }
 
+sentry_value_t beforeSendLogCallback(sentry_value_t log, void *userData)
+{
+    return invokeValueHook(log, static_cast<SentryNativeEventHookState *>(userData));
+}
+
 QString levelNameFromString(const QString &level)
 {
     switch (SentryEvent::levelFromString(level)) {
@@ -203,6 +208,26 @@ sentry_value_t breadcrumbFromVariantMap(const QVariantMap &breadcrumb)
     }
 
     return nativeBreadcrumb;
+}
+
+sentry_level_t logLevelFromInt(int level)
+{
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return SENTRY_LEVEL_TRACE;
+    case SENTRY_LEVEL_DEBUG:
+        return SENTRY_LEVEL_DEBUG;
+    case SENTRY_LEVEL_INFO:
+        return SENTRY_LEVEL_INFO;
+    case SENTRY_LEVEL_WARNING:
+        return SENTRY_LEVEL_WARNING;
+    case SENTRY_LEVEL_ERROR:
+        return SENTRY_LEVEL_ERROR;
+    case SENTRY_LEVEL_FATAL:
+        return SENTRY_LEVEL_FATAL;
+    default:
+        return SENTRY_LEVEL_INFO;
+    }
 }
 
 } // namespace
@@ -270,6 +295,12 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    std::unique_ptr<SentryNativeEventHookState> beforeSendLogState;
+    if (!createEventHookState(
+            sentry, options, options->beforeSendLog(), QStringLiteral("beforeSendLog"), true, &beforeSendLogState)) {
+        return false;
+    }
+
     std::unique_ptr<SentryNativeEventHookState> beforeSendState;
     if (!createEventHookState(
             sentry, options, options->beforeSend(), QStringLiteral("beforeSend"), true, &beforeSendState)) {
@@ -291,6 +322,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     setUtf8Option(options->environment(), sentry_options_set_environment_n, nativeOptions);
     setUtf8Option(options->dist(), sentry_options_set_dist_n, nativeOptions);
     sentry_options_set_debug(nativeOptions, options->debug() ? 1 : 0);
+    sentry_options_set_enable_logs(nativeOptions, options->enableLogs() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
@@ -298,6 +330,10 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
 
     if (beforeBreadcrumbState) {
         sentry_options_set_before_breadcrumb(nativeOptions, beforeBreadcrumbCallback, beforeBreadcrumbState.get());
+    }
+
+    if (beforeSendLogState) {
+        sentry_options_set_before_send_log(nativeOptions, beforeSendLogCallback, beforeSendLogState.get());
     }
 
     if (beforeSendState) {
@@ -324,6 +360,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     const int result = sentry_init(nativeOptions);
     if (result != 0) {
         beforeBreadcrumbState.reset();
+        beforeSendLogState.reset();
         beforeSendState.reset();
         onCrashState.reset();
         emit sentry->errorOccurred(QStringLiteral("sentry_init failed with code %1.").arg(result));
@@ -331,6 +368,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     }
 
     m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
+    m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     setInitialized(true);
@@ -357,6 +395,7 @@ bool SentryNativeSdk::close()
     QObject::disconnect(m_applicationShutdownConnection);
     m_applicationShutdownConnection = {};
     m_beforeBreadcrumbState.reset();
+    m_beforeSendLogState.reset();
     m_beforeSendState.reset();
     m_onCrashState.reset();
     setInitialized(false);
@@ -394,6 +433,7 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
 
     detach(m_beforeSendState);
     detach(m_beforeBreadcrumbState);
+    detach(m_beforeSendLogState);
     detach(m_onCrashState);
 }
 
@@ -422,6 +462,38 @@ bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrum
 
     sentry_add_breadcrumb(breadcrumbFromVariantMap(breadcrumb));
     return true;
+}
+
+bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.log cannot be called from Sentry hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before logging."));
+        }
+        return false;
+    }
+
+    if (message.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry log message must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray body = message.toUtf8();
+    const log_return_value_t result
+        = sentry_log(logLevelFromInt(level), body.constData(), SentryEvent::attributesFromVariantMap(attributes));
+    if (result == SENTRY_LOG_RETURN_FAILED && sentry) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry log could not be queued."));
+    }
+    return result == SENTRY_LOG_RETURN_SUCCESS;
 }
 
 QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)

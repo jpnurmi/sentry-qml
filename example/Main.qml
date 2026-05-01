@@ -204,6 +204,20 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Send Log")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.info("Example structured log", {
+                        "example.message": messageField.text
+                    })
+                    statusLabel.text = ok
+                        ? qsTr("Log queued")
+                        : qsTr("Log was not queued")
+                }
+            }
+
+            Button {
                 text: qsTr("Crash")
                 enabled: Sentry.initialized
 

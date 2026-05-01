@@ -1,8 +1,10 @@
 #pragma once
 
+#include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryqmlglobal.h>
 
+#include <QtCore/qbytearray.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
@@ -72,6 +74,12 @@ public:
     Q_INVOKABLE bool removeContext(const QString &key);
     Q_INVOKABLE bool setFingerprint(const QStringList &fingerprint);
     Q_INVOKABLE bool removeFingerprint();
+    Q_INVOKABLE SentryAttachment *attachFile(const QString &path, const QString &contentType = QString());
+    Q_INVOKABLE SentryAttachment *attachBytes(const QByteArray &bytes,
+                                              const QString &filename,
+                                              const QString &contentType = QString());
+    Q_INVOKABLE bool removeAttachment(SentryAttachment *attachment);
+    Q_INVOKABLE bool clearAttachments();
     Q_INVOKABLE bool startSession();
     Q_INVOKABLE bool endSession();
     Q_INVOKABLE bool endSession(SessionStatus status);

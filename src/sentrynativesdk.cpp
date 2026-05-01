@@ -3,6 +3,7 @@
 #include <SentryQml/private/sentryevent_p.h>
 
 #include <SentryQml/sentry.h>
+#include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryuser.h>
 
@@ -499,6 +500,7 @@ bool SentryNativeSdk::close()
     m_crashHookState.reset();
     m_onCrashState.reset();
     m_fingerprint->reset();
+    invalidateAttachments();
     setInitialized(false);
     return true;
 }
@@ -734,6 +736,180 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
 
     m_fingerprint->reset();
     sentry_remove_fingerprint();
+    return true;
+}
+
+SentryAttachment *SentryNativeSdk::attachFile(Sentry *sentry, const QString &path, const QString &contentType)
+{
+    if (!ensureCanCall(sentry, "attachFile", "attaching files")) {
+        return nullptr;
+    }
+
+    if (path.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry attachment path must not be empty."));
+        }
+        return nullptr;
+    }
+
+    sentry_attachment_t *attachment = nullptr;
+    const QString nativePath = QDir::toNativeSeparators(path);
+#if defined(Q_OS_WIN)
+    const std::wstring widePath = nativePath.toStdWString();
+    attachment = sentry_attach_filew_n(widePath.c_str(), widePath.size());
+#else
+    const QByteArray encodedPath = QFile::encodeName(nativePath);
+    attachment = sentry_attach_file_n(encodedPath.constData(), static_cast<size_t>(encodedPath.size()));
+#endif
+
+    if (!attachment) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry file attachment could not be added."));
+        }
+        return nullptr;
+    }
+
+    auto *wrapper = new SentryAttachment(attachment, sentry);
+    if (!contentType.isEmpty()) {
+        wrapper->setContentType(contentType);
+    }
+    trackAttachment(wrapper);
+    return wrapper;
+}
+
+SentryAttachment *SentryNativeSdk::attachBytes(Sentry *sentry,
+                                              const QByteArray &bytes,
+                                              const QString &filename,
+                                              const QString &contentType)
+{
+    if (!ensureCanCall(sentry, "attachBytes", "attaching bytes")) {
+        return nullptr;
+    }
+
+    if (bytes.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry byte attachment must not be empty."));
+        }
+        return nullptr;
+    }
+
+    if (filename.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry byte attachment filename must not be empty."));
+        }
+        return nullptr;
+    }
+
+    sentry_attachment_t *attachment = nullptr;
+#if defined(Q_OS_WIN)
+    const std::wstring wideFilename = filename.toStdWString();
+    attachment = sentry_attach_bytesw_n(
+        bytes.constData(), static_cast<size_t>(bytes.size()), wideFilename.c_str(), wideFilename.size());
+#else
+    const QByteArray encodedFilename = QFile::encodeName(filename);
+    attachment = sentry_attach_bytes_n(bytes.constData(),
+                                       static_cast<size_t>(bytes.size()),
+                                       encodedFilename.constData(),
+                                       static_cast<size_t>(encodedFilename.size()));
+#endif
+
+    if (!attachment) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry byte attachment could not be added."));
+        }
+        return nullptr;
+    }
+
+    auto *wrapper = new SentryAttachment(attachment, sentry);
+    wrapper->setFilename(filename);
+    if (!contentType.isEmpty()) {
+        wrapper->setContentType(contentType);
+    }
+    trackAttachment(wrapper);
+    return wrapper;
+}
+
+bool SentryNativeSdk::clearAttachments(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "clearAttachments", "clearing attachments")) {
+        return false;
+    }
+
+    sentry_clear_attachments();
+    invalidateAttachments();
+    return true;
+}
+
+void SentryNativeSdk::trackAttachment(SentryAttachment *attachment)
+{
+    if (!attachment) {
+        return;
+    }
+
+    m_attachments.append(attachment);
+}
+
+void SentryNativeSdk::detachAttachment(SentryAttachment *attachment)
+{
+    m_attachments.removeAll(attachment);
+}
+
+void SentryNativeSdk::invalidateAttachments()
+{
+    const QList<SentryAttachment *> attachments = m_attachments;
+    m_attachments.clear();
+    for (SentryAttachment *attachment : attachments) {
+        if (attachment) {
+            attachment->invalidate();
+        }
+    }
+}
+
+void SentryNativeSdk::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
+{
+    if (!attachment || !attachment->handle()) {
+        return;
+    }
+
+    auto *handle = static_cast<sentry_attachment_t *>(attachment->handle());
+#if defined(Q_OS_WIN)
+    const std::wstring wideFilename = filename.toStdWString();
+    sentry_attachment_set_filenamew_n(handle, wideFilename.c_str(), wideFilename.size());
+#else
+    const QByteArray encodedFilename = QFile::encodeName(filename);
+    sentry_attachment_set_filename_n(
+        handle, encodedFilename.constData(), static_cast<size_t>(encodedFilename.size()));
+#endif
+}
+
+void SentryNativeSdk::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
+{
+    if (!attachment || !attachment->handle()) {
+        return;
+    }
+
+    const QByteArray utf8ContentType = contentType.toUtf8();
+    sentry_attachment_set_content_type_n(static_cast<sentry_attachment_t *>(attachment->handle()),
+                                         utf8ContentType.constData(),
+                                         static_cast<size_t>(utf8ContentType.size()));
+}
+
+bool SentryNativeSdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
+{
+    if (!ensureCanCall(sentry, "removeAttachment", "removing attachments")) {
+        return false;
+    }
+
+    if (!attachment || !attachment->handle()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry attachment is not valid."));
+        }
+        return false;
+    }
+
+    sentry_remove_attachment(static_cast<sentry_attachment_t *>(attachment->handle()));
+    detachAttachment(attachment);
+    attachment->invalidate();
     return true;
 }
 

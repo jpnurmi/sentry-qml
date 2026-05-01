@@ -2,6 +2,7 @@
 #include <SentryQml/sentryoptions.h>
 
 #include <QtCore/qdir.h>
+#include <QtCore/qfile.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtNetwork/qhostaddress.h>
@@ -29,6 +30,7 @@ private slots:
     void setsTags();
     void setsContexts();
     void setsFingerprint();
+    void attachesFilesAndBytes();
     void tracksSessions();
     void addsBreadcrumbs();
     void sendsLogs();
@@ -666,6 +668,121 @@ void SentryQmlTest::setsFingerprint()
     QCOMPARE(object->property("firstEventId").toString(), QString());
     QCOMPARE(object->property("secondEventId").toString(), QString());
     QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::attachesFilesAndBytes()
+{
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    const QString attachmentPath = QDir(temporaryDir.path()).filePath(QStringLiteral("diagnostic.log"));
+    QFile attachmentFile(attachmentPath);
+    QVERIFY(attachmentFile.open(QIODevice::WriteOnly));
+    QCOMPARE(attachmentFile.write("file attachment payload"), qint64(23));
+    attachmentFile.close();
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    engine.rootContext()->setContextProperty(QStringLiteral("testAttachmentPath"), attachmentPath);
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool removedAttached: false
+            property bool removed: false
+            property bool removedInvalidated: false
+            property bool clearedAttached: false
+            property bool cleared: false
+            property bool clearedInvalidated: false
+            property bool fileAttached: false
+            property bool bytesAttached: false
+            property bool fileInvalidated: false
+            property bool bytesInvalidated: false
+            property bool flushed: false
+            property bool closed: false
+            property string eventId: ""
+            property var removedAttachment: null
+            property var clearedAttachment: null
+            property var fileAttachment: null
+            property var bytesAttachment: null
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                autoSessionTracking: false
+                shutdownTimeout: 2000
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                removedAttachment = Sentry.attachBytes("removed attachment payload", "removed.txt", "text/plain")
+                removedAttached = !!removedAttachment && removedAttachment.valid
+                removed = Sentry.removeAttachment(removedAttachment)
+                removedInvalidated = !!removedAttachment && !removedAttachment.valid
+                clearedAttachment = Sentry.attachBytes("cleared attachment payload", "cleared.txt", "text/plain")
+                clearedAttached = !!clearedAttachment && clearedAttachment.valid
+                cleared = Sentry.clearAttachments()
+                clearedInvalidated = !!clearedAttachment && !clearedAttachment.valid
+                fileAttachment = Sentry.attachFile(testAttachmentPath, "text/plain")
+                fileAttached = !!fileAttachment && fileAttachment.valid
+                bytesAttachment = Sentry.attachBytes("inline attachment payload", "inline.tmp", "application/octet-stream")
+                bytesAttachment.filename = "inline.txt"
+                bytesAttachment.contentType = "text/plain"
+                bytesAttached = !!bytesAttachment && bytesAttachment.valid
+                eventId = Sentry.captureMessage("Attachment event")
+                flushed = Sentry.flush(2000)
+                closed = Sentry.close()
+                fileInvalidated = !!fileAttachment && !fileAttachment.valid
+                bytesInvalidated = !!bytesAttachment && !bytesAttachment.valid
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryAttachmentTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("removedAttached").toBool(), true);
+    QCOMPARE(object->property("removed").toBool(), true);
+    QCOMPARE(object->property("removedInvalidated").toBool(), true);
+    QCOMPARE(object->property("clearedAttached").toBool(), true);
+    QCOMPARE(object->property("cleared").toBool(), true);
+    QCOMPARE(object->property("clearedInvalidated").toBool(), true);
+    QCOMPARE(object->property("fileAttached").toBool(), true);
+    QCOMPARE(object->property("bytesAttached").toBool(), true);
+    QCOMPARE(object->property("eventId").toString().size(), 36);
+    QCOMPARE(object->property("flushed").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
+    QCOMPARE(object->property("fileInvalidated").toBool(), true);
+    QCOMPARE(object->property("bytesInvalidated").toBool(), true);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
+    const QByteArray body = server.body();
+    QVERIFY(body.contains("Attachment event"));
+    QVERIFY(body.contains("\"type\":\"attachment\""));
+    QVERIFY(body.contains("\"filename\":\"diagnostic.log\""));
+    QVERIFY(body.contains("\"filename\":\"inline.txt\""));
+    QVERIFY(body.contains("\"content_type\":\"text/plain\""));
+    QVERIFY(body.contains("file attachment payload"));
+    QVERIFY(body.contains("inline attachment payload"));
+    QVERIFY(!body.contains("removed.txt"));
+    QVERIFY(!body.contains("removed attachment payload"));
+    QVERIFY(!body.contains("cleared.txt"));
+    QVERIFY(!body.contains("cleared attachment payload"));
 }
 
 void SentryQmlTest::tracksSessions()

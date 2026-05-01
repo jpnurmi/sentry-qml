@@ -60,6 +60,12 @@ struct SentryNativeValue
         value = newValue;
     }
 
+    sentry_value_t ref() const
+    {
+        sentry_value_incref(value);
+        return value;
+    }
+
     sentry_value_t value;
 };
 
@@ -974,8 +980,7 @@ QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, Sent
         return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
     }
 
-    sentry_value_incref(m_fingerprint->value);
-    sentry_scope_set_fingerprints(scope, m_fingerprint->value);
+    sentry_scope_set_fingerprints(scope, m_fingerprint->ref());
     return SentryEvent::eventIdFromUuid(sentry_capture_event_with_scope(event, scope));
 }
 
@@ -985,8 +990,7 @@ void SentryNativeSdk::applyFingerprintToEvent(sentry_value_t event) const
         return;
     }
 
-    sentry_value_incref(m_fingerprint->value);
-    sentry_value_set_by_key(event, "fingerprint", m_fingerprint->value);
+    sentry_value_set_by_key(event, "fingerprint", m_fingerprint->ref());
 }
 
 void SentryNativeSdk::setInitialized(bool initialized)

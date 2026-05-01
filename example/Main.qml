@@ -33,6 +33,10 @@ ApplicationWindow {
         release: releaseField.text
         environment: environmentField.text
         debug: debugCheckBox.checked
+        user: SentryUser {
+            userId: "example-user"
+            username: "qml"
+        }
         beforeSend: function(event) {
             console.log("### beforeSend");
             event.extra = event.extra || {}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SentryQml/sentryqmlglobal.h>
+#include <SentryQml/sentryuser.h>
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
@@ -17,6 +18,7 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(QString release READ release WRITE setRelease NOTIFY releaseChanged)
     Q_PROPERTY(QString environment READ environment WRITE setEnvironment NOTIFY environmentChanged)
     Q_PROPERTY(QString dist READ dist WRITE setDist NOTIFY distChanged)
+    Q_PROPERTY(SentryUser *user READ user WRITE setUser NOTIFY userChanged)
     Q_PROPERTY(bool debug READ debug WRITE setDebug NOTIFY debugChanged)
     Q_PROPERTY(bool enableLogs READ enableLogs WRITE setEnableLogs NOTIFY enableLogsChanged)
     Q_PROPERTY(bool enableMetrics READ enableMetrics WRITE setEnableMetrics NOTIFY enableMetricsChanged)
@@ -46,6 +48,9 @@ public:
 
     QString dist() const;
     void setDist(const QString &dist);
+
+    SentryUser *user() const;
+    void setUser(SentryUser *user);
 
     bool debug() const;
     void setDebug(bool debug);
@@ -86,6 +91,7 @@ signals:
     void releaseChanged();
     void environmentChanged();
     void distChanged();
+    void userChanged();
     void debugChanged();
     void enableLogsChanged();
     void enableMetricsChanged();
@@ -104,6 +110,7 @@ private:
     QString m_release;
     QString m_environment;
     QString m_dist;
+    SentryUser *m_user = nullptr;
     bool m_debug = false;
     bool m_enableLogs = true;
     bool m_enableMetrics = true;

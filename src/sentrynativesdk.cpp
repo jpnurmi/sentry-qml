@@ -4,6 +4,7 @@
 
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryoptions.h>
+#include <SentryQml/sentryuser.h>
 
 #include <include/sentry.h>
 
@@ -414,6 +415,10 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
+    const SentryUser *user = options->user();
+    if (user && !user->isEmpty()) {
+        sentry_set_user(SentryEvent::fromVariant(user->toVariantMap()));
+    }
     setInitialized(true);
     connectToApplicationShutdown();
     return true;

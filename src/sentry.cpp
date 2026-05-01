@@ -66,6 +66,16 @@ bool Sentry::removeTag(const QString &key)
     return SentryNativeSdk::instance()->removeTag(this, key);
 }
 
+bool Sentry::setContext(const QString &key, const QVariantMap &context)
+{
+    return SentryNativeSdk::instance()->setContext(this, key, context);
+}
+
+bool Sentry::removeContext(const QString &key)
+{
+    return SentryNativeSdk::instance()->removeContext(this, key);
+}
+
 bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
 {
     return SentryNativeSdk::instance()->addBreadcrumb(this, breadcrumb);

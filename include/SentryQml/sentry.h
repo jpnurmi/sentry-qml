@@ -54,6 +54,8 @@ public:
     Q_INVOKABLE bool close();
     Q_INVOKABLE bool setTag(const QString &key, const QString &value);
     Q_INVOKABLE bool removeTag(const QString &key);
+    Q_INVOKABLE bool setContext(const QString &key, const QVariantMap &context);
+    Q_INVOKABLE bool removeContext(const QString &key);
     Q_INVOKABLE bool addBreadcrumb(const QVariantMap &breadcrumb);
     bool addBreadcrumb(const QString &message,
                        const QString &category = QString(),

@@ -23,6 +23,7 @@ private slots:
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
     void setsTags();
+    void setsContexts();
     void addsBreadcrumbs();
     void sendsLogs();
     void sendsMetrics();
@@ -264,6 +265,83 @@ void SentryQmlTest::setsTags()
     QCOMPARE(object->property("beforeSendCalled").toBool(), true);
     QCOMPARE(object->property("screenTag").toString(), QStringLiteral("settings"));
     QCOMPARE(object->property("removedTag").toString(), QString());
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::setsContexts()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool qmlSet: false
+            property bool removedSet: false
+            property bool removed: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property string screen: ""
+            property int retries: -1
+            property bool nested: false
+            property bool removedContextPresent: false
+            property string eventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    const contexts = event.contexts || {}
+                    const qml = contexts.qml || {}
+                    screen = qml.screen || ""
+                    retries = qml.retries || 0
+                    nested = !!(qml.nested && qml.nested.enabled)
+                    removedContextPresent = !!contexts.removed
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                qmlSet = Sentry.setContext("qml", {
+                    screen: "settings",
+                    retries: 3,
+                    nested: { enabled: true }
+                })
+                removedSet = Sentry.setContext("removed", { value: true })
+                removed = Sentry.removeContext("removed")
+                eventId = Sentry.captureMessage("Context event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryContextsTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("qmlSet").toBool(), true);
+    QCOMPARE(object->property("removedSet").toBool(), true);
+    QCOMPARE(object->property("removed").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("screen").toString(), QStringLiteral("settings"));
+    QCOMPARE(object->property("retries").toInt(), 3);
+    QCOMPARE(object->property("nested").toBool(), true);
+    QCOMPARE(object->property("removedContextPresent").toBool(), false);
     QCOMPARE(object->property("eventId").toString(), QString());
     QCOMPARE(object->property("closed").toBool(), true);
 }

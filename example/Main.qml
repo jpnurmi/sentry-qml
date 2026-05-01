@@ -157,6 +157,18 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set Tag")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setTag("example.environment", environmentField.text)
+                    statusLabel.text = ok
+                        ? qsTr("Tag set")
+                        : qsTr("Tag was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Capture Message")
                 enabled: Sentry.initialized
 

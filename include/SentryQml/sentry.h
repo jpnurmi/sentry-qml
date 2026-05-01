@@ -52,6 +52,8 @@ public:
     Q_INVOKABLE bool init(SentryOptions *options);
     Q_INVOKABLE bool flush(int timeoutMs = 2000);
     Q_INVOKABLE bool close();
+    Q_INVOKABLE bool setTag(const QString &key, const QString &value);
+    Q_INVOKABLE bool removeTag(const QString &key);
     Q_INVOKABLE bool addBreadcrumb(const QVariantMap &breadcrumb);
     bool addBreadcrumb(const QString &message,
                        const QString &category = QString(),

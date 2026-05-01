@@ -128,6 +128,21 @@ private:
     QList<QByteArray> m_bodies;
 };
 
+QByteArray clipped(const QByteArray &data)
+{
+    constexpr qsizetype limit = 8192;
+    if (data.size() <= limit) {
+        return data;
+    }
+    return data.left(limit) + "\n... truncated ...\n";
+}
+
+QByteArray missingCrashEnvelopeDiagnostics(const QByteArray &output, const QByteArray &body)
+{
+    return QByteArrayLiteral("child output:\n") + clipped(output)
+        + QByteArrayLiteral("\nserver body:\n") + clipped(body);
+}
+
 void triggerSegfault()
 {
 #if defined(SENTRY_QML_CRASH_TEST_ASAN_ACTIVE)
@@ -295,7 +310,9 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
     const QByteArray output = process.readAllStandardOutput() + process.readAllStandardError();
     QVERIFY2(process.exitStatus() == QProcess::CrashExit || process.exitCode() != 0, output.constData());
 
-    QTRY_VERIFY_WITH_TIMEOUT(server.contains("sentry-qml@crash"), 15000);
+    QTRY_VERIFY2_WITH_TIMEOUT(server.contains("sentry-qml@crash"),
+                              missingCrashEnvelopeDiagnostics(output, server.combinedBody()).constData(),
+                              15000);
 
     const QByteArray body = server.combinedBody();
     QVERIFY(body.contains("\"type\":\"event\""));

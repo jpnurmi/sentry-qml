@@ -22,6 +22,23 @@ qt_add_qml_module(SentryQml
         sentryuser.cpp
 )
 
+get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
+if(SENTRY_QML_MULTI_CONFIG AND TARGET SentryQmlplugin)
+    set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
+    add_custom_command(TARGET SentryQmlplugin POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${sentry_qml_module_output_dir}"
+            "${sentry_qml_module_output_dir}/$<CONFIG>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SentryQmlplugin>"
+            "${sentry_qml_module_output_dir}/$<TARGET_FILE_NAME:SentryQmlplugin>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SentryQmlplugin>"
+            "${sentry_qml_module_output_dir}/$<CONFIG>/$<TARGET_FILE_NAME:SentryQmlplugin>"
+        VERBATIM
+    )
+endif()
+
 target_include_directories(SentryQml
     PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"

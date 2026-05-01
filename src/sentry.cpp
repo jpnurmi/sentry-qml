@@ -86,6 +86,16 @@ bool Sentry::removeContext(const QString &key)
     return SentryNativeSdk::instance()->removeContext(this, key);
 }
 
+bool Sentry::setFingerprint(const QStringList &fingerprint)
+{
+    return SentryNativeSdk::instance()->setFingerprint(this, fingerprint);
+}
+
+bool Sentry::removeFingerprint()
+{
+    return SentryNativeSdk::instance()->removeFingerprint(this);
+}
+
 bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
 {
     return SentryNativeSdk::instance()->addBreadcrumb(this, breadcrumb);

@@ -5,6 +5,7 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qstringlist.h>
 #include <QtCore/qvariant.h>
 #include <QtQml/qjsengine.h>
 #include <QtQml/qjsvalue.h>
@@ -58,6 +59,8 @@ public:
     Q_INVOKABLE bool removeTag(const QString &key);
     Q_INVOKABLE bool setContext(const QString &key, const QVariantMap &context);
     Q_INVOKABLE bool removeContext(const QString &key);
+    Q_INVOKABLE bool setFingerprint(const QStringList &fingerprint);
+    Q_INVOKABLE bool removeFingerprint();
     Q_INVOKABLE bool addBreadcrumb(const QVariantMap &breadcrumb);
     bool addBreadcrumb(const QString &message,
                        const QString &category = QString(),

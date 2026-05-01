@@ -2,12 +2,15 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qstringlist.h>
 #include <QtCore/qvariant.h>
 
 #include <memory>
 
 class Sentry;
 struct SentryNativeEventHookState;
+struct SentryNativeCrashHookState;
+struct SentryNativeValue;
 class SentryOptions;
 union sentry_value_u;
 typedef sentry_value_u sentry_value_t;
@@ -37,6 +40,8 @@ public:
     bool removeTag(Sentry *sentry, const QString &key);
     bool setContext(Sentry *sentry, const QString &key, const QVariantMap &context);
     bool removeContext(Sentry *sentry, const QString &key);
+    bool setFingerprint(Sentry *sentry, const QStringList &fingerprint);
+    bool removeFingerprint(Sentry *sentry);
     bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
     bool log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes);
     bool count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes);
@@ -52,6 +57,7 @@ public:
                       const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
+    void applyFingerprintToEvent(sentry_value_t event) const;
 
 signals:
     void initializedChanged();
@@ -69,6 +75,8 @@ private:
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendLogState;
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
+    std::unique_ptr<SentryNativeCrashHookState> m_crashHookState;
+    std::unique_ptr<SentryNativeValue> m_fingerprint;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;
 };

@@ -25,6 +25,7 @@ private slots:
     void setsUser();
     void setsTags();
     void setsContexts();
+    void setsFingerprint();
     void addsBreadcrumbs();
     void sendsLogs();
     void sendsMetrics();
@@ -453,6 +454,96 @@ void SentryQmlTest::setsContexts()
     QCOMPARE(object->property("nested").toBool(), true);
     QCOMPARE(object->property("removedContextPresent").toBool(), false);
     QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::setsFingerprint()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool fingerprintSet: false
+            property bool removed: false
+            property bool secondHasFingerprint: true
+            property bool closed: false
+            property int beforeSendCount: 0
+            property int fingerprintCount: -1
+            property string defaultFingerprint: ""
+            property string customFingerprint: ""
+            property string lastFingerprint: ""
+            property string firstEventId: ""
+            property string secondEventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    beforeSendCount += 1
+                    if (beforeSendCount === 1) {
+                        const fingerprint = event.fingerprint || []
+                        fingerprintCount = fingerprint.length
+                        defaultFingerprint = fingerprint[0] || ""
+                        customFingerprint = fingerprint[1] || ""
+                        lastFingerprint = fingerprint[fingerprint.length - 1] || ""
+                    } else if (beforeSendCount === 2) {
+                        secondHasFingerprint = !!event.fingerprint
+                    }
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                fingerprintSet = Sentry.setFingerprint([
+                    "{{ default }}",
+                    "qml",
+                    "part-3",
+                    "part-4",
+                    "part-5",
+                    "part-6",
+                    "part-7",
+                    "part-8",
+                    "part-9",
+                    "part-10",
+                    "part-11"
+                ])
+                firstEventId = Sentry.captureMessage("Fingerprint event")
+                removed = Sentry.removeFingerprint()
+                secondEventId = Sentry.captureMessage("No fingerprint event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryFingerprintTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("fingerprintSet").toBool(), true);
+    QCOMPARE(object->property("removed").toBool(), true);
+    QCOMPARE(object->property("beforeSendCount").toInt(), 2);
+    QCOMPARE(object->property("fingerprintCount").toInt(), 11);
+    QCOMPARE(object->property("defaultFingerprint").toString(), QStringLiteral("{{ default }}"));
+    QCOMPARE(object->property("customFingerprint").toString(), QStringLiteral("qml"));
+    QCOMPARE(object->property("lastFingerprint").toString(), QStringLiteral("part-11"));
+    QCOMPARE(object->property("secondHasFingerprint").toBool(), false);
+    QCOMPARE(object->property("firstEventId").toString(), QString());
+    QCOMPARE(object->property("secondEventId").toString(), QString());
     QCOMPARE(object->property("closed").toBool(), true);
 }
 

@@ -33,6 +33,17 @@ public:
 
     bool addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb);
     bool log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes);
+    bool count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes);
+    bool gauge(Sentry *sentry,
+               const QString &name,
+               double value,
+               const QString &unit,
+               const QVariantMap &attributes);
+    bool distribution(Sentry *sentry,
+                      const QString &name,
+                      double value,
+                      const QString &unit,
+                      const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
 
@@ -50,6 +61,7 @@ private:
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendState;
     std::unique_ptr<SentryNativeEventHookState> m_beforeBreadcrumbState;
     std::unique_ptr<SentryNativeEventHookState> m_beforeSendLogState;
+    std::unique_ptr<SentryNativeEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentryNativeEventHookState> m_onCrashState;
     QMetaObject::Connection m_applicationShutdownConnection;
     bool m_initialized = false;

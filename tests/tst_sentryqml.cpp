@@ -24,6 +24,7 @@ private slots:
     void sendsEnvelopeWithQtTransport();
     void addsBreadcrumbs();
     void sendsLogs();
+    void sendsMetrics();
     void capturesManualException();
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
@@ -124,6 +125,9 @@ void SentryQmlTest::importsQmlModule()
                 && Sentry.Warning === 1
                 && Sentry.Error === 2
                 && Sentry.Fatal === 3
+            property bool metricsReady: Sentry.Count === 0
+                && Sentry.Gauge === 1
+                && Sentry.Distribution === 2
 
             Component.onCompleted: {
                 options.shutdownTimeout = 100
@@ -139,6 +143,7 @@ void SentryQmlTest::importsQmlModule()
     const std::unique_ptr<QObject> object(component.create());
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("levelsReady").toBool(), true);
+    QCOMPARE(object->property("metricsReady").toBool(), true);
 }
 
 void SentryQmlTest::initializesAndCapturesMessage()
@@ -378,6 +383,98 @@ void SentryQmlTest::sendsLogs()
     QVERIFY(server.body().contains("settings"));
     QVERIFY(server.body().contains("qml.test.duration"));
     QVERIFY(server.body().contains("millisecond"));
+    QVERIFY(server.body().contains("qml.test.hook"));
+}
+
+void SentryQmlTest::sendsMetrics()
+{
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool beforeSendMetricCalled: false
+            property bool genericMetric: false
+            property bool counted: false
+            property bool gauged: false
+            property bool distributed: false
+            property bool closed: false
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                enableMetrics: true
+                shutdownTimeout: 2000
+                beforeSendMetric: function(metric) {
+                    beforeSendMetricCalled = true
+                    metric.attributes["qml.test.hook"] = {
+                        type: "boolean",
+                        value: true
+                    }
+                    return metric
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                genericMetric = Sentry.metric(Sentry.Count, "qml.test.generic", 2, "", {
+                    "qml.test.screen": "settings"
+                })
+                counted = Sentry.count("qml.test.clicks", 3, {
+                    "qml.test.screen": "settings"
+                })
+                gauged = Sentry.gauge("qml.test.active_items", 4, "item", {
+                    "qml.test.screen": "settings"
+                })
+                distributed = Sentry.distribution("qml.test.duration", 12.5, "millisecond", {
+                    "qml.test.operation": "load"
+                })
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryMetricTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("beforeSendMetricCalled").toBool(), true);
+    QCOMPARE(object->property("genericMetric").toBool(), true);
+    QCOMPARE(object->property("counted").toBool(), true);
+    QCOMPARE(object->property("gauged").toBool(), true);
+    QCOMPARE(object->property("distributed").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
+    QVERIFY(server.body().contains("trace_metric"));
+    QVERIFY(server.body().contains("qml.test.generic"));
+    QVERIFY(server.body().contains("qml.test.clicks"));
+    QVERIFY(server.body().contains("counter"));
+    QVERIFY(server.body().contains("qml.test.active_items"));
+    QVERIFY(server.body().contains("gauge"));
+    QVERIFY(server.body().contains("item"));
+    QVERIFY(server.body().contains("qml.test.duration"));
+    QVERIFY(server.body().contains("distribution"));
+    QVERIFY(server.body().contains("millisecond"));
+    QVERIFY(server.body().contains("qml.test.operation"));
     QVERIFY(server.body().contains("qml.test.hook"));
 }
 

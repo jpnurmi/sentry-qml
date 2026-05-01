@@ -18,6 +18,7 @@
 #include <QtQml/qjsvalue.h>
 
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 #ifndef SENTRY_QML_SDK_NAME
@@ -149,6 +150,11 @@ sentry_value_t beforeSendLogCallback(sentry_value_t log, void *userData)
     return invokeValueHook(log, static_cast<SentryNativeEventHookState *>(userData));
 }
 
+sentry_value_t beforeSendMetricCallback(sentry_value_t metric, void *userData)
+{
+    return invokeValueHook(metric, static_cast<SentryNativeEventHookState *>(userData));
+}
+
 QString levelNameFromString(const QString &level)
 {
     switch (SentryEvent::levelFromString(level)) {
@@ -230,6 +236,14 @@ sentry_level_t logLevelFromInt(int level)
     }
 }
 
+bool checkMetricResult(Sentry *sentry, sentry_metrics_result_t result)
+{
+    if (result == SENTRY_METRICS_RESULT_FAILED && sentry) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry metric could not be queued."));
+    }
+    return result == SENTRY_METRICS_RESULT_SUCCESS;
+}
+
 } // namespace
 
 SentryNativeSdk *SentryNativeSdk::instance()
@@ -301,6 +315,16 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    std::unique_ptr<SentryNativeEventHookState> beforeSendMetricState;
+    if (!createEventHookState(sentry,
+                              options,
+                              options->beforeSendMetric(),
+                              QStringLiteral("beforeSendMetric"),
+                              true,
+                              &beforeSendMetricState)) {
+        return false;
+    }
+
     std::unique_ptr<SentryNativeEventHookState> beforeSendState;
     if (!createEventHookState(
             sentry, options, options->beforeSend(), QStringLiteral("beforeSend"), true, &beforeSendState)) {
@@ -323,6 +347,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     setUtf8Option(options->dist(), sentry_options_set_dist_n, nativeOptions);
     sentry_options_set_debug(nativeOptions, options->debug() ? 1 : 0);
     sentry_options_set_enable_logs(nativeOptions, options->enableLogs() ? 1 : 0);
+    sentry_options_set_enable_metrics(nativeOptions, options->enableMetrics() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
@@ -334,6 +359,10 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
 
     if (beforeSendLogState) {
         sentry_options_set_before_send_log(nativeOptions, beforeSendLogCallback, beforeSendLogState.get());
+    }
+
+    if (beforeSendMetricState) {
+        sentry_options_set_before_send_metric(nativeOptions, beforeSendMetricCallback, beforeSendMetricState.get());
     }
 
     if (beforeSendState) {
@@ -361,6 +390,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     if (result != 0) {
         beforeBreadcrumbState.reset();
         beforeSendLogState.reset();
+        beforeSendMetricState.reset();
         beforeSendState.reset();
         onCrashState.reset();
         emit sentry->errorOccurred(QStringLiteral("sentry_init failed with code %1.").arg(result));
@@ -369,6 +399,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
 
     m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
     m_beforeSendLogState = std::move(beforeSendLogState);
+    m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     setInitialized(true);
@@ -396,6 +427,7 @@ bool SentryNativeSdk::close()
     m_applicationShutdownConnection = {};
     m_beforeBreadcrumbState.reset();
     m_beforeSendLogState.reset();
+    m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
     m_onCrashState.reset();
     setInitialized(false);
@@ -434,6 +466,7 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_beforeSendState);
     detach(m_beforeBreadcrumbState);
     detach(m_beforeSendLogState);
+    detach(m_beforeSendMetricState);
     detach(m_onCrashState);
 }
 
@@ -494,6 +527,122 @@ bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, con
         emit sentry->errorOccurred(QStringLiteral("Sentry log could not be queued."));
     }
     return result == SENTRY_LOG_RETURN_SUCCESS;
+}
+
+bool SentryNativeSdk::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.count cannot be called from Sentry hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
+        }
+        return false;
+    }
+
+    if (name.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry metric name must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray metricName = name.toUtf8();
+    const sentry_metrics_result_t result = sentry_metrics_count(
+        metricName.constData(), static_cast<int64_t>(value), SentryEvent::attributesFromVariantMap(attributes));
+    return checkMetricResult(sentry, result);
+}
+
+bool SentryNativeSdk::gauge(Sentry *sentry,
+                            const QString &name,
+                            double value,
+                            const QString &unit,
+                            const QVariantMap &attributes)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.gauge cannot be called from Sentry hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
+        }
+        return false;
+    }
+
+    if (name.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry metric name must not be empty."));
+        }
+        return false;
+    }
+
+    if (!std::isfinite(value)) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry metric value must be finite."));
+        }
+        return false;
+    }
+
+    const QByteArray metricName = name.toUtf8();
+    const QByteArray metricUnit = unit.toUtf8();
+    const sentry_metrics_result_t result = sentry_metrics_gauge(metricName.constData(),
+                                                               value,
+                                                               unit.isEmpty() ? nullptr : metricUnit.constData(),
+                                                               SentryEvent::attributesFromVariantMap(attributes));
+    return checkMetricResult(sentry, result);
+}
+
+bool SentryNativeSdk::distribution(Sentry *sentry,
+                                   const QString &name,
+                                   double value,
+                                   const QString &unit,
+                                   const QVariantMap &attributes)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.distribution cannot be called from Sentry hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before recording metrics."));
+        }
+        return false;
+    }
+
+    if (name.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry metric name must not be empty."));
+        }
+        return false;
+    }
+
+    if (!std::isfinite(value)) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry metric value must be finite."));
+        }
+        return false;
+    }
+
+    const QByteArray metricName = name.toUtf8();
+    const QByteArray metricUnit = unit.toUtf8();
+    const sentry_metrics_result_t result
+        = sentry_metrics_distribution(metricName.constData(),
+                                      value,
+                                      unit.isEmpty() ? nullptr : metricUnit.constData(),
+                                      SentryEvent::attributesFromVariantMap(attributes));
+    return checkMetricResult(sentry, result);
 }
 
 QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)

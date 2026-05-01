@@ -34,6 +34,14 @@ public:
     };
     Q_ENUM(Level)
 
+    enum MetricType
+    {
+        Count = 0,
+        Gauge = 1,
+        Distribution = 2
+    };
+    Q_ENUM(MetricType)
+
     explicit Sentry(QObject *parent = nullptr);
     ~Sentry() override;
 
@@ -57,6 +65,20 @@ public:
     Q_INVOKABLE bool warn(const QString &message, const QVariantMap &attributes = {});
     Q_INVOKABLE bool error(const QString &message, const QVariantMap &attributes = {});
     Q_INVOKABLE bool fatal(const QString &message, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool metric(MetricType type,
+                            const QString &name,
+                            double value,
+                            const QString &unit = QString(),
+                            const QVariantMap &attributes = {});
+    Q_INVOKABLE bool count(const QString &name, qint64 value = 1, const QVariantMap &attributes = {});
+    Q_INVOKABLE bool gauge(const QString &name,
+                           double value,
+                           const QString &unit = QString(),
+                           const QVariantMap &attributes = {});
+    Q_INVOKABLE bool distribution(const QString &name,
+                                  double value,
+                                  const QString &unit = QString(),
+                                  const QVariantMap &attributes = {});
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
     Q_INVOKABLE QString captureException(const QJSValue &exception);
 

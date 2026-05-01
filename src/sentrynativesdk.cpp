@@ -12,6 +12,7 @@
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qpointer.h>
+#include <QtCore/qscopedvaluerollback.h>
 #include <QtCore/qthread.h>
 #include <QtQml/qjsengine.h>
 #include <QtQml/qjsvalue.h>
@@ -32,6 +33,8 @@ struct SentryNativeEventHookState
 };
 
 namespace {
+
+thread_local int eventHookDepth = 0;
 
 void setUtf8Option(const QString &value, void (*setter)(sentry_options_t *, const char *, size_t), sentry_options_t *options)
 {
@@ -86,6 +89,7 @@ sentry_value_t invokeEventHook(sentry_value_t event, SentryNativeEventHookState 
         return event;
     }
 
+    const QScopedValueRollback<int> rollback(eventHookDepth, eventHookDepth + 1);
     QJSValue scriptEvent = SentryEvent::toScriptValue(state->engine, event);
     if (scriptEvent.isUndefined()) {
         return event;
@@ -310,11 +314,20 @@ QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, 
         text.constData(),
         static_cast<size_t>(text.size()));
 
-    return captureEvent(event);
+    return captureEvent(sentry, event, SentryNativeCaptureMode::Manual);
 }
 
-QString SentryNativeSdk::captureEvent(sentry_value_t event)
+QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode)
 {
+    if (eventHookDepth > 0) {
+        sentry_value_decref(event);
+        if (mode == SentryNativeCaptureMode::Manual && sentry) {
+            emit sentry->errorOccurred(
+                QStringLiteral("Sentry.capture* cannot be called from beforeSend or onCrash."));
+        }
+        return {};
+    }
+
     if (!m_initialized) {
         sentry_value_decref(event);
         return {};

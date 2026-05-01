@@ -24,11 +24,12 @@ target_link_libraries(sentry_qml_example
 add_dependencies(sentry_qml_example SentryQmlplugin)
 
 if(TARGET sentry-crash)
-    add_dependencies(sentry_qml_example sentry-crash)
-    add_custom_command(TARGET sentry_qml_example POST_BUILD
+    add_custom_target(sentry_qml_example_deploy_sentry_crash
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:sentry-crash>"
             "$<TARGET_FILE_DIR:sentry_qml_example>/$<TARGET_FILE_NAME:sentry-crash>"
+        DEPENDS sentry-crash
         VERBATIM
     )
+    add_dependencies(sentry_qml_example sentry_qml_example_deploy_sentry_crash)
 endif()

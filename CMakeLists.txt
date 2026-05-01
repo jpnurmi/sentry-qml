@@ -56,6 +56,11 @@ endif()
 
 add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 
+if(TARGET sentry-crash)
+    target_sources(sentry-crash PRIVATE src/sentryqtlogging.cpp)
+    target_link_libraries(sentry-crash PRIVATE Qt6::Core)
+endif()
+
 add_subdirectory(src)
 add_subdirectory(example)
 

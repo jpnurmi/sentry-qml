@@ -112,6 +112,21 @@ void SentryOptions::setSampleRate(double sampleRate)
     emit sampleRateChanged();
 }
 
+int SentryOptions::maxBreadcrumbs() const
+{
+    return m_maxBreadcrumbs;
+}
+
+void SentryOptions::setMaxBreadcrumbs(int maxBreadcrumbs)
+{
+    if (m_maxBreadcrumbs == maxBreadcrumbs) {
+        return;
+    }
+
+    m_maxBreadcrumbs = maxBreadcrumbs;
+    emit maxBreadcrumbsChanged();
+}
+
 int SentryOptions::shutdownTimeout() const
 {
     return m_shutdownTimeout;
@@ -125,6 +140,17 @@ void SentryOptions::setShutdownTimeout(int shutdownTimeout)
 
     m_shutdownTimeout = shutdownTimeout;
     emit shutdownTimeoutChanged();
+}
+
+QJSValue SentryOptions::beforeBreadcrumb() const
+{
+    return m_beforeBreadcrumb;
+}
+
+void SentryOptions::setBeforeBreadcrumb(const QJSValue &beforeBreadcrumb)
+{
+    m_beforeBreadcrumb = beforeBreadcrumb;
+    emit beforeBreadcrumbChanged();
 }
 
 QJSValue SentryOptions::beforeSend() const

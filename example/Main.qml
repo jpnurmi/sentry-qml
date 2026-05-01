@@ -139,6 +139,24 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Add Breadcrumb")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.addBreadcrumb({
+                        message: "Example breadcrumb",
+                        category: "example",
+                        type: "manual",
+                        level: "info",
+                        data: { message: messageField.text }
+                    })
+                    statusLabel.text = ok
+                        ? qsTr("Breadcrumb added")
+                        : qsTr("Breadcrumb was not added")
+                }
+            }
+
+            Button {
                 text: qsTr("Capture Message")
                 enabled: Sentry.initialized
 

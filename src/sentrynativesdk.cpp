@@ -18,6 +18,7 @@
 #include <QtQml/qjsvalue.h>
 
 #include <cmath>
+#include <cstring>
 
 #ifndef SENTRY_QML_SDK_NAME
 #    define SENTRY_QML_SDK_NAME "sentry.native.qml"
@@ -34,7 +35,7 @@ struct SentryNativeEventHookState
 
 namespace {
 
-thread_local int eventHookDepth = 0;
+thread_local int hookDepth = 0;
 
 void setUtf8Option(const QString &value, void (*setter)(sentry_options_t *, const char *, size_t), sentry_options_t *options)
 {
@@ -79,47 +80,47 @@ bool createEventHookState(Sentry *sentry,
     return true;
 }
 
-sentry_value_t invokeEventHook(sentry_value_t event, SentryNativeEventHookState *state)
+sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState *state)
 {
     if (!state || !state->engine || !state->callback.isCallable()) {
-        return event;
+        return value;
     }
 
     if (state->thread && QThread::currentThread() != state->thread) {
-        return event;
+        return value;
     }
 
-    const QScopedValueRollback<int> rollback(eventHookDepth, eventHookDepth + 1);
-    QJSValue scriptEvent = SentryEvent::toScriptValue(state->engine, event);
-    if (scriptEvent.isUndefined()) {
-        return event;
+    const QScopedValueRollback<int> rollback(hookDepth, hookDepth + 1);
+    QJSValue scriptValue = SentryEvent::toScriptValue(state->engine, value);
+    if (scriptValue.isUndefined()) {
+        return value;
     }
 
-    QJSValue result = state->callback.call({scriptEvent});
+    QJSValue result = state->callback.call({scriptValue});
     if (result.isError()) {
         if (state->sentry) {
             emit state->sentry->errorOccurred(
                 QStringLiteral("SentryOptions.%1 failed: %2").arg(state->propertyName, result.toString()));
         }
-        return event;
+        return value;
     }
 
     if (result.isUndefined() || (result.isBool() && result.toBool())) {
-        return event;
+        return value;
     }
 
     if (result.isNull() || (result.isBool() && !result.toBool())) {
-        sentry_value_decref(event);
+        sentry_value_decref(value);
         return sentry_value_new_null();
     }
 
     sentry_value_t replacement = SentryEvent::fromVariant(result.toVariant(QJSValue::RetainJSObjects));
     if (sentry_value_is_null(replacement)) {
-        sentry_value_decref(event);
+        sentry_value_decref(value);
         return replacement;
     }
 
-    sentry_value_decref(event);
+    sentry_value_decref(value);
     return replacement;
 }
 
@@ -130,12 +131,78 @@ sentry_value_t passThroughOnCrash(const sentry_ucontext_t *, sentry_value_t even
 
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
-    return invokeEventHook(event, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(event, static_cast<SentryNativeEventHookState *>(userData));
 }
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
 {
-    return invokeEventHook(event, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(event, static_cast<SentryNativeEventHookState *>(userData));
+}
+
+sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
+{
+    return invokeValueHook(breadcrumb, static_cast<SentryNativeEventHookState *>(userData));
+}
+
+QString levelNameFromString(const QString &level)
+{
+    switch (SentryEvent::levelFromString(level)) {
+    case SENTRY_LEVEL_TRACE:
+        return QStringLiteral("trace");
+    case SENTRY_LEVEL_DEBUG:
+        return QStringLiteral("debug");
+    case SENTRY_LEVEL_WARNING:
+        return QStringLiteral("warning");
+    case SENTRY_LEVEL_ERROR:
+        return QStringLiteral("error");
+    case SENTRY_LEVEL_FATAL:
+        return QStringLiteral("fatal");
+    case SENTRY_LEVEL_INFO:
+    default:
+        return QStringLiteral("info");
+    }
+}
+
+void setStringValue(sentry_value_t object, const char *key, const QString &value)
+{
+    if (value.isEmpty()) {
+        return;
+    }
+
+    const QByteArray utf8 = value.toUtf8();
+    sentry_value_set_by_key_n(
+        object, key, std::strlen(key), sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size())));
+}
+
+sentry_value_t breadcrumbFromVariantMap(const QVariantMap &breadcrumb)
+{
+    const QString type = breadcrumb.value(QStringLiteral("type"), QStringLiteral("default")).toString();
+    const QString message = breadcrumb.value(QStringLiteral("message")).toString();
+    const QByteArray typeUtf8 = type.toUtf8();
+    const QByteArray messageUtf8 = message.toUtf8();
+
+    sentry_value_t nativeBreadcrumb = sentry_value_new_breadcrumb_n(
+        type.isEmpty() ? nullptr : typeUtf8.constData(),
+        type.isEmpty() ? 0 : static_cast<size_t>(typeUtf8.size()),
+        message.isEmpty() ? nullptr : messageUtf8.constData(),
+        message.isEmpty() ? 0 : static_cast<size_t>(messageUtf8.size()));
+
+    for (auto it = breadcrumb.cbegin(); it != breadcrumb.cend(); ++it) {
+        if (it.key().isEmpty() || it.key() == QLatin1String("type") || it.key() == QLatin1String("message")) {
+            continue;
+        }
+
+        if (it.key() == QLatin1String("level")) {
+            setStringValue(nativeBreadcrumb, "level", levelNameFromString(it.value().toString()));
+            continue;
+        }
+
+        const QByteArray key = it.key().toUtf8();
+        sentry_value_set_by_key_n(
+            nativeBreadcrumb, key.constData(), static_cast<size_t>(key.size()), SentryEvent::fromVariant(it.value()));
+    }
+
+    return nativeBreadcrumb;
 }
 
 } // namespace
@@ -183,8 +250,23 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    if (options->maxBreadcrumbs() < 0) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry maxBreadcrumbs must not be negative."));
+        return false;
+    }
+
     if (options->shutdownTimeout() < 0) {
         emit sentry->errorOccurred(QStringLiteral("Sentry shutdownTimeout must not be negative."));
+        return false;
+    }
+
+    std::unique_ptr<SentryNativeEventHookState> beforeBreadcrumbState;
+    if (!createEventHookState(sentry,
+                              options,
+                              options->beforeBreadcrumb(),
+                              QStringLiteral("beforeBreadcrumb"),
+                              true,
+                              &beforeBreadcrumbState)) {
         return false;
     }
 
@@ -210,8 +292,13 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     setUtf8Option(options->dist(), sentry_options_set_dist_n, nativeOptions);
     sentry_options_set_debug(nativeOptions, options->debug() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
+    sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
     sentry_options_set_sdk_name(nativeOptions, SENTRY_QML_SDK_NAME);
+
+    if (beforeBreadcrumbState) {
+        sentry_options_set_before_breadcrumb(nativeOptions, beforeBreadcrumbCallback, beforeBreadcrumbState.get());
+    }
 
     if (beforeSendState) {
         sentry_options_set_before_send(nativeOptions, beforeSendCallback, beforeSendState.get());
@@ -236,12 +323,14 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
 
     const int result = sentry_init(nativeOptions);
     if (result != 0) {
+        beforeBreadcrumbState.reset();
         beforeSendState.reset();
         onCrashState.reset();
         emit sentry->errorOccurred(QStringLiteral("sentry_init failed with code %1.").arg(result));
         return false;
     }
 
+    m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     setInitialized(true);
@@ -267,6 +356,7 @@ bool SentryNativeSdk::close()
     sentry_close();
     QObject::disconnect(m_applicationShutdownConnection);
     m_applicationShutdownConnection = {};
+    m_beforeBreadcrumbState.reset();
     m_beforeSendState.reset();
     m_onCrashState.reset();
     setInitialized(false);
@@ -303,7 +393,35 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     };
 
     detach(m_beforeSendState);
+    detach(m_beforeBreadcrumbState);
     detach(m_onCrashState);
+}
+
+bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.addBreadcrumb cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before adding breadcrumbs."));
+        }
+        return false;
+    }
+
+    if (breadcrumb.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry breadcrumb must not be empty."));
+        }
+        return false;
+    }
+
+    sentry_add_breadcrumb(breadcrumbFromVariantMap(breadcrumb));
+    return true;
 }
 
 QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)
@@ -336,11 +454,11 @@ QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, 
 
 QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode)
 {
-    if (eventHookDepth > 0) {
+    if (hookDepth > 0) {
         sentry_value_decref(event);
         if (mode == SentryNativeCaptureMode::Manual && sentry) {
             emit sentry->errorOccurred(
-                QStringLiteral("Sentry.capture* cannot be called from beforeSend or onCrash."));
+                QStringLiteral("Sentry.capture* cannot be called from Sentry event hooks."));
         }
         return {};
     }

@@ -22,6 +22,7 @@ private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
+    void addsBreadcrumbs();
     void capturesManualException();
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
@@ -185,6 +186,109 @@ void SentryQmlTest::sendsEnvelopeWithQtTransport()
     QVERIFY(server.body().contains("Sent through QtNetwork"));
 
     QVERIFY(sentry.close());
+}
+
+void SentryQmlTest::addsBreadcrumbs()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool firstAdded: false
+            property bool secondAdded: false
+            property bool beforeBreadcrumbCalled: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property int breadcrumbCount: -1
+            property string breadcrumbMessage: ""
+            property string breadcrumbCategory: ""
+            property string breadcrumbType: ""
+            property string breadcrumbLevel: ""
+            property string breadcrumbScreen: ""
+            property bool breadcrumbTouched: false
+            property string eventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                maxBreadcrumbs: 10
+                shutdownTimeout: 2000
+                beforeBreadcrumb: function(breadcrumb) {
+                    beforeBreadcrumbCalled = true
+                    breadcrumb.data = breadcrumb.data || {}
+                    breadcrumb.data.touched = true
+                    return breadcrumb
+                }
+                beforeSend: function(event) {
+                    const values = JSON.parse(JSON.stringify(event.breadcrumbs || []))
+                    breadcrumbCount = values.length
+                    if (values.length > 0) {
+                        const breadcrumb = values[values.length - 1]
+                        breadcrumbMessage = breadcrumb.message || ""
+                        breadcrumbCategory = breadcrumb.category || ""
+                        breadcrumbType = breadcrumb.type || ""
+                        breadcrumbLevel = breadcrumb.level || ""
+                        breadcrumbScreen = breadcrumb.data && breadcrumb.data.screen
+                            ? breadcrumb.data.screen
+                            : ""
+                        breadcrumbTouched = !!(breadcrumb.data && breadcrumb.data.touched)
+                    }
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                firstAdded = Sentry.addBreadcrumb({
+                    message: "first",
+                    category: "ui",
+                    type: "default",
+                    level: "info"
+                })
+                secondAdded = Sentry.addBreadcrumb({
+                    message: "second",
+                    category: "navigation",
+                    type: "user",
+                    level: "warning",
+                    data: { screen: "settings" }
+                })
+                eventId = Sentry.captureMessage("Breadcrumb event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryBreadcrumbTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("firstAdded").toBool(), true);
+    QCOMPARE(object->property("secondAdded").toBool(), true);
+    QCOMPARE(object->property("beforeBreadcrumbCalled").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("breadcrumbCount").toInt(), 2);
+    QCOMPARE(object->property("breadcrumbMessage").toString(), QStringLiteral("second"));
+    QCOMPARE(object->property("breadcrumbCategory").toString(), QStringLiteral("navigation"));
+    QCOMPARE(object->property("breadcrumbType").toString(), QStringLiteral("user"));
+    QCOMPARE(object->property("breadcrumbLevel").toString(), QStringLiteral("warning"));
+    QCOMPARE(object->property("breadcrumbScreen").toString(), QStringLiteral("settings"));
+    QCOMPARE(object->property("breadcrumbTouched").toBool(), true);
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlTest::capturesManualException()
@@ -438,7 +542,7 @@ void SentryQmlTest::beforeSendCannotCaptureMessage()
     QCOMPARE(object->property("eventId").toString(), QString());
     QCOMPARE(object->property("nestedEventId").toString(), QString());
     QCOMPARE(object->property("errorMessage").toString(),
-             QStringLiteral("Sentry.capture* cannot be called from beforeSend or onCrash."));
+             QStringLiteral("Sentry.capture* cannot be called from Sentry event hooks."));
     QCOMPARE(object->property("closed").toBool(), true);
 }
 

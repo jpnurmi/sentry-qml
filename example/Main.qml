@@ -33,6 +33,7 @@ ApplicationWindow {
         release: releaseField.text
         environment: environmentField.text
         debug: debugCheckBox.checked
+        autoSessionTracking: autoSessionTrackingCheckBox.checked
         user: SentryUser {
             userId: "example-user"
             username: "qml"
@@ -129,6 +130,13 @@ ApplicationWindow {
             text: qsTr("Debug logging")
         }
 
+        CheckBox {
+            id: autoSessionTrackingCheckBox
+
+            text: qsTr("Automatic session tracking")
+            checked: true
+        }
+
         RowLayout {
             spacing: 10
             Layout.fillWidth: true
@@ -157,6 +165,30 @@ ApplicationWindow {
                     statusLabel.text = ok
                         ? qsTr("Breadcrumb added")
                         : qsTr("Breadcrumb was not added")
+                }
+            }
+
+            Button {
+                text: qsTr("Start Session")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.startSession()
+                    statusLabel.text = ok
+                        ? qsTr("Session started")
+                        : qsTr("Session was not started")
+                }
+            }
+
+            Button {
+                text: qsTr("End Session")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.endSession(Sentry.SessionExited)
+                    statusLabel.text = ok
+                        ? qsTr("Session ended")
+                        : qsTr("Session was not ended")
                 }
             }
 

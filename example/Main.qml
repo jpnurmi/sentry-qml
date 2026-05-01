@@ -33,6 +33,10 @@ ApplicationWindow {
         release: releaseField.text
         environment: environmentField.text
         debug: debugCheckBox.checked
+        user: SentryUser {
+            userId: "example-user"
+            username: "qml"
+        }
         beforeSend: function(event) {
             console.log("### beforeSend");
             event.extra = event.extra || {}
@@ -153,6 +157,22 @@ ApplicationWindow {
                     statusLabel.text = ok
                         ? qsTr("Breadcrumb added")
                         : qsTr("Breadcrumb was not added")
+                }
+            }
+
+            Button {
+                text: qsTr("Set User")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setUser({
+                        id: "example-user",
+                        username: "qml",
+                        email: "qml@example.invalid"
+                    })
+                    statusLabel.text = ok
+                        ? qsTr("User set")
+                        : qsTr("User was not set")
                 }
             }
 

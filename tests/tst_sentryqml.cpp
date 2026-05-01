@@ -22,6 +22,7 @@ private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
+    void setsUser();
     void setsTags();
     void setsContexts();
     void addsBreadcrumbs();
@@ -201,6 +202,115 @@ void SentryQmlTest::sendsEnvelopeWithQtTransport()
     QVERIFY(server.body().contains("Sent through QtNetwork"));
 
     QVERIFY(sentry.close());
+}
+
+void SentryQmlTest::setsUser()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool userSet: false
+            property bool removed: false
+            property bool secondHasUser: true
+            property bool thirdHasUser: false
+            property bool closed: false
+            property int beforeSendCount: 0
+            property string userId: ""
+            property string username: ""
+            property string email: ""
+            property string ipAddress: ""
+            property string role: ""
+            property string dynamicUserId: ""
+            property string dynamicIpAddress: ""
+            property string dynamicRole: ""
+            property string firstEventId: ""
+            property string secondEventId: ""
+            property string thirdEventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                user: SentryUser {
+                    userId: "42"
+                    username: "ada"
+                    email: "ada@example.com"
+                    ipAddress: "127.0.0.1"
+                    data: ({ "role": "admin" })
+                }
+                beforeSend: function(event) {
+                    beforeSendCount += 1
+                    if (beforeSendCount === 1) {
+                        const user = event.user || {}
+                        userId = user.id || ""
+                        username = user.username || ""
+                        email = user.email || ""
+                        ipAddress = user.ip_address || ""
+                        role = user.role || ""
+                    } else if (beforeSendCount === 2) {
+                        secondHasUser = !!event.user
+                    } else if (beforeSendCount === 3) {
+                        const user = event.user || {}
+                        thirdHasUser = !!event.user
+                        dynamicUserId = user.id || ""
+                        dynamicIpAddress = user.ip_address || ""
+                        dynamicRole = user.role || ""
+                    }
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                firstEventId = Sentry.captureMessage("Declarative user event")
+                removed = Sentry.removeUser()
+                secondEventId = Sentry.captureMessage("No user event")
+                userSet = Sentry.setUser({
+                    id: "43",
+                    ipAddress: "127.0.0.2",
+                    role: "operator"
+                })
+                thirdEventId = Sentry.captureMessage("Imperative user event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryUserTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("userSet").toBool(), true);
+    QCOMPARE(object->property("removed").toBool(), true);
+    QCOMPARE(object->property("beforeSendCount").toInt(), 3);
+    QCOMPARE(object->property("userId").toString(), QStringLiteral("42"));
+    QCOMPARE(object->property("username").toString(), QStringLiteral("ada"));
+    QCOMPARE(object->property("email").toString(), QStringLiteral("ada@example.com"));
+    QCOMPARE(object->property("ipAddress").toString(), QStringLiteral("127.0.0.1"));
+    QCOMPARE(object->property("role").toString(), QStringLiteral("admin"));
+    QCOMPARE(object->property("secondHasUser").toBool(), false);
+    QCOMPARE(object->property("thirdHasUser").toBool(), true);
+    QCOMPARE(object->property("dynamicUserId").toString(), QStringLiteral("43"));
+    QCOMPARE(object->property("dynamicIpAddress").toString(), QStringLiteral("127.0.0.2"));
+    QCOMPARE(object->property("dynamicRole").toString(), QStringLiteral("operator"));
+    QCOMPARE(object->property("firstEventId").toString(), QString());
+    QCOMPARE(object->property("secondEventId").toString(), QString());
+    QCOMPARE(object->property("thirdEventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlTest::setsTags()

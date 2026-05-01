@@ -31,6 +31,8 @@ public:
     bool close();
     void detachSentry(Sentry *sentry);
 
+    bool setUser(Sentry *sentry, const QVariantMap &user);
+    bool removeUser(Sentry *sentry);
     bool setTag(Sentry *sentry, const QString &key, const QString &value);
     bool removeTag(Sentry *sentry, const QString &key);
     bool setContext(Sentry *sentry, const QString &key, const QVariantMap &context);

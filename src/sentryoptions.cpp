@@ -82,6 +82,21 @@ void SentryOptions::setDist(const QString &dist)
     emit distChanged();
 }
 
+SentryUser *SentryOptions::user() const
+{
+    return m_user;
+}
+
+void SentryOptions::setUser(SentryUser *user)
+{
+    if (m_user == user) {
+        return;
+    }
+
+    m_user = user;
+    emit userChanged();
+}
+
 bool SentryOptions::debug() const
 {
     return m_debug;

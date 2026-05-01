@@ -56,6 +56,16 @@ bool Sentry::close()
     return SentryNativeSdk::instance()->close();
 }
 
+bool Sentry::setUser(const QVariantMap &user)
+{
+    return SentryNativeSdk::instance()->setUser(this, user);
+}
+
+bool Sentry::removeUser()
+{
+    return SentryNativeSdk::instance()->removeUser(this);
+}
+
 bool Sentry::setTag(const QString &key, const QString &value)
 {
     return SentryNativeSdk::instance()->setTag(this, key, value);

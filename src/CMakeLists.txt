@@ -8,6 +8,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/sentry.h
         ../include/SentryQml/sentryoptions.h
         ../include/SentryQml/sentryqmlglobal.h
+        ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
         ../include/SentryQml/private/sentrynativesdk_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
@@ -16,6 +17,7 @@ qt_add_qml_module(SentryQml
         sentrynativesdk.cpp
         sentryoptions.cpp
         sentryqmlengine.cpp
+        sentryuser.cpp
 )
 
 target_include_directories(SentryQml

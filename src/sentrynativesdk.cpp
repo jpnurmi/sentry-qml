@@ -530,6 +530,64 @@ bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
     return true;
 }
 
+bool SentryNativeSdk::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setContext cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting contexts."));
+        }
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry context key must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    sentry_set_context_n(utf8Key.constData(),
+                         static_cast<size_t>(utf8Key.size()),
+                         SentryEvent::fromVariant(context));
+    return true;
+}
+
+bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.removeContext cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing contexts."));
+        }
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry context key must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    sentry_remove_context_n(utf8Key.constData(), static_cast<size_t>(utf8Key.size()));
+    return true;
+}
+
 bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
 {
     if (hookDepth > 0) {

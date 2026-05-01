@@ -169,6 +169,21 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set Context")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setContext("example", {
+                        environment: environmentField.text,
+                        messageLength: messageField.text.length
+                    })
+                    statusLabel.text = ok
+                        ? qsTr("Context set")
+                        : qsTr("Context was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Capture Message")
                 enabled: Sentry.initialized
 

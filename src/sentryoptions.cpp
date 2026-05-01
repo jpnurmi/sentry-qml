@@ -112,6 +112,21 @@ void SentryOptions::setEnableLogs(bool enableLogs)
     emit enableLogsChanged();
 }
 
+bool SentryOptions::enableMetrics() const
+{
+    return m_enableMetrics;
+}
+
+void SentryOptions::setEnableMetrics(bool enableMetrics)
+{
+    if (m_enableMetrics == enableMetrics) {
+        return;
+    }
+
+    m_enableMetrics = enableMetrics;
+    emit enableMetricsChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;
@@ -177,6 +192,17 @@ void SentryOptions::setBeforeSendLog(const QJSValue &beforeSendLog)
 {
     m_beforeSendLog = beforeSendLog;
     emit beforeSendLogChanged();
+}
+
+QJSValue SentryOptions::beforeSendMetric() const
+{
+    return m_beforeSendMetric;
+}
+
+void SentryOptions::setBeforeSendMetric(const QJSValue &beforeSendMetric)
+{
+    m_beforeSendMetric = beforeSendMetric;
+    emit beforeSendMetricChanged();
 }
 
 QJSValue SentryOptions::beforeSend() const

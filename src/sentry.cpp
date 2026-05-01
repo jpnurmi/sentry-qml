@@ -5,6 +5,8 @@
 
 #include <SentryQml/sentryoptions.h>
 
+#include <cmath>
+
 Sentry::Sentry(QObject *parent)
     : QObject(parent)
 {
@@ -109,6 +111,45 @@ bool Sentry::error(const QString &message, const QVariantMap &attributes)
 bool Sentry::fatal(const QString &message, const QVariantMap &attributes)
 {
     return log(Fatal, message, attributes);
+}
+
+bool Sentry::metric(MetricType type,
+                    const QString &name,
+                    double value,
+                    const QString &unit,
+                    const QVariantMap &attributes)
+{
+    if (!std::isfinite(value)) {
+        emit errorOccurred(QStringLiteral("Sentry metric value must be finite."));
+        return false;
+    }
+
+    switch (type) {
+    case Count:
+        return count(name, static_cast<qint64>(value), attributes);
+    case Gauge:
+        return gauge(name, value, unit, attributes);
+    case Distribution:
+        return distribution(name, value, unit, attributes);
+    }
+
+    emit errorOccurred(QStringLiteral("Unsupported Sentry metric type."));
+    return false;
+}
+
+bool Sentry::count(const QString &name, qint64 value, const QVariantMap &attributes)
+{
+    return SentryNativeSdk::instance()->count(this, name, value, attributes);
+}
+
+bool Sentry::gauge(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
+{
+    return SentryNativeSdk::instance()->gauge(this, name, value, unit, attributes);
+}
+
+bool Sentry::distribution(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
+{
+    return SentryNativeSdk::instance()->distribution(this, name, value, unit, attributes);
 }
 
 QString Sentry::captureMessage(const QString &message, const QString &level)

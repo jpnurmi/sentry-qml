@@ -218,6 +218,21 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Record Metric")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.distribution("example.message.length",
+                                                   messageField.text.length,
+                                                   "character",
+                                                   { "example.source": "qml" })
+                    statusLabel.text = ok
+                        ? qsTr("Metric queued")
+                        : qsTr("Metric was not queued")
+                }
+            }
+
+            Button {
                 text: qsTr("Crash")
                 enabled: Sentry.initialized
 

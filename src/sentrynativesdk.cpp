@@ -12,6 +12,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopedvaluerollback.h>
 #include <QtCore/qthread.h>
@@ -21,6 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 #ifndef SENTRY_QML_SDK_NAME
 #    define SENTRY_QML_SDK_NAME "sentry.native.qml"
@@ -229,16 +231,10 @@ QVariantMap userFromVariantMap(const QVariantMap &user)
     return nativeUser;
 }
 
-sentry_value_t fingerprintFromStringList(const QStringList &fingerprint)
+template <size_t... Indices>
+void setNativeFingerprint(const QList<QByteArray> &fingerprint, std::index_sequence<Indices...>)
 {
-    sentry_value_t nativeFingerprint = sentry_value_new_list();
-    for (const QString &part : fingerprint) {
-        const QByteArray utf8Part = part.toUtf8();
-        sentry_value_append(nativeFingerprint,
-                            sentry_value_new_string_n(utf8Part.constData(),
-                                                      static_cast<size_t>(utf8Part.size())));
-    }
-    return nativeFingerprint;
+    sentry_set_fingerprint(fingerprint[Indices].constData()..., nullptr);
 }
 
 sentry_level_t logLevelFromInt(int level)
@@ -459,7 +455,6 @@ bool SentryNativeSdk::close()
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
     m_onCrashState.reset();
-    m_fingerprint.clear();
     setInitialized(false);
     return true;
 }
@@ -688,8 +683,49 @@ bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerpr
         return false;
     }
 
-    m_fingerprint = fingerprint;
-    return true;
+    QList<QByteArray> parts;
+    parts.reserve(fingerprint.size());
+    for (const QString &part : fingerprint) {
+        parts.append(part.toUtf8());
+    }
+
+    switch (parts.size()) {
+    case 1:
+        setNativeFingerprint(parts, std::make_index_sequence<1>());
+        return true;
+    case 2:
+        setNativeFingerprint(parts, std::make_index_sequence<2>());
+        return true;
+    case 3:
+        setNativeFingerprint(parts, std::make_index_sequence<3>());
+        return true;
+    case 4:
+        setNativeFingerprint(parts, std::make_index_sequence<4>());
+        return true;
+    case 5:
+        setNativeFingerprint(parts, std::make_index_sequence<5>());
+        return true;
+    case 6:
+        setNativeFingerprint(parts, std::make_index_sequence<6>());
+        return true;
+    case 7:
+        setNativeFingerprint(parts, std::make_index_sequence<7>());
+        return true;
+    case 8:
+        setNativeFingerprint(parts, std::make_index_sequence<8>());
+        return true;
+    case 9:
+        setNativeFingerprint(parts, std::make_index_sequence<9>());
+        return true;
+    case 10:
+        setNativeFingerprint(parts, std::make_index_sequence<10>());
+        return true;
+    default:
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry fingerprint must contain at most 10 parts."));
+        }
+        return false;
+    }
 }
 
 bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
@@ -708,7 +744,7 @@ bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
         return false;
     }
 
-    m_fingerprint.clear();
+    sentry_remove_fingerprint();
     return true;
 }
 
@@ -929,10 +965,6 @@ QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, Sent
     if (!m_initialized) {
         sentry_value_decref(event);
         return {};
-    }
-
-    if (!m_fingerprint.isEmpty() && sentry_value_is_null(sentry_value_get_by_key(event, "fingerprint"))) {
-        sentry_value_set_by_key(event, "fingerprint", fingerprintFromStringList(m_fingerprint));
     }
 
     return SentryEvent::eventIdFromUuid(sentry_capture_event(event));

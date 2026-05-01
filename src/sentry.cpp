@@ -76,9 +76,39 @@ bool Sentry::addBreadcrumb(const QString &message,
     return addBreadcrumb(breadcrumb);
 }
 
-bool Sentry::log(const QString &message, const QString &level, const QVariantMap &attributes)
+bool Sentry::log(Level level, const QString &message, const QVariantMap &attributes)
 {
-    return SentryNativeSdk::instance()->log(this, message, level, attributes);
+    return SentryNativeSdk::instance()->log(this, static_cast<int>(level), message, attributes);
+}
+
+bool Sentry::trace(const QString &message, const QVariantMap &attributes)
+{
+    return log(Trace, message, attributes);
+}
+
+bool Sentry::debug(const QString &message, const QVariantMap &attributes)
+{
+    return log(Debug, message, attributes);
+}
+
+bool Sentry::info(const QString &message, const QVariantMap &attributes)
+{
+    return log(Info, message, attributes);
+}
+
+bool Sentry::warn(const QString &message, const QVariantMap &attributes)
+{
+    return log(Warning, message, attributes);
+}
+
+bool Sentry::error(const QString &message, const QVariantMap &attributes)
+{
+    return log(Error, message, attributes);
+}
+
+bool Sentry::fatal(const QString &message, const QVariantMap &attributes)
+{
+    return log(Fatal, message, attributes);
 }
 
 QString Sentry::captureMessage(const QString &message, const QString &level)

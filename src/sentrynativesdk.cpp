@@ -210,6 +210,26 @@ sentry_value_t breadcrumbFromVariantMap(const QVariantMap &breadcrumb)
     return nativeBreadcrumb;
 }
 
+sentry_level_t logLevelFromInt(int level)
+{
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return SENTRY_LEVEL_TRACE;
+    case SENTRY_LEVEL_DEBUG:
+        return SENTRY_LEVEL_DEBUG;
+    case SENTRY_LEVEL_INFO:
+        return SENTRY_LEVEL_INFO;
+    case SENTRY_LEVEL_WARNING:
+        return SENTRY_LEVEL_WARNING;
+    case SENTRY_LEVEL_ERROR:
+        return SENTRY_LEVEL_ERROR;
+    case SENTRY_LEVEL_FATAL:
+        return SENTRY_LEVEL_FATAL;
+    default:
+        return SENTRY_LEVEL_INFO;
+    }
+}
+
 } // namespace
 
 SentryNativeSdk *SentryNativeSdk::instance()
@@ -444,7 +464,7 @@ bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrum
     return true;
 }
 
-bool SentryNativeSdk::log(Sentry *sentry, const QString &message, const QString &level, const QVariantMap &attributes)
+bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
 {
     if (hookDepth > 0) {
         if (sentry) {
@@ -468,9 +488,8 @@ bool SentryNativeSdk::log(Sentry *sentry, const QString &message, const QString 
     }
 
     const QByteArray body = message.toUtf8();
-    const log_return_value_t result = sentry_log(static_cast<sentry_level_t>(SentryEvent::levelFromString(level)),
-                                                body.constData(),
-                                                SentryEvent::attributesFromVariantMap(attributes));
+    const log_return_value_t result
+        = sentry_log(logLevelFromInt(level), body.constData(), SentryEvent::attributesFromVariantMap(attributes));
     if (result == SENTRY_LOG_RETURN_FAILED && sentry) {
         emit sentry->errorOccurred(QStringLiteral("Sentry log could not be queued."));
     }

@@ -118,6 +118,12 @@ void SentryQmlTest::importsQmlModule()
                 onCrash: function(event) { return event }
             }
             property bool ready: !Sentry.initialized && options.debug
+            property bool levelsReady: Sentry.Trace === -2
+                && Sentry.Debug === -1
+                && Sentry.Info === 0
+                && Sentry.Warning === 1
+                && Sentry.Error === 2
+                && Sentry.Fatal === 3
 
             Component.onCompleted: {
                 options.shutdownTimeout = 100
@@ -132,6 +138,7 @@ void SentryQmlTest::importsQmlModule()
     QCOMPARE(component.status(), QQmlComponent::Ready);
     const std::unique_ptr<QObject> object(component.create());
     QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("levelsReady").toBool(), true);
 }
 
 void SentryQmlTest::initializesAndCapturesMessage()
@@ -316,6 +323,7 @@ void SentryQmlTest::sendsLogs()
             property bool initialized: false
             property bool beforeSendLogCalled: false
             property bool logged: false
+            property bool loggedWithLevel: false
             property bool closed: false
             property SentryOptions options: SentryOptions {
                 dsn: testDsn
@@ -335,12 +343,15 @@ void SentryQmlTest::sendsLogs()
 
             Component.onCompleted: {
                 initialized = Sentry.init(options)
-                logged = Sentry.log("Structured QML log", "warning", {
+                logged = Sentry.warn("Structured QML log", {
                     "qml.test.screen": "settings",
                     "qml.test.duration": {
                         value: 12.5,
                         unit: "millisecond"
                     }
+                })
+                loggedWithLevel = Sentry.log(Sentry.Info, "Structured QML log with enum level", {
+                    "qml.test.screen": "details"
                 })
                 closed = Sentry.close()
             }
@@ -357,10 +368,12 @@ void SentryQmlTest::sendsLogs()
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("beforeSendLogCalled").toBool(), true);
     QCOMPARE(object->property("logged").toBool(), true);
+    QCOMPARE(object->property("loggedWithLevel").toBool(), true);
     QCOMPARE(object->property("closed").toBool(), true);
 
     QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
     QVERIFY(server.body().contains("Structured QML log through beforeSendLog"));
+    QVERIFY(server.body().contains("Structured QML log with enum level through beforeSendLog"));
     QVERIFY(server.body().contains("qml.test.screen"));
     QVERIFY(server.body().contains("settings"));
     QVERIFY(server.body().contains("qml.test.duration"));

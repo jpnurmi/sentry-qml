@@ -208,7 +208,7 @@ ApplicationWindow {
                 enabled: Sentry.initialized
 
                 onClicked: {
-                    const ok = Sentry.log("Example structured log", "info", {
+                    const ok = Sentry.info("Example structured log", {
                         "example.message": messageField.text
                     })
                     statusLabel.text = ok

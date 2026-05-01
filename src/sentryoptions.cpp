@@ -97,6 +97,21 @@ void SentryOptions::setDebug(bool debug)
     emit debugChanged();
 }
 
+bool SentryOptions::enableLogs() const
+{
+    return m_enableLogs;
+}
+
+void SentryOptions::setEnableLogs(bool enableLogs)
+{
+    if (m_enableLogs == enableLogs) {
+        return;
+    }
+
+    m_enableLogs = enableLogs;
+    emit enableLogsChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;
@@ -151,6 +166,17 @@ void SentryOptions::setBeforeBreadcrumb(const QJSValue &beforeBreadcrumb)
 {
     m_beforeBreadcrumb = beforeBreadcrumb;
     emit beforeBreadcrumbChanged();
+}
+
+QJSValue SentryOptions::beforeSendLog() const
+{
+    return m_beforeSendLog;
+}
+
+void SentryOptions::setBeforeSendLog(const QJSValue &beforeSendLog)
+{
+    m_beforeSendLog = beforeSendLog;
+    emit beforeSendLogChanged();
 }
 
 QJSValue SentryOptions::beforeSend() const

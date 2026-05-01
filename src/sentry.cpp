@@ -76,6 +76,11 @@ bool Sentry::addBreadcrumb(const QString &message,
     return addBreadcrumb(breadcrumb);
 }
 
+bool Sentry::log(const QString &message, const QString &level, const QVariantMap &attributes)
+{
+    return SentryNativeSdk::instance()->log(this, message, level, attributes);
+}
+
 QString Sentry::captureMessage(const QString &message, const QString &level)
 {
     return SentryNativeSdk::instance()->captureMessage(this, message, level);

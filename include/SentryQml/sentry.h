@@ -39,6 +39,9 @@ public:
                        const QString &type = QStringLiteral("default"),
                        const QString &level = QStringLiteral("info"),
                        const QVariantMap &data = {});
+    Q_INVOKABLE bool log(const QString &message,
+                         const QString &level = QStringLiteral("info"),
+                         const QVariantMap &attributes = {});
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
     Q_INVOKABLE QString captureException(const QJSValue &exception);
 

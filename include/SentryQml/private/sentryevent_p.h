@@ -14,6 +14,8 @@ typedef sentry_uuid_s sentry_uuid_t;
 namespace SentryEvent {
 
 sentry_value_t fromVariant(const QVariant &value);
+sentry_value_t attributeFromVariant(const QVariant &value);
+sentry_value_t attributesFromVariantMap(const QVariantMap &attributes);
 QJSValue toScriptValue(QJSEngine *engine, sentry_value_t event);
 int levelFromString(const QString &level);
 sentry_value_t stacktraceFromQmlStack(const QString &stack);

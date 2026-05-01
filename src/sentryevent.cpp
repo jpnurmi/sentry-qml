@@ -151,6 +151,45 @@ sentry_value_t fromVariant(const QVariant &value)
     return sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size()));
 }
 
+sentry_value_t attributeFromVariant(const QVariant &value)
+{
+    QVariant attributeValue = value;
+    QString unit;
+
+    if (value.metaType().id() == QMetaType::QVariantMap) {
+        const QVariantMap object = value.toMap();
+        if (object.contains(QStringLiteral("value")) || object.contains(QStringLiteral("unit"))) {
+            attributeValue = object.value(QStringLiteral("value"));
+            unit = object.value(QStringLiteral("unit")).toString();
+        }
+    }
+
+    const QByteArray unitUtf8 = unit.toUtf8();
+    return sentry_value_new_attribute_n(fromVariant(attributeValue),
+                                        unit.isEmpty() ? nullptr : unitUtf8.constData(),
+                                        unit.isEmpty() ? 0 : static_cast<size_t>(unitUtf8.size()));
+}
+
+sentry_value_t attributesFromVariantMap(const QVariantMap &attributes)
+{
+    sentry_value_t nativeAttributes = sentry_value_new_object();
+    for (auto it = attributes.cbegin(); it != attributes.cend(); ++it) {
+        if (it.key().isEmpty()) {
+            continue;
+        }
+
+        sentry_value_t attribute = attributeFromVariant(it.value());
+        if (sentry_value_is_null(attribute)) {
+            continue;
+        }
+
+        const QByteArray key = it.key().toUtf8();
+        sentry_value_set_by_key_n(
+            nativeAttributes, key.constData(), static_cast<size_t>(key.size()), attribute);
+    }
+    return nativeAttributes;
+}
+
 QJSValue toScriptValue(QJSEngine *engine, sentry_value_t event)
 {
     if (!engine) {

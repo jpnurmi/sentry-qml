@@ -470,6 +470,66 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_onCrashState);
 }
 
+bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &value)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setTag cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting tags."));
+        }
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry tag key must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    const QByteArray utf8Value = value.toUtf8();
+    sentry_set_tag_n(utf8Key.constData(),
+                     static_cast<size_t>(utf8Key.size()),
+                     utf8Value.constData(),
+                     static_cast<size_t>(utf8Value.size()));
+    return true;
+}
+
+bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.removeTag cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing tags."));
+        }
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry tag key must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    sentry_remove_tag_n(utf8Key.constData(), static_cast<size_t>(utf8Key.size()));
+    return true;
+}
+
 bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
 {
     if (hookDepth > 0) {

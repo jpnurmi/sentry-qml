@@ -56,6 +56,16 @@ bool Sentry::close()
     return SentryNativeSdk::instance()->close();
 }
 
+bool Sentry::setTag(const QString &key, const QString &value)
+{
+    return SentryNativeSdk::instance()->setTag(this, key, value);
+}
+
+bool Sentry::removeTag(const QString &key)
+{
+    return SentryNativeSdk::instance()->removeTag(this, key);
+}
+
 bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
 {
     return SentryNativeSdk::instance()->addBreadcrumb(this, breadcrumb);

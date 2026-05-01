@@ -22,6 +22,7 @@ private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
+    void setsTags();
     void addsBreadcrumbs();
     void sendsLogs();
     void sendsMetrics();
@@ -199,6 +200,72 @@ void SentryQmlTest::sendsEnvelopeWithQtTransport()
     QVERIFY(server.body().contains("Sent through QtNetwork"));
 
     QVERIFY(sentry.close());
+}
+
+void SentryQmlTest::setsTags()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool screenSet: false
+            property bool removedSet: false
+            property bool removed: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property string screenTag: ""
+            property string removedTag: ""
+            property string eventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    const tags = event.tags || {}
+                    screenTag = tags.screen || ""
+                    removedTag = tags.removed || ""
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                screenSet = Sentry.setTag("screen", "settings")
+                removedSet = Sentry.setTag("removed", "yes")
+                removed = Sentry.removeTag("removed")
+                eventId = Sentry.captureMessage("Tagged event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryTagsTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("screenSet").toBool(), true);
+    QCOMPARE(object->property("removedSet").toBool(), true);
+    QCOMPARE(object->property("removed").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("screenTag").toString(), QStringLiteral("settings"));
+    QCOMPARE(object->property("removedTag").toString(), QString());
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlTest::addsBreadcrumbs()

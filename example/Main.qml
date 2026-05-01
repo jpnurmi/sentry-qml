@@ -204,6 +204,18 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set Fingerprint")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setFingerprint(["{{ default }}", messageField.text])
+                    statusLabel.text = ok
+                        ? qsTr("Fingerprint set")
+                        : qsTr("Fingerprint was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Capture Message")
                 enabled: Sentry.initialized
 

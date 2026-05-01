@@ -229,6 +229,18 @@ QVariantMap userFromVariantMap(const QVariantMap &user)
     return nativeUser;
 }
 
+sentry_value_t fingerprintFromStringList(const QStringList &fingerprint)
+{
+    sentry_value_t nativeFingerprint = sentry_value_new_list();
+    for (const QString &part : fingerprint) {
+        const QByteArray utf8Part = part.toUtf8();
+        sentry_value_append(nativeFingerprint,
+                            sentry_value_new_string_n(utf8Part.constData(),
+                                                      static_cast<size_t>(utf8Part.size())));
+    }
+    return nativeFingerprint;
+}
+
 sentry_level_t logLevelFromInt(int level)
 {
     switch (level) {
@@ -649,6 +661,53 @@ bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
 
     const QByteArray utf8Key = key.toUtf8();
     sentry_remove_context_n(utf8Key.constData(), static_cast<size_t>(utf8Key.size()));
+    return true;
+}
+
+bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.setFingerprint cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before setting fingerprints."));
+        }
+        return false;
+    }
+
+    if (fingerprint.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry fingerprint must not be empty."));
+        }
+        return false;
+    }
+
+    sentry_set_fingerprints(fingerprintFromStringList(fingerprint));
+    return true;
+}
+
+bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
+{
+    if (hookDepth > 0) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.removeFingerprint cannot be called from Sentry event hooks."));
+        }
+        return false;
+    }
+
+    if (!m_initialized) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry must be initialized before removing fingerprints."));
+        }
+        return false;
+    }
+
+    sentry_remove_fingerprint();
     return true;
 }
 

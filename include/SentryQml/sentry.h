@@ -54,6 +54,7 @@ public:
     Q_INVOKABLE bool flush(int timeoutMs = 2000);
     Q_INVOKABLE bool close();
     Q_INVOKABLE bool setRelease(const QString &release);
+    Q_INVOKABLE bool setEnvironment(const QString &environment);
     Q_INVOKABLE bool setUser(const QVariantMap &user);
     Q_INVOKABLE bool removeUser();
     Q_INVOKABLE bool setTag(const QString &key, const QString &value);

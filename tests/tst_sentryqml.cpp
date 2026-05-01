@@ -23,6 +23,7 @@ private slots:
     void initializesAndCapturesMessage();
     void sendsEnvelopeWithQtTransport();
     void setsRelease();
+    void setsEnvironment();
     void setsUser();
     void setsTags();
     void setsContexts();
@@ -258,6 +259,62 @@ void SentryQmlTest::setsRelease()
     QCOMPARE(object->property("releaseSet").toBool(), true);
     QCOMPARE(object->property("beforeSendCalled").toBool(), true);
     QCOMPARE(object->property("capturedRelease").toString(), QStringLiteral("sentry-qml@1.2.3"));
+    QCOMPARE(object->property("eventId").toString(), QString());
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlTest::setsEnvironment()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool environmentSet: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property string capturedEnvironment: ""
+            property string eventId: ""
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    capturedEnvironment = event.environment || ""
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                environmentSet = Sentry.setEnvironment("staging")
+                eventId = Sentry.captureMessage("Environment event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryEnvironmentTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("environmentSet").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("capturedEnvironment").toString(), QStringLiteral("staging"));
     QCOMPARE(object->property("eventId").toString(), QString());
     QCOMPARE(object->property("closed").toBool(), true);
 }

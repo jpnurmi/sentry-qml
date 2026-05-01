@@ -189,6 +189,18 @@ ApplicationWindow {
             }
 
             Button {
+                text: qsTr("Set Environment")
+                enabled: Sentry.initialized
+
+                onClicked: {
+                    const ok = Sentry.setEnvironment(environmentField.text)
+                    statusLabel.text = ok
+                        ? qsTr("Environment set")
+                        : qsTr("Environment was not set")
+                }
+            }
+
+            Button {
                 text: qsTr("Set Tag")
                 enabled: Sentry.initialized
 

@@ -28,7 +28,18 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    add_test(NAME ${target} COMMAND ${target} -o -,txt)
+    if(WIN32)
+        add_test(NAME ${target}
+            COMMAND
+                ${CMAKE_COMMAND}
+                    "-DTEST_EXECUTABLE=$<TARGET_FILE:${target}>"
+                    "-DTEST_OUTPUT_DIR=$<TARGET_FILE_DIR:${target}>"
+                    "-DTEST_NAME=${target}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/run_qtest.cmake"
+        )
+    else()
+        add_test(NAME ${target} COMMAND ${target} -o -,txt)
+    endif()
 endfunction()
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)

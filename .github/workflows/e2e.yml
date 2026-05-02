@@ -39,28 +39,49 @@ jobs:
       SENTRY_APP_RUNNER_REF: 4f101037aa769e48dd721b88512e19426b894500
       SENTRY_COMPOSE_SERVICES: >-
         nginx
+        seaweedfs-admin
+        seaweedfs-worker
+        symbolicator-cleanup
         events-consumer
         attachments-consumer
         post-process-forwarder-errors
+        post-process-forwarder-transactions
         post-process-forwarder-issue-platform
+        subscription-consumer-events
         ingest-feedback-events
         ingest-occurrences
+        transactions-consumer
         metrics-consumer
         generic-metrics-consumer
         billing-metrics-consumer
+        subscription-consumer-transactions
         subscription-consumer-eap-items
+        subscription-consumer-metrics
+        subscription-consumer-generic-metrics
         snuba-errors-consumer
         snuba-outcomes-consumer
         snuba-group-attributes-consumer
         snuba-replacer
+        snuba-transactions-consumer
         snuba-issue-occurrence-consumer
+        snuba-subscription-consumer-transactions
         snuba-subscription-consumer-eap-items
         snuba-metrics-consumer
+        snuba-subscription-consumer-metrics
+        snuba-subscription-consumer-generic-metrics-distributions
+        snuba-subscription-consumer-generic-metrics-sets
+        snuba-subscription-consumer-generic-metrics-counters
+        snuba-subscription-consumer-generic-metrics-gauges
         snuba-generic-metrics-distributions-consumer
         snuba-generic-metrics-sets-consumer
         snuba-generic-metrics-counters-consumer
         snuba-generic-metrics-gauges-consumer
         snuba-eap-items-consumer
+        process-spans
+        process-segments
+        sentry-cleanup
+        taskbroker
+        taskscheduler
         taskworker
 
     steps:

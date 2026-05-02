@@ -35,6 +35,7 @@
 #    endif
 #    include <windows.h>
 #    if defined(_MSC_VER)
+#        include <crtdbg.h>
 #        include <intrin.h>
 #    endif
 #endif
@@ -223,6 +224,15 @@ public:
 int runCrashTarget(int argc, char *argv[])
 {
     std::fputs("tst_crash: starting target\n", stderr);
+
+#if defined(Q_OS_WIN)
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+#    if defined(_MSC_VER)
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#    endif
+#endif
 
     QCoreApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Sentry"));

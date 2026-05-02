@@ -45,59 +45,59 @@ BeforeAll {
         -Organization 'sentry' `
         -Project 'internal' `
         -BaseUrl "$($script:BaseUrl)/api/0"
+
+    function script:Get-ObjectValue {
+        param(
+            [Parameter(Mandatory = $true)]
+            $InputObject,
+
+            [Parameter(Mandatory = $true)]
+            [string]$Name
+        )
+
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            return $InputObject[$Name]
+        }
+
+        return $InputObject.$Name
+    }
+
+    function script:Get-TagValue {
+        param(
+            [Parameter(Mandatory = $true)]
+            $SentryEvent,
+
+            [Parameter(Mandatory = $true)]
+            [string]$Key
+        )
+
+        foreach ($tag in @(Get-ObjectValue -InputObject $SentryEvent -Name 'tags')) {
+            if ((Get-ObjectValue -InputObject $tag -Name 'key') -eq $Key) {
+                return Get-ObjectValue -InputObject $tag -Name 'value'
+            }
+        }
+
+        return $null
+    }
+
+    function script:Invoke-E2EAction {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Action,
+
+            [string[]]$AdditionalArgs = @()
+        )
+
+        $result = Invoke-DeviceApp -ExecutablePath $script:AppPath -Arguments (@($Action) + $AdditionalArgs)
+        $result | ConvertTo-Json -Depth 8 | Out-File -FilePath (Get-OutputFilePath "$Action-result.json")
+        return $result
+    }
 }
 
 AfterAll {
     if (Get-Command Disconnect-SentryApi -ErrorAction SilentlyContinue) {
         Disconnect-SentryApi
     }
-}
-
-function Get-ObjectValue {
-    param(
-        [Parameter(Mandatory = $true)]
-        $InputObject,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Name
-    )
-
-    if ($InputObject -is [System.Collections.IDictionary]) {
-        return $InputObject[$Name]
-    }
-
-    return $InputObject.$Name
-}
-
-function Get-TagValue {
-    param(
-        [Parameter(Mandatory = $true)]
-        $SentryEvent,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Key
-    )
-
-    foreach ($tag in @(Get-ObjectValue -InputObject $SentryEvent -Name 'tags')) {
-        if ((Get-ObjectValue -InputObject $tag -Name 'key') -eq $Key) {
-            return Get-ObjectValue -InputObject $tag -Name 'value'
-        }
-    }
-
-    return $null
-}
-
-function Invoke-E2EAction {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Action,
-
-        [string[]]$AdditionalArgs = @()
-    )
-
-    $result = Invoke-DeviceApp -ExecutablePath $script:AppPath -Arguments (@($Action) + $AdditionalArgs)
-    $result | ConvertTo-Json -Depth 8 | Out-File -FilePath (Get-OutputFilePath "$Action-result.json")
-    return $result
 }
 
 Describe 'Sentry QML E2E' {

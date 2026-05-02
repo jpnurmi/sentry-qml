@@ -45,6 +45,23 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.SENTRY_QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Configure Sentry QML
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_BUILD_E2E_TESTS=ON
+
+      - name: Build E2E app
+        run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel
+
       - name: Free runner disk space
         run: |
           sudo rm -rf /usr/local/.ghcup
@@ -67,23 +84,6 @@ jobs:
           ref: ${{ env.SENTRY_APP_RUNNER_REF }}
           path: app-runner
           persist-credentials: false
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: ${{ env.SENTRY_QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-          install-deps: true
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
-
-      - name: Configure Sentry QML
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_BUILD_E2E_TESTS=ON
-
-      - name: Build E2E app
-        run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel
 
       - name: Configure Sentry self-hosted
         working-directory: self-hosted

@@ -25,12 +25,9 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
-
-#include <sentry.h>
 
 #if defined(Q_OS_WIN)
 #    ifndef NOMINMAX
@@ -187,7 +184,8 @@ volatile int stackOverflowSink = 0;
 void prepareStackOverflowCrash()
 {
 #if defined(Q_OS_WIN)
-    sentry_set_thread_stack_guarantee(64 * 1024);
+    ULONG stackGuarantee = 64 * 1024;
+    SetThreadStackGuarantee(&stackGuarantee);
 #endif
 }
 

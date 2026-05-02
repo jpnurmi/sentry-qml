@@ -64,10 +64,6 @@ if(TARGET sentry-crash)
         SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
     )
 
-    target_include_directories(tst_crash PRIVATE
-        "${SENTRY_NATIVE_DIR}"
-    )
-
     target_sources(tst_crash PRIVATE
         qml/CrashTest.qml
     )

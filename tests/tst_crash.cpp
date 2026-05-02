@@ -281,6 +281,7 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope_data()
 void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 {
     QFETCH(QString, crashType);
+    std::fprintf(stderr, "tst_crash: testing %s\n", qPrintable(crashType));
 
 #if defined(Q_OS_WIN)
     if (crashType == QLatin1String("assert-failure")

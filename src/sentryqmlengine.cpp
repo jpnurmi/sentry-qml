@@ -1,11 +1,10 @@
 #include <SentryQml/private/sentryqmlengine_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
-#include <SentryQml/private/sentrynativesdk_p.h>
 
 #include <SentryQml/sentry.h>
 
-#include <include/sentry.h>
+#include <SentryQml/private/sentrysdk_p.h>
 
 #include <QtCore/qlist.h>
 #include <QtCore/qurl.h>
@@ -159,12 +158,13 @@ void SentryQmlEngine::installWarningHandler()
                 }
 
                 const QStringList stackTrace = takeThrownStackTrace(warning);
-                sentry_value_t event = SentryEvent::exceptionEvent(QStringLiteral("QmlError"),
-                                                                   warning.description(),
-                                                                   SentryEvent::stacktraceFromQmlError(warning, stackTrace),
-                                                                   stackTrace.join(QLatin1Char('\n')),
-                                                                   false);
-                SentryNativeSdk::instance()->captureEvent(nullptr, event, SentryNativeCaptureMode::Automatic);
+                const QVariantMap event =
+                    SentryEvent::exceptionEvent(QStringLiteral("QmlError"),
+                                                warning.description(),
+                                                SentryEvent::stacktraceFromQmlError(warning, stackTrace),
+                                                stackTrace.join(QLatin1Char('\n')),
+                                                false);
+                SentrySdk::instance()->captureEvent(nullptr, event, SentrySdkCaptureMode::Automatic);
             }
         });
 }
@@ -210,9 +210,9 @@ QString SentryQmlEngine::captureException(const QJSValue &exception)
         }
     }
 
-    sentry_value_t event = SentryEvent::exceptionEvent(
+    const QVariantMap event = SentryEvent::exceptionEvent(
         type, value, SentryEvent::stacktraceFromQmlStack(stack), stack, true);
-    return SentryNativeSdk::instance()->captureEvent(m_sentry, event, SentryNativeCaptureMode::Manual);
+    return SentrySdk::instance()->captureEvent(m_sentry, event, SentrySdkCaptureMode::Manual);
 }
 
 void SentryQmlEngine::installThrowHook()

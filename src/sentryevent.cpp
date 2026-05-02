@@ -1,54 +1,24 @@
 #include <SentryQml/private/sentryevent_p.h>
 
-#include <include/sentry.h>
-
-#include <QtCore/qbytearray.h>
-#include <QtCore/qjsondocument.h>
-#include <QtCore/qjsonobject.h>
 #include <QtCore/qlist.h>
-#include <QtCore/qmetatype.h>
 #include <QtCore/qstringlist.h>
 #include <QtCore/qurl.h>
 #include <QtQml/qqmlerror.h>
 
-#include <cstring>
-
 namespace {
 
-bool isSupportedInteger(const QVariant &value)
+void setStringValue(QVariantMap *object, const QString &key, const QString &value)
 {
-    switch (value.metaType().id()) {
-    case QMetaType::Char:
-    case QMetaType::SChar:
-    case QMetaType::UChar:
-    case QMetaType::Short:
-    case QMetaType::UShort:
-    case QMetaType::Int:
-    case QMetaType::UInt:
-        return true;
-    default:
-        return false;
+    if (!value.isEmpty()) {
+        object->insert(key, value);
     }
 }
 
-void setStringValue(sentry_value_t object, const char *key, const QString &value)
+void setIntValue(QVariantMap *object, const QString &key, int value)
 {
-    if (value.isEmpty()) {
-        return;
+    if (value > 0) {
+        object->insert(key, value);
     }
-
-    const QByteArray utf8 = value.toUtf8();
-    sentry_value_set_by_key_n(
-        object, key, std::strlen(key), sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size())));
-}
-
-void setIntValue(sentry_value_t object, const char *key, int value)
-{
-    if (value <= 0) {
-        return;
-    }
-
-    sentry_value_set_by_key(object, key, sentry_value_new_int32(value));
 }
 
 bool parseStackLocation(const QString &location, QString *fileName, int *lineNumber, int *columnNumber)
@@ -80,19 +50,19 @@ bool parseStackLocation(const QString &location, QString *fileName, int *lineNum
     return !fileName->isEmpty();
 }
 
-sentry_value_t stackFrameFromLocation(const QString &functionName,
-                                      const QString &fileName,
-                                      int lineNumber,
-                                      int columnNumber)
+QVariantMap stackFrameFromLocation(const QString &functionName,
+                                   const QString &fileName,
+                                   int lineNumber,
+                                   int columnNumber)
 {
-    sentry_value_t frame = sentry_value_new_object();
-    setStringValue(frame, "function", functionName);
-    setStringValue(frame, "filename", fileName);
-    setStringValue(frame, "abs_path", fileName);
-    setStringValue(frame, "platform", QStringLiteral("javascript"));
-    setIntValue(frame, "lineno", lineNumber);
-    setIntValue(frame, "colno", columnNumber);
-    sentry_value_set_by_key(frame, "in_app", sentry_value_new_bool(1));
+    QVariantMap frame;
+    setStringValue(&frame, QStringLiteral("function"), functionName);
+    setStringValue(&frame, QStringLiteral("filename"), fileName);
+    setStringValue(&frame, QStringLiteral("abs_path"), fileName);
+    setStringValue(&frame, QStringLiteral("platform"), QStringLiteral("javascript"));
+    setIntValue(&frame, QStringLiteral("lineno"), lineNumber);
+    setIntValue(&frame, QStringLiteral("colno"), columnNumber);
+    frame.insert(QStringLiteral("in_app"), true);
     return frame;
 }
 
@@ -100,146 +70,43 @@ sentry_value_t stackFrameFromLocation(const QString &functionName,
 
 namespace SentryEvent {
 
-sentry_value_t fromVariant(const QVariant &value)
-{
-    if (!value.isValid() || value.isNull()) {
-        return sentry_value_new_null();
-    }
-
-    switch (value.metaType().id()) {
-    case QMetaType::Bool:
-        return sentry_value_new_bool(value.toBool() ? 1 : 0);
-    case QMetaType::LongLong:
-        return sentry_value_new_int64(value.toLongLong());
-    case QMetaType::ULongLong:
-        return sentry_value_new_uint64(value.toULongLong());
-    case QMetaType::Float:
-    case QMetaType::Double:
-        return sentry_value_new_double(value.toDouble());
-    case QMetaType::QString: {
-        const QByteArray utf8 = value.toString().toUtf8();
-        return sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size()));
-    }
-    case QMetaType::QVariantList:
-    case QMetaType::QStringList: {
-        sentry_value_t list = sentry_value_new_list();
-        const QVariantList values = value.toList();
-        for (const QVariant &item : values) {
-            sentry_value_append(list, fromVariant(item));
-        }
-        return list;
-    }
-    case QMetaType::QVariantMap: {
-        sentry_value_t object = sentry_value_new_object();
-        const QVariantMap values = value.toMap();
-        for (auto it = values.cbegin(); it != values.cend(); ++it) {
-            const QByteArray key = it.key().toUtf8();
-            sentry_value_set_by_key_n(
-                object, key.constData(), static_cast<size_t>(key.size()), fromVariant(it.value()));
-        }
-        return object;
-    }
-    default:
-        break;
-    }
-
-    if (isSupportedInteger(value)) {
-        return sentry_value_new_int64(value.toLongLong());
-    }
-
-    const QByteArray utf8 = value.toString().toUtf8();
-    return sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size()));
-}
-
-sentry_value_t attributeFromVariant(const QVariant &value)
-{
-    QVariant attributeValue = value;
-    QString unit;
-
-    if (value.metaType().id() == QMetaType::QVariantMap) {
-        const QVariantMap object = value.toMap();
-        if (object.contains(QStringLiteral("value")) || object.contains(QStringLiteral("unit"))) {
-            attributeValue = object.value(QStringLiteral("value"));
-            unit = object.value(QStringLiteral("unit")).toString();
-        }
-    }
-
-    const QByteArray unitUtf8 = unit.toUtf8();
-    return sentry_value_new_attribute_n(fromVariant(attributeValue),
-                                        unit.isEmpty() ? nullptr : unitUtf8.constData(),
-                                        unit.isEmpty() ? 0 : static_cast<size_t>(unitUtf8.size()));
-}
-
-sentry_value_t attributesFromVariantMap(const QVariantMap &attributes)
-{
-    sentry_value_t nativeAttributes = sentry_value_new_object();
-    for (auto it = attributes.cbegin(); it != attributes.cend(); ++it) {
-        if (it.key().isEmpty()) {
-            continue;
-        }
-
-        sentry_value_t attribute = attributeFromVariant(it.value());
-        if (sentry_value_is_null(attribute)) {
-            continue;
-        }
-
-        const QByteArray key = it.key().toUtf8();
-        sentry_value_set_by_key_n(
-            nativeAttributes, key.constData(), static_cast<size_t>(key.size()), attribute);
-    }
-    return nativeAttributes;
-}
-
-QJSValue toScriptValue(QJSEngine *engine, sentry_value_t event)
+QJSValue toScriptValue(QJSEngine *engine, const QVariant &value)
 {
     if (!engine) {
         return {};
     }
 
-    char *json = sentry_value_to_json(event);
-    if (!json) {
-        return {};
-    }
-
-    QJsonParseError error;
-    const QJsonDocument document = QJsonDocument::fromJson(QByteArray(json), &error);
-    sentry_free(json);
-
-    if (error.error != QJsonParseError::NoError || !document.isObject()) {
-        return {};
-    }
-
-    return engine->toScriptValue(document.object());
+    return engine->toScriptValue(value);
 }
 
-int levelFromString(const QString &level)
+QString levelNameFromString(const QString &level)
 {
     const QString normalized = level.trimmed().toLower();
     if (normalized == QLatin1String("trace")) {
-        return SENTRY_LEVEL_TRACE;
+        return QStringLiteral("trace");
     }
     if (normalized == QLatin1String("debug")) {
-        return SENTRY_LEVEL_DEBUG;
+        return QStringLiteral("debug");
     }
     if (normalized == QLatin1String("warning") || normalized == QLatin1String("warn")) {
-        return SENTRY_LEVEL_WARNING;
+        return QStringLiteral("warning");
     }
     if (normalized == QLatin1String("error")) {
-        return SENTRY_LEVEL_ERROR;
+        return QStringLiteral("error");
     }
     if (normalized == QLatin1String("fatal")) {
-        return SENTRY_LEVEL_FATAL;
+        return QStringLiteral("fatal");
     }
-    return SENTRY_LEVEL_INFO;
+    return QStringLiteral("info");
 }
 
-sentry_value_t stacktraceFromQmlStack(const QString &stack)
+QVariantMap stacktraceFromQmlStack(const QString &stack)
 {
     if (stack.isEmpty()) {
-        return sentry_value_new_null();
+        return {};
     }
 
-    QList<sentry_value_t> parsedFrames;
+    QList<QVariantMap> parsedFrames;
     const QStringList lines = stack.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (QString line : lines) {
         line = line.trimmed();
@@ -271,88 +138,77 @@ sentry_value_t stacktraceFromQmlStack(const QString &stack)
     }
 
     if (parsedFrames.isEmpty()) {
-        return sentry_value_new_null();
+        return {};
     }
 
-    sentry_value_t frames = sentry_value_new_list();
+    QVariantList frames;
     for (auto it = parsedFrames.crbegin(); it != parsedFrames.crend(); ++it) {
-        sentry_value_append(frames, *it);
+        frames.append(*it);
     }
 
-    sentry_value_t stacktrace = sentry_value_new_object();
-    sentry_value_set_by_key(stacktrace, "frames", frames);
-    return stacktrace;
+    return {
+        {QStringLiteral("frames"), frames},
+    };
 }
 
-sentry_value_t stacktraceFromQmlError(const QQmlError &error, const QStringList &stack)
+QVariantMap stacktraceFromQmlError(const QQmlError &error, const QStringList &stack)
 {
     if (!stack.isEmpty()) {
-        sentry_value_t stacktrace = stacktraceFromQmlStack(stack.join(QLatin1Char('\n')));
-        if (!sentry_value_is_null(stacktrace)) {
+        const QVariantMap stacktrace = stacktraceFromQmlStack(stack.join(QLatin1Char('\n')));
+        if (!stacktrace.isEmpty()) {
             return stacktrace;
         }
     }
 
     if (!error.isValid() || error.url().isEmpty()) {
-        return sentry_value_new_null();
-    }
-
-    sentry_value_t frames = sentry_value_new_list();
-    sentry_value_append(frames, stackFrameFromLocation(QString(), error.url().toString(), error.line(), error.column()));
-
-    sentry_value_t stacktrace = sentry_value_new_object();
-    sentry_value_set_by_key(stacktrace, "frames", frames);
-    return stacktrace;
-}
-
-sentry_value_t exceptionEvent(const QString &type,
-                              const QString &value,
-                              sentry_value_t stacktrace,
-                              const QString &rawStack,
-                              bool handled)
-{
-    const QByteArray typeUtf8 = (type.isEmpty() ? QStringLiteral("Error") : type).toUtf8();
-    const QByteArray valueUtf8 = value.toUtf8();
-
-    sentry_value_t exception = sentry_value_new_exception_n(
-        typeUtf8.constData(),
-        static_cast<size_t>(typeUtf8.size()),
-        valueUtf8.constData(),
-        static_cast<size_t>(valueUtf8.size()));
-
-    if (!sentry_value_is_null(stacktrace)) {
-        sentry_value_set_by_key(exception, "stacktrace", stacktrace);
-    }
-
-    sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(mechanism, "type", sentry_value_new_string("qml"));
-    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(handled ? 1 : 0));
-    sentry_value_set_by_key(exception, "mechanism", mechanism);
-
-    sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_by_key(event, "platform", sentry_value_new_string("javascript"));
-    sentry_value_set_by_key(event, "level", sentry_value_new_string("error"));
-    sentry_value_set_by_key(event, "logger", sentry_value_new_string("qml"));
-    sentry_event_add_exception(event, exception);
-
-    if (!rawStack.isEmpty()) {
-        QVariantMap extra;
-        extra.insert(QStringLiteral("qml_stack"), rawStack);
-        sentry_value_set_by_key(event, "extra", fromVariant(extra));
-    }
-
-    return event;
-}
-
-QString eventIdFromUuid(const sentry_uuid_t &uuid)
-{
-    if (sentry_uuid_is_nil(&uuid)) {
         return {};
     }
 
-    char uuidString[37] = {};
-    sentry_uuid_as_string(&uuid, uuidString);
-    return QString::fromLatin1(uuidString);
+    return {
+        {QStringLiteral("frames"),
+         QVariantList{stackFrameFromLocation(QString(), error.url().toString(), error.line(), error.column())}},
+    };
+}
+
+QVariantMap exceptionEvent(const QString &type,
+                           const QString &value,
+                           const QVariantMap &stacktrace,
+                           const QString &rawStack,
+                           bool handled)
+{
+    QVariantMap mechanism = {
+        {QStringLiteral("type"), QStringLiteral("qml")},
+        {QStringLiteral("handled"), handled},
+    };
+
+    QVariantMap exception = {
+        {QStringLiteral("type"), type.isEmpty() ? QStringLiteral("Error") : type},
+        {QStringLiteral("value"), value},
+        {QStringLiteral("mechanism"), mechanism},
+    };
+
+    if (!stacktrace.isEmpty()) {
+        exception.insert(QStringLiteral("stacktrace"), stacktrace);
+    }
+
+    QVariantMap event = {
+        {QStringLiteral("platform"), QStringLiteral("javascript")},
+        {QStringLiteral("level"), QStringLiteral("error")},
+        {QStringLiteral("logger"), QStringLiteral("qml")},
+        {QStringLiteral("exception"),
+         QVariantMap{
+             {QStringLiteral("values"), QVariantList{exception}},
+         }},
+    };
+
+    if (!rawStack.isEmpty()) {
+        event.insert(QStringLiteral("extra"),
+                     QVariantMap{
+                         {QStringLiteral("qml_stack"), rawStack},
+                     });
+    }
+
+    return event;
 }
 
 } // namespace SentryEvent

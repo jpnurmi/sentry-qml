@@ -36,7 +36,7 @@ signals:
     void attachmentsChanged();
 
 private:
-    friend class SentryNativeSdk;
+    friend class SentrySdk;
 
     std::unique_ptr<SentryHintPrivate> d;
 };

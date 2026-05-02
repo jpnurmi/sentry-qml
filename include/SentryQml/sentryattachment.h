@@ -38,7 +38,7 @@ signals:
     void contentTypeChanged();
 
 private:
-    friend class SentryNativeSdk;
+    friend class SentrySdk;
 
     explicit SentryAttachment(void *handle, QObject *parent = nullptr);
 

@@ -63,12 +63,12 @@ endif()
 add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 
 if(TARGET sentry-crash)
-    target_sources(sentry-crash PRIVATE src/sentryqtlogging.cpp)
+    target_sources(sentry-crash PRIVATE src/native/sentryqtlogging.cpp)
     target_link_libraries(sentry-crash PRIVATE Qt6::Core)
 endif()
 
 if(SENTRY_TRANSPORT STREQUAL "custom")
-    set(SENTRY_QML_QT_TRANSPORT_SOURCE "${PROJECT_SOURCE_DIR}/src/sentryqttransport.cpp")
+    set(SENTRY_QML_QT_TRANSPORT_SOURCE "${PROJECT_SOURCE_DIR}/src/native/sentryqttransport.cpp")
 
     target_sources(sentry PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
     target_include_directories(sentry PRIVATE "${SENTRY_NATIVE_DIR}")

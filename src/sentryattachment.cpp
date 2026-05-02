@@ -1,6 +1,6 @@
 #include <SentryQml/sentryattachment.h>
 
-#include <SentryQml/private/sentrynativesdk_p.h>
+#include <SentryQml/private/sentrysdk_p.h>
 
 struct SentryAttachmentPrivate
 {
@@ -24,7 +24,7 @@ SentryAttachment::SentryAttachment(void *handle, QObject *parent)
 
 SentryAttachment::~SentryAttachment()
 {
-    SentryNativeSdk::instance()->detachAttachment(this);
+    SentrySdk::instance()->detachAttachment(this);
 }
 
 bool SentryAttachment::isValid() const
@@ -44,7 +44,7 @@ void SentryAttachment::setFilename(const QString &filename)
     }
 
     d->filename = filename;
-    SentryNativeSdk::instance()->setAttachmentFilename(this, filename);
+    SentrySdk::instance()->setAttachmentFilename(this, filename);
     emit filenameChanged();
 }
 
@@ -60,7 +60,7 @@ void SentryAttachment::setContentType(const QString &contentType)
     }
 
     d->contentType = contentType;
-    SentryNativeSdk::instance()->setAttachmentContentType(this, contentType);
+    SentrySdk::instance()->setAttachmentContentType(this, contentType);
     emit contentTypeChanged();
 }
 

@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   build:
@@ -105,7 +106,7 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
@@ -118,3 +119,11 @@ jobs:
       - name: Print CTest log
         if: failure()
         run: cmake -E cat build/Testing/Temporary/LastTest.log
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        with:
+          name: Qt ${{ matrix.qt_version }}, ${{ matrix.label }}
+          path: build/tests/test-results/*.xml
+          reporter: java-junit

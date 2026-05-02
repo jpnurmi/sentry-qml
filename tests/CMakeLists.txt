@@ -28,19 +28,19 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    if(WIN32)
+    if(SENTRY_QML_TEST_JUNIT)
         add_test(NAME ${target}
-            COMMAND
-                ${CMAKE_COMMAND}
-                    "-DTEST_EXECUTABLE=$<TARGET_FILE:${target}>"
-                    "-DTEST_OUTPUT_DIR=$<TARGET_FILE_DIR:${target}>"
-                    "-DTEST_NAME=${target}"
-                    -P "${CMAKE_CURRENT_SOURCE_DIR}/run_qtest.cmake"
+            COMMAND ${target}
+                -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/${target}.xml,junitxml"
+                -o -,txt
         )
     else()
-        add_test(NAME ${target} COMMAND ${target} -o -,txt)
+        add_test(NAME ${target} COMMAND ${target} -txt)
     endif()
 endfunction()
+
+option(SENTRY_QML_TEST_JUNIT "Write QtTest JUnit XML test reports" OFF)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
 

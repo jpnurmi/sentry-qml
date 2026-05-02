@@ -11,6 +11,11 @@ BeforeAll {
     . "$env:SENTRY_APP_RUNNER_PATH/import-modules.ps1"
 
     $script:AppPath = $env:SENTRY_QML_E2E_APP_PATH
+    $script:DevicePlatform = if ($env:SENTRY_QML_E2E_PLATFORM) {
+        $env:SENTRY_QML_E2E_PLATFORM
+    } else {
+        'Local'
+    }
     $script:BaseUrl = if ($env:SENTRY_TEST_URL) { $env:SENTRY_TEST_URL } else { 'http://127.0.0.1:9000' }
     $script:RunId = if ($env:SENTRY_QML_E2E_RUN_ID) { $env:SENTRY_QML_E2E_RUN_ID } else { [guid]::NewGuid().ToString() }
     $script:DatabasePath = if ($env:SENTRY_QML_E2E_DATABASE_PATH) {
@@ -161,7 +166,7 @@ AfterAll {
 
 Describe 'Sentry QML E2E' {
     BeforeAll {
-        Connect-Device -Platform 'Linux'
+        Connect-Device -Platform $script:DevicePlatform
     }
 
     AfterAll {

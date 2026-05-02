@@ -18,7 +18,7 @@ on:
       qt_version:
         description: Qt version
         required: true
-        default: "6.8.0"
+        default: "6.11.0"
 
 permissions:
   contents: read

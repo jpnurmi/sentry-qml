@@ -1,0 +1,34 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      self_hosted_ref:
+        description: getsentry/self-hosted ref to test
+        required: true
+        default: "26.4.0"
+      compose_profiles:
+        description: Sentry self-hosted Docker Compose profile
+        required: true
+        type: choice
+        default: errors-only
+        options:
+          - errors-only
+          - feature-complete
+      qt_version:
+        description: Qt version
+        required: true
+        default: "6.8.0"
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Placeholder
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Explain placeholder
+        run: |
+          echo "This default-branch placeholder registers workflow_dispatch."
+          echo "Run the real E2E workflow from a branch with: gh workflow run e2e.yml --ref <branch>"

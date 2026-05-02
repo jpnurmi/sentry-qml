@@ -44,6 +44,8 @@ if(SENTRY_QML_TEST_JUNIT)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
 endif()
 
+option(SENTRY_QML_BUILD_E2E_TESTS "Build opt-in tests that send events to a real Sentry instance" OFF)
+
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
 
 add_sentry_qml_test(tst_unit
@@ -79,5 +81,19 @@ if(TARGET sentry-crash)
 
     target_sources(tst_crash PRIVATE
         qml/CrashTest.qml
+    )
+endif()
+
+if(SENTRY_QML_BUILD_E2E_TESTS)
+    add_sentry_qml_test(tst_e2e
+        tst_e2e.cpp
+    )
+
+    target_compile_definitions(tst_e2e PRIVATE
+        SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
+    )
+
+    target_sources(tst_e2e PRIVATE
+        qml/E2ETest.qml
     )
 endif()

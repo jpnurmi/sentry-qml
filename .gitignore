@@ -4,3 +4,5 @@ CMakeUserPresets.json
 *.user
 *.qmlc
 *.jsc
+__pycache__/
+tests/e2e/output/

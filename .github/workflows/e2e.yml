@@ -1,6 +1,7 @@
 name: E2E
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       self_hosted_ref:
@@ -18,17 +19,172 @@ on:
       qt_version:
         description: Qt version
         required: true
-        default: "6.8.0"
+        default: "6.11.0"
 
 permissions:
   contents: read
 
 jobs:
-  placeholder:
-    name: Placeholder
+  test:
+    name: Test (Qt ${{ inputs.qt_version || '6.11.0' }}, Linux x64)
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'errors-only' }}
+      SENTRY_QT_VERSION: ${{ inputs.qt_version || '6.11.0' }}
+      SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
+      SENTRY_TEST_URL: http://127.0.0.1:9000
+      SENTRY_TEST_EMAIL: test@example.com
+      SENTRY_TEST_PASSWORD: test123TEST
+      SENTRY_APP_RUNNER_REF: 4f101037aa769e48dd721b88512e19426b894500
+
     steps:
-      - name: Explain placeholder
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ env.SENTRY_QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Configure Sentry QML
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_BUILD_E2E_TESTS=ON
+
+      - name: Build E2E app
+        run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel
+
+      - name: Free runner disk space
         run: |
-          echo "This default-branch placeholder registers workflow_dispatch."
-          echo "Run the real E2E workflow from a branch with: gh workflow run e2e.yml --ref <branch>"
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /home/runner/Android /usr/local/lib/android /opt/android /usr/local/android-sdk
+          sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
+          df -h
+
+      - name: Check out Sentry self-hosted
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: getsentry/self-hosted
+          ref: ${{ env.SENTRY_SELF_HOSTED_REF }}
+          path: self-hosted
+          persist-credentials: false
+
+      - name: Check out Sentry app-runner
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: getsentry/app-runner
+          ref: ${{ env.SENTRY_APP_RUNNER_REF }}
+          path: app-runner
+          persist-credentials: false
+
+      - name: Configure Sentry self-hosted
+        working-directory: self-hosted
+        run: |
+          cat > .env.custom <<EOF
+          COMPOSE_PROFILES=$SENTRY_COMPOSE_PROFILES
+          SENTRY_BIND=127.0.0.1:9000
+          SENTRY_EVENT_RETENTION_DAYS=1
+          EOF
+
+      - name: Restore Sentry self-hosted volume cache
+        id: restore-self-hosted-volumes
+        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
+        with:
+          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
+          volumes: |
+            sentry-postgres
+            sentry-clickhouse
+            sentry-kafka
+
+      - name: Install Sentry self-hosted
+        working-directory: self-hosted
+        env:
+          REPORT_SELF_HOSTED_ISSUES: 0
+          SKIP_SENTRY_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
+          SKIP_SNUBA_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
+        run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
+
+      - name: Save Sentry self-hosted volume cache
+        if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
+        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
+        with:
+          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
+          volumes: |
+            sentry-postgres
+            sentry-clickhouse
+            sentry-kafka
+
+      - name: Set up swap
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo swapon --show
+          free -h
+
+      - name: Start Sentry self-hosted
+        working-directory: self-hosted
+        run: docker compose --ansi never --env-file .env --env-file .env.custom up --wait
+
+      - name: Create Sentry test user
+        working-directory: self-hosted
+        run: |
+          docker compose --ansi never --env-file .env --env-file .env.custom exec -T web sentry createuser \
+            --force-update \
+            --superuser \
+            --email "$SENTRY_TEST_EMAIL" \
+            --password "$SENTRY_TEST_PASSWORD" \
+            --no-input
+
+      - name: Configure Sentry test project
+        id: sentry
+        run: |
+          python3 tests/e2e/sentry_self_hosted.py \
+            --base-url "$SENTRY_TEST_URL" \
+            --email "$SENTRY_TEST_EMAIL" \
+            --password "$SENTRY_TEST_PASSWORD" \
+            configure
+
+      - name: Run Sentry QML E2E tests
+        shell: pwsh
+        run: Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI
+        env:
+          SENTRY_APP_RUNNER_PATH: ${{ github.workspace }}/app-runner
+          SENTRY_AUTH_TOKEN: ${{ steps.sentry.outputs.auth_token }}
+          SENTRY_QML_E2E_DSN: ${{ steps.sentry.outputs.dsn }}
+          SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          SENTRY_QML_E2E_APP_PATH: ${{ github.workspace }}/build/tests/sentry_qml_e2e_app
+          SENTRY_QML_E2E_DATABASE_PATH: ${{ runner.temp }}/sentry-qml-e2e-db
+
+      - name: Inspect Sentry failure
+        if: failure()
+        run: |
+          test -d self-hosted || exit 0
+          cd self-hosted
+          docker compose --ansi never --env-file .env --env-file .env.custom ps
+          docker compose --ansi never --env-file .env --env-file .env.custom logs --tail=300
+
+      - name: Upload E2E output
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sentry-qml-e2e-output
+          path: tests/e2e/output/
+          if-no-files-found: ignore
+
+      - name: Stop Sentry self-hosted
+        if: always()
+        run: |
+          test -d self-hosted || exit 0
+          cd self-hosted
+          docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans || true

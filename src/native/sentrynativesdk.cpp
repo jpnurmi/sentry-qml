@@ -1,4 +1,4 @@
-#include "../sentrybackend_p.h"
+#include "../sentrysdk_p.h"
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
@@ -34,7 +34,7 @@
 
 extern "C" void sentry__hint_free(sentry_hint_t *hint);
 
-struct SentryBackendEventHookState
+struct SentrySdkEventHookState
 {
     QPointer<Sentry> sentry;
     QPointer<QJSEngine> engine;
@@ -43,10 +43,10 @@ struct SentryBackendEventHookState
     QString propertyName;
 };
 
-struct SentryBackendCrashHookState
+struct SentrySdkCrashHookState
 {
-    SentryBackend *sdk = nullptr;
-    SentryBackendEventHookState *qmlHook = nullptr;
+    SentrySdk *sdk = nullptr;
+    SentrySdkEventHookState *qmlHook = nullptr;
 };
 
 namespace {
@@ -221,7 +221,7 @@ bool createEventHookState(Sentry *sentry,
                           const QJSValue &callback,
                           const QString &propertyName,
                           bool requireSameThread,
-                          std::unique_ptr<SentryBackendEventHookState> *state)
+                          std::unique_ptr<SentrySdkEventHookState> *state)
 {
     if (callback.isUndefined() || callback.isNull()) {
         return true;
@@ -239,7 +239,7 @@ bool createEventHookState(Sentry *sentry,
         return false;
     }
 
-    auto hookState = std::make_unique<SentryBackendEventHookState>();
+    auto hookState = std::make_unique<SentrySdkEventHookState>();
     hookState->sentry = sentry;
     hookState->engine = engine;
     hookState->callback = callback;
@@ -249,7 +249,7 @@ bool createEventHookState(Sentry *sentry,
     return true;
 }
 
-sentry_value_t invokeValueHook(sentry_value_t value, SentryBackendEventHookState *state)
+sentry_value_t invokeValueHook(sentry_value_t value, SentrySdkEventHookState *state)
 {
     if (!state || !state->engine || !state->callback.isCallable()) {
         return value;
@@ -295,12 +295,12 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryBackendEventHookState
 
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
-    return invokeValueHook(event, static_cast<SentryBackendEventHookState *>(userData));
+    return invokeValueHook(event, static_cast<SentrySdkEventHookState *>(userData));
 }
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
 {
-    auto *state = static_cast<SentryBackendCrashHookState *>(userData);
+    auto *state = static_cast<SentrySdkCrashHookState *>(userData);
     if (!state) {
         return event;
     }
@@ -317,17 +317,17 @@ sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, 
 
 sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
 {
-    return invokeValueHook(breadcrumb, static_cast<SentryBackendEventHookState *>(userData));
+    return invokeValueHook(breadcrumb, static_cast<SentrySdkEventHookState *>(userData));
 }
 
 sentry_value_t beforeSendLogCallback(sentry_value_t log, void *userData)
 {
-    return invokeValueHook(log, static_cast<SentryBackendEventHookState *>(userData));
+    return invokeValueHook(log, static_cast<SentrySdkEventHookState *>(userData));
 }
 
 sentry_value_t beforeSendMetricCallback(sentry_value_t metric, void *userData)
 {
-    return invokeValueHook(metric, static_cast<SentryBackendEventHookState *>(userData));
+    return invokeValueHook(metric, static_cast<SentrySdkEventHookState *>(userData));
 }
 
 QString levelNameFromString(const QString &level)
@@ -496,30 +496,30 @@ bool checkMetricResult(Sentry *sentry, sentry_metrics_result_t result)
 
 } // namespace
 
-SentryBackend *SentryBackend::instance()
+SentrySdk *SentrySdk::instance()
 {
-    static SentryBackend sdk;
+    static SentrySdk sdk;
     return &sdk;
 }
 
-SentryBackend::SentryBackend(QObject *parent)
+SentrySdk::SentrySdk(QObject *parent)
     : QObject(parent)
 {
 }
 
-SentryBackend::~SentryBackend()
+SentrySdk::~SentrySdk()
 {
     if (m_initialized && QCoreApplication::instance() && !QCoreApplication::closingDown()) {
         close();
     }
 }
 
-bool SentryBackend::isInitialized() const
+bool SentrySdk::isInitialized() const
 {
     return m_initialized;
 }
 
-bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
+bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
 {
     if (m_initialized) {
         return true;
@@ -549,7 +549,7 @@ bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryBackendEventHookState> beforeBreadcrumbState;
+    std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
                               options->beforeBreadcrumb(),
@@ -559,13 +559,13 @@ bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryBackendEventHookState> beforeSendLogState;
+    std::unique_ptr<SentrySdkEventHookState> beforeSendLogState;
     if (!createEventHookState(
             sentry, options, options->beforeSendLog(), QStringLiteral("beforeSendLog"), true, &beforeSendLogState)) {
         return false;
     }
 
-    std::unique_ptr<SentryBackendEventHookState> beforeSendMetricState;
+    std::unique_ptr<SentrySdkEventHookState> beforeSendMetricState;
     if (!createEventHookState(sentry,
                               options,
                               options->beforeSendMetric(),
@@ -575,17 +575,17 @@ bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryBackendEventHookState> beforeSendState;
+    std::unique_ptr<SentrySdkEventHookState> beforeSendState;
     if (!createEventHookState(
             sentry, options, options->beforeSend(), QStringLiteral("beforeSend"), true, &beforeSendState)) {
         return false;
     }
 
-    std::unique_ptr<SentryBackendEventHookState> onCrashState;
+    std::unique_ptr<SentrySdkEventHookState> onCrashState;
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
     }
-    auto crashHookState = std::make_unique<SentryBackendCrashHookState>();
+    auto crashHookState = std::make_unique<SentrySdkCrashHookState>();
     crashHookState->sdk = this;
     crashHookState->qmlHook = onCrashState.get();
 
@@ -663,7 +663,7 @@ bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
     return true;
 }
 
-bool SentryBackend::flush(int timeoutMs)
+bool SentrySdk::flush(int timeoutMs)
 {
     if (!m_initialized) {
         return true;
@@ -672,7 +672,7 @@ bool SentryBackend::flush(int timeoutMs)
     return sentry_flush(timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs)) == 0;
 }
 
-bool SentryBackend::close()
+bool SentrySdk::close()
 {
     if (!m_initialized) {
         return true;
@@ -693,12 +693,12 @@ bool SentryBackend::close()
     return true;
 }
 
-void SentryBackend::closeBeforeApplicationShutdown()
+void SentrySdk::closeBeforeApplicationShutdown()
 {
     close();
 }
 
-void SentryBackend::connectToApplicationShutdown()
+void SentrySdk::connectToApplicationShutdown()
 {
     if (m_applicationShutdownConnection || !QCoreApplication::instance()) {
         return;
@@ -707,13 +707,13 @@ void SentryBackend::connectToApplicationShutdown()
     m_applicationShutdownConnection = QObject::connect(QCoreApplication::instance(),
                                                        &QCoreApplication::aboutToQuit,
                                                        this,
-                                                       &SentryBackend::closeBeforeApplicationShutdown,
+                                                       &SentrySdk::closeBeforeApplicationShutdown,
                                                        Qt::DirectConnection);
 }
 
-void SentryBackend::detachSentry(Sentry *sentry)
+void SentrySdk::detachSentry(Sentry *sentry)
 {
-    auto detach = [sentry](std::unique_ptr<SentryBackendEventHookState> &state)
+    auto detach = [sentry](std::unique_ptr<SentrySdkEventHookState> &state)
     {
         if (state && state->sentry == sentry) {
             state->sentry = nullptr;
@@ -729,10 +729,10 @@ void SentryBackend::detachSentry(Sentry *sentry)
     detach(m_onCrashState);
 }
 
-bool SentryBackend::ensureCanCall(Sentry *sentry,
-                                    const char *method,
-                                    const char *action,
-                                    const char *hookType) const
+bool SentrySdk::ensureCanCall(Sentry *sentry,
+                              const char *method,
+                              const char *action,
+                              const char *hookType) const
 {
     if (hookDepth > 0) {
         if (sentry) {
@@ -745,7 +745,7 @@ bool SentryBackend::ensureCanCall(Sentry *sentry,
     return ensureInitialized(sentry, action);
 }
 
-bool SentryBackend::ensureInitialized(Sentry *sentry, const char *action) const
+bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 {
     if (m_initialized) {
         return true;
@@ -758,7 +758,7 @@ bool SentryBackend::ensureInitialized(Sentry *sentry, const char *action) const
     return false;
 }
 
-bool SentryBackend::setRelease(Sentry *sentry, const QString &release)
+bool SentrySdk::setRelease(Sentry *sentry, const QString &release)
 {
     if (!ensureCanCall(sentry, "setRelease", "setting releases")) {
         return false;
@@ -776,7 +776,7 @@ bool SentryBackend::setRelease(Sentry *sentry, const QString &release)
     return true;
 }
 
-bool SentryBackend::setEnvironment(Sentry *sentry, const QString &environment)
+bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
 {
     if (!ensureCanCall(sentry, "setEnvironment", "setting environments")) {
         return false;
@@ -794,7 +794,7 @@ bool SentryBackend::setEnvironment(Sentry *sentry, const QString &environment)
     return true;
 }
 
-bool SentryBackend::setUser(Sentry *sentry, const QVariantMap &user)
+bool SentrySdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (!ensureCanCall(sentry, "setUser", "setting users")) {
         return false;
@@ -811,7 +811,7 @@ bool SentryBackend::setUser(Sentry *sentry, const QVariantMap &user)
     return true;
 }
 
-bool SentryBackend::removeUser(Sentry *sentry)
+bool SentrySdk::removeUser(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "removeUser", "removing users")) {
         return false;
@@ -821,7 +821,7 @@ bool SentryBackend::removeUser(Sentry *sentry)
     return true;
 }
 
-bool SentryBackend::setTag(Sentry *sentry, const QString &key, const QString &value)
+bool SentrySdk::setTag(Sentry *sentry, const QString &key, const QString &value)
 {
     if (!ensureCanCall(sentry, "setTag", "setting tags")) {
         return false;
@@ -843,7 +843,7 @@ bool SentryBackend::setTag(Sentry *sentry, const QString &key, const QString &va
     return true;
 }
 
-bool SentryBackend::removeTag(Sentry *sentry, const QString &key)
+bool SentrySdk::removeTag(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeTag", "removing tags")) {
         return false;
@@ -861,7 +861,7 @@ bool SentryBackend::removeTag(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryBackend::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
+bool SentrySdk::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
 {
     if (!ensureCanCall(sentry, "setContext", "setting contexts")) {
         return false;
@@ -881,7 +881,7 @@ bool SentryBackend::setContext(Sentry *sentry, const QString &key, const QVarian
     return true;
 }
 
-bool SentryBackend::removeContext(Sentry *sentry, const QString &key)
+bool SentrySdk::removeContext(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeContext", "removing contexts")) {
         return false;
@@ -899,7 +899,7 @@ bool SentryBackend::removeContext(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryBackend::setAttribute(Sentry *sentry, const QString &key, const QVariant &value)
+bool SentrySdk::setAttribute(Sentry *sentry, const QString &key, const QVariant &value)
 {
     if (!ensureCanCall(sentry, "setAttribute", "setting attributes")) {
         return false;
@@ -926,7 +926,7 @@ bool SentryBackend::setAttribute(Sentry *sentry, const QString &key, const QVari
     return true;
 }
 
-bool SentryBackend::removeAttribute(Sentry *sentry, const QString &key)
+bool SentrySdk::removeAttribute(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeAttribute", "removing attributes")) {
         return false;
@@ -944,7 +944,7 @@ bool SentryBackend::removeAttribute(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryBackend::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
+bool SentrySdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
 {
     if (!ensureCanCall(sentry, "setFingerprint", "setting fingerprints")) {
         return false;
@@ -961,7 +961,7 @@ bool SentryBackend::setFingerprint(Sentry *sentry, const QStringList &fingerprin
     return true;
 }
 
-bool SentryBackend::removeFingerprint(Sentry *sentry)
+bool SentrySdk::removeFingerprint(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "removeFingerprint", "removing fingerprints")) {
         return false;
@@ -972,7 +972,7 @@ bool SentryBackend::removeFingerprint(Sentry *sentry)
     return true;
 }
 
-SentryAttachment *SentryBackend::attachFile(Sentry *sentry, const QString &path, const QString &contentType)
+SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, const QString &contentType)
 {
     if (!ensureCanCall(sentry, "attachFile", "attaching files")) {
         return nullptr;
@@ -1010,10 +1010,10 @@ SentryAttachment *SentryBackend::attachFile(Sentry *sentry, const QString &path,
     return wrapper;
 }
 
-SentryAttachment *SentryBackend::attachBytes(Sentry *sentry,
-                                              const QByteArray &bytes,
-                                              const QString &filename,
-                                              const QString &contentType)
+SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
+                                         const QByteArray &bytes,
+                                         const QString &filename,
+                                         const QString &contentType)
 {
     if (!ensureCanCall(sentry, "attachBytes", "attaching bytes")) {
         return nullptr;
@@ -1062,7 +1062,7 @@ SentryAttachment *SentryBackend::attachBytes(Sentry *sentry,
     return wrapper;
 }
 
-bool SentryBackend::clearAttachments(Sentry *sentry)
+bool SentrySdk::clearAttachments(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "clearAttachments", "clearing attachments")) {
         return false;
@@ -1073,7 +1073,7 @@ bool SentryBackend::clearAttachments(Sentry *sentry)
     return true;
 }
 
-void SentryBackend::trackAttachment(SentryAttachment *attachment)
+void SentrySdk::trackAttachment(SentryAttachment *attachment)
 {
     if (!attachment) {
         return;
@@ -1082,12 +1082,12 @@ void SentryBackend::trackAttachment(SentryAttachment *attachment)
     m_attachments.append(attachment);
 }
 
-void SentryBackend::detachAttachment(SentryAttachment *attachment)
+void SentrySdk::detachAttachment(SentryAttachment *attachment)
 {
     m_attachments.removeAll(attachment);
 }
 
-void SentryBackend::invalidateAttachments()
+void SentrySdk::invalidateAttachments()
 {
     const QList<SentryAttachment *> attachments = m_attachments;
     m_attachments.clear();
@@ -1098,7 +1098,7 @@ void SentryBackend::invalidateAttachments()
     }
 }
 
-void SentryBackend::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
+void SentrySdk::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
 {
     if (!attachment || !attachment->handle()) {
         return;
@@ -1115,7 +1115,7 @@ void SentryBackend::setAttachmentFilename(SentryAttachment *attachment, const QS
 #endif
 }
 
-void SentryBackend::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
+void SentrySdk::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
 {
     if (!attachment || !attachment->handle()) {
         return;
@@ -1127,7 +1127,7 @@ void SentryBackend::setAttachmentContentType(SentryAttachment *attachment, const
                                          static_cast<size_t>(utf8ContentType.size()));
 }
 
-bool SentryBackend::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
+bool SentrySdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
 {
     if (!ensureCanCall(sentry, "removeAttachment", "removing attachments")) {
         return false;
@@ -1146,7 +1146,7 @@ bool SentryBackend::removeAttachment(Sentry *sentry, SentryAttachment *attachmen
     return true;
 }
 
-bool SentryBackend::startSession(Sentry *sentry)
+bool SentrySdk::startSession(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "startSession", "starting sessions")) {
         return false;
@@ -1156,7 +1156,7 @@ bool SentryBackend::startSession(Sentry *sentry)
     return true;
 }
 
-bool SentryBackend::endSession(Sentry *sentry, int status)
+bool SentrySdk::endSession(Sentry *sentry, int status)
 {
     if (!ensureCanCall(sentry, "endSession", "ending sessions")) {
         return false;
@@ -1182,7 +1182,7 @@ bool SentryBackend::endSession(Sentry *sentry, int status)
     return true;
 }
 
-bool SentryBackend::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
+bool SentrySdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
 {
     if (!ensureCanCall(sentry, "addBreadcrumb", "adding breadcrumbs")) {
         return false;
@@ -1199,7 +1199,7 @@ bool SentryBackend::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
     return true;
 }
 
-bool SentryBackend::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
+bool SentrySdk::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "log", "logging", "hooks")) {
         return false;
@@ -1221,7 +1221,7 @@ bool SentryBackend::log(Sentry *sentry, int level, const QString &message, const
     return result == SENTRY_LOG_RETURN_SUCCESS;
 }
 
-bool SentryBackend::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
+bool SentrySdk::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "count", "recording metrics", "hooks")) {
         return false;
@@ -1240,11 +1240,11 @@ bool SentryBackend::count(Sentry *sentry, const QString &name, qint64 value, con
     return checkMetricResult(sentry, result);
 }
 
-bool SentryBackend::gauge(Sentry *sentry,
-                            const QString &name,
-                            double value,
-                            const QString &unit,
-                            const QVariantMap &attributes)
+bool SentrySdk::gauge(Sentry *sentry,
+                      const QString &name,
+                      double value,
+                      const QString &unit,
+                      const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "gauge", "recording metrics", "hooks")) {
         return false;
@@ -1273,11 +1273,11 @@ bool SentryBackend::gauge(Sentry *sentry,
     return checkMetricResult(sentry, result);
 }
 
-bool SentryBackend::distribution(Sentry *sentry,
-                                   const QString &name,
-                                   double value,
-                                   const QString &unit,
-                                   const QVariantMap &attributes)
+bool SentrySdk::distribution(Sentry *sentry,
+                             const QString &name,
+                             double value,
+                             const QString &unit,
+                             const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "distribution", "recording metrics", "hooks")) {
         return false;
@@ -1307,7 +1307,7 @@ bool SentryBackend::distribution(Sentry *sentry,
     return checkMetricResult(sentry, result);
 }
 
-QString SentryBackend::captureMessage(Sentry *sentry, const QString &message, const QString &level)
+QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)
 {
     if (!ensureInitialized(sentry, "capturing messages")) {
         return {};
@@ -1329,10 +1329,10 @@ QString SentryBackend::captureMessage(Sentry *sentry, const QString &message, co
          }},
     };
 
-    return captureEvent(sentry, event, SentryCaptureMode::Manual);
+    return captureEvent(sentry, event, SentrySdkCaptureMode::Manual);
 }
 
-bool SentryBackend::captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint)
+bool SentrySdk::captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint)
 {
     if (!ensureCanCall(sentry, "captureFeedback", "capturing feedback", "hooks")) {
         return false;
@@ -1423,10 +1423,10 @@ bool SentryBackend::captureFeedback(Sentry *sentry, const QVariantMap &feedback,
     return true;
 }
 
-QString SentryBackend::captureEvent(Sentry *sentry, const QVariantMap &event, SentryCaptureMode mode)
+QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, SentrySdkCaptureMode mode)
 {
     if (hookDepth > 0) {
-        if (mode == SentryCaptureMode::Manual && sentry) {
+        if (mode == SentrySdkCaptureMode::Manual && sentry) {
             emit sentry->errorOccurred(
                 QStringLiteral("Sentry.capture* cannot be called from Sentry event hooks."));
         }
@@ -1452,7 +1452,7 @@ QString SentryBackend::captureEvent(Sentry *sentry, const QVariantMap &event, Se
     return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(event), scope));
 }
 
-void SentryBackend::applyFingerprintToEvent(QVariantMap *event) const
+void SentrySdk::applyFingerprintToEvent(QVariantMap *event) const
 {
     if (!event || m_fingerprint.isEmpty()) {
         return;
@@ -1461,7 +1461,7 @@ void SentryBackend::applyFingerprintToEvent(QVariantMap *event) const
     event->insert(QStringLiteral("fingerprint"), m_fingerprint);
 }
 
-void SentryBackend::setInitialized(bool initialized)
+void SentrySdk::setInitialized(bool initialized)
 {
     if (m_initialized == initialized) {
         return;

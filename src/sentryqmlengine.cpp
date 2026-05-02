@@ -4,7 +4,7 @@
 
 #include <SentryQml/sentry.h>
 
-#include "sentrybackend_p.h"
+#include "sentrysdk_p.h"
 
 #include <QtCore/qlist.h>
 #include <QtCore/qurl.h>
@@ -164,7 +164,7 @@ void SentryQmlEngine::installWarningHandler()
                                                 SentryEvent::stacktraceFromQmlError(warning, stackTrace),
                                                 stackTrace.join(QLatin1Char('\n')),
                                                 false);
-                SentryBackend::instance()->captureEvent(nullptr, event, SentryCaptureMode::Automatic);
+                SentrySdk::instance()->captureEvent(nullptr, event, SentrySdkCaptureMode::Automatic);
             }
         });
 }
@@ -212,7 +212,7 @@ QString SentryQmlEngine::captureException(const QJSValue &exception)
 
     const QVariantMap event = SentryEvent::exceptionEvent(
         type, value, SentryEvent::stacktraceFromQmlStack(stack), stack, true);
-    return SentryBackend::instance()->captureEvent(m_sentry, event, SentryCaptureMode::Manual);
+    return SentrySdk::instance()->captureEvent(m_sentry, event, SentrySdkCaptureMode::Manual);
 }
 
 void SentryQmlEngine::installThrowHook()

@@ -4,19 +4,19 @@
 
 #include <SentryQml/sentryoptions.h>
 
-#include "sentrybackend_p.h"
+#include "sentrysdk_p.h"
 
 #include <cmath>
 
 Sentry::Sentry(QObject *parent)
     : QObject(parent)
 {
-    QObject::connect(SentryBackend::instance(), &SentryBackend::initializedChanged, this, &Sentry::initializedChanged);
+    QObject::connect(SentrySdk::instance(), &SentrySdk::initializedChanged, this, &Sentry::initializedChanged);
 }
 
 Sentry::~Sentry()
 {
-    SentryBackend::instance()->detachSentry(this);
+    SentrySdk::instance()->detachSentry(this);
 }
 
 Sentry *Sentry::create(QQmlEngine *engine, QJSEngine *scriptEngine)
@@ -30,14 +30,14 @@ Sentry *Sentry::create(QQmlEngine *engine, QJSEngine *scriptEngine)
 
 bool Sentry::isInitialized() const
 {
-    return SentryBackend::instance()->isInitialized();
+    return SentrySdk::instance()->isInitialized();
 }
 
 bool Sentry::init(SentryOptions *options)
 {
     ensureQmlEngine(qmlEngine(options));
 
-    const bool ok = SentryBackend::instance()->init(this, options);
+    const bool ok = SentrySdk::instance()->init(this, options);
     if (ok && m_qmlEngine) {
         m_qmlEngine->installWarningHandler();
     }
@@ -46,7 +46,7 @@ bool Sentry::init(SentryOptions *options)
 
 bool Sentry::flush(int timeoutMs)
 {
-    return SentryBackend::instance()->flush(timeoutMs);
+    return SentrySdk::instance()->flush(timeoutMs);
 }
 
 bool Sentry::close()
@@ -54,107 +54,107 @@ bool Sentry::close()
     if (m_qmlEngine) {
         m_qmlEngine->uninstallWarningHandler();
     }
-    return SentryBackend::instance()->close();
+    return SentrySdk::instance()->close();
 }
 
 bool Sentry::setRelease(const QString &release)
 {
-    return SentryBackend::instance()->setRelease(this, release);
+    return SentrySdk::instance()->setRelease(this, release);
 }
 
 bool Sentry::setEnvironment(const QString &environment)
 {
-    return SentryBackend::instance()->setEnvironment(this, environment);
+    return SentrySdk::instance()->setEnvironment(this, environment);
 }
 
 bool Sentry::setUser(const QVariantMap &user)
 {
-    return SentryBackend::instance()->setUser(this, user);
+    return SentrySdk::instance()->setUser(this, user);
 }
 
 bool Sentry::removeUser()
 {
-    return SentryBackend::instance()->removeUser(this);
+    return SentrySdk::instance()->removeUser(this);
 }
 
 bool Sentry::setTag(const QString &key, const QString &value)
 {
-    return SentryBackend::instance()->setTag(this, key, value);
+    return SentrySdk::instance()->setTag(this, key, value);
 }
 
 bool Sentry::removeTag(const QString &key)
 {
-    return SentryBackend::instance()->removeTag(this, key);
+    return SentrySdk::instance()->removeTag(this, key);
 }
 
 bool Sentry::setContext(const QString &key, const QVariantMap &context)
 {
-    return SentryBackend::instance()->setContext(this, key, context);
+    return SentrySdk::instance()->setContext(this, key, context);
 }
 
 bool Sentry::removeContext(const QString &key)
 {
-    return SentryBackend::instance()->removeContext(this, key);
+    return SentrySdk::instance()->removeContext(this, key);
 }
 
 bool Sentry::setAttribute(const QString &key, const QVariant &value)
 {
-    return SentryBackend::instance()->setAttribute(this, key, value);
+    return SentrySdk::instance()->setAttribute(this, key, value);
 }
 
 bool Sentry::removeAttribute(const QString &key)
 {
-    return SentryBackend::instance()->removeAttribute(this, key);
+    return SentrySdk::instance()->removeAttribute(this, key);
 }
 
 bool Sentry::setFingerprint(const QStringList &fingerprint)
 {
-    return SentryBackend::instance()->setFingerprint(this, fingerprint);
+    return SentrySdk::instance()->setFingerprint(this, fingerprint);
 }
 
 bool Sentry::removeFingerprint()
 {
-    return SentryBackend::instance()->removeFingerprint(this);
+    return SentrySdk::instance()->removeFingerprint(this);
 }
 
 SentryAttachment *Sentry::attachFile(const QString &path, const QString &contentType)
 {
-    return SentryBackend::instance()->attachFile(this, path, contentType);
+    return SentrySdk::instance()->attachFile(this, path, contentType);
 }
 
 SentryAttachment *Sentry::attachBytes(const QByteArray &bytes, const QString &filename, const QString &contentType)
 {
-    return SentryBackend::instance()->attachBytes(this, bytes, filename, contentType);
+    return SentrySdk::instance()->attachBytes(this, bytes, filename, contentType);
 }
 
 bool Sentry::removeAttachment(SentryAttachment *attachment)
 {
-    return SentryBackend::instance()->removeAttachment(this, attachment);
+    return SentrySdk::instance()->removeAttachment(this, attachment);
 }
 
 bool Sentry::clearAttachments()
 {
-    return SentryBackend::instance()->clearAttachments(this);
+    return SentrySdk::instance()->clearAttachments(this);
 }
 
 bool Sentry::startSession()
 {
-    return SentryBackend::instance()->startSession(this);
+    return SentrySdk::instance()->startSession(this);
 }
 
 bool Sentry::endSession()
 {
-    return SentryBackend::instance()->endSession(this, -1);
+    return SentrySdk::instance()->endSession(this, -1);
 }
 
 bool Sentry::endSession(SessionStatus status)
 {
-    return SentryBackend::instance()->endSession(this, static_cast<int>(status));
+    return SentrySdk::instance()->endSession(this, static_cast<int>(status));
 }
 
 bool Sentry::addBreadcrumb(const QVariantMap &breadcrumb)
 {
-    return SentryBackend::instance()->addBreadcrumb(this, breadcrumb);
+    return SentrySdk::instance()->addBreadcrumb(this, breadcrumb);
 }
 
 bool Sentry::addBreadcrumb(const QString &message,
@@ -176,7 +176,7 @@ bool Sentry::addBreadcrumb(const QString &message,
 
 bool Sentry::log(Level level, const QString &message, const QVariantMap &attributes)
 {
-    return SentryBackend::instance()->log(this, static_cast<int>(level), message, attributes);
+    return SentrySdk::instance()->log(this, static_cast<int>(level), message, attributes);
 }
 
 bool Sentry::trace(const QString &message, const QVariantMap &attributes)
@@ -235,22 +235,22 @@ bool Sentry::metric(MetricType type,
 
 bool Sentry::count(const QString &name, qint64 value, const QVariantMap &attributes)
 {
-    return SentryBackend::instance()->count(this, name, value, attributes);
+    return SentrySdk::instance()->count(this, name, value, attributes);
 }
 
 bool Sentry::gauge(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
 {
-    return SentryBackend::instance()->gauge(this, name, value, unit, attributes);
+    return SentrySdk::instance()->gauge(this, name, value, unit, attributes);
 }
 
 bool Sentry::distribution(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
 {
-    return SentryBackend::instance()->distribution(this, name, value, unit, attributes);
+    return SentrySdk::instance()->distribution(this, name, value, unit, attributes);
 }
 
 QString Sentry::captureMessage(const QString &message, const QString &level)
 {
-    return SentryBackend::instance()->captureMessage(this, message, level);
+    return SentrySdk::instance()->captureMessage(this, message, level);
 }
 
 QString Sentry::captureException(const QJSValue &exception)
@@ -269,7 +269,7 @@ QString Sentry::captureException(const QJSValue &exception)
 
 bool Sentry::captureFeedback(const QVariantMap &feedback, SentryHint *hint)
 {
-    return SentryBackend::instance()->captureFeedback(this, feedback, hint);
+    return SentrySdk::instance()->captureFeedback(this, feedback, hint);
 }
 
 void Sentry::ensureQmlEngine(QQmlEngine *engine)

@@ -12,22 +12,22 @@
 class Sentry;
 class SentryAttachment;
 class SentryHint;
-struct SentryBackendEventHookState;
-struct SentryBackendCrashHookState;
+struct SentrySdkEventHookState;
+struct SentrySdkCrashHookState;
 class SentryOptions;
 
-enum class SentryCaptureMode
+enum class SentrySdkCaptureMode
 {
     Manual,
     Automatic
 };
 
-class SentryBackend : public QObject
+class SentrySdk : public QObject
 {
     Q_OBJECT
 
 public:
-    static SentryBackend *instance();
+    static SentrySdk *instance();
 
     bool isInitialized() const;
     bool init(Sentry *sentry, SentryOptions *options);
@@ -70,7 +70,7 @@ public:
                       const QString &unit,
                       const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
-    QString captureEvent(Sentry *sentry, const QVariantMap &event, SentryCaptureMode mode);
+    QString captureEvent(Sentry *sentry, const QVariantMap &event, SentrySdkCaptureMode mode);
     bool captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint);
     void applyFingerprintToEvent(QVariantMap *event) const;
 
@@ -80,8 +80,8 @@ signals:
 private:
     friend class SentryAttachment;
 
-    explicit SentryBackend(QObject *parent = nullptr);
-    ~SentryBackend() override;
+    explicit SentrySdk(QObject *parent = nullptr);
+    ~SentrySdk() override;
 
     void closeBeforeApplicationShutdown();
     void connectToApplicationShutdown();
@@ -97,12 +97,12 @@ private:
     void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
     void setInitialized(bool initialized);
 
-    std::unique_ptr<SentryBackendEventHookState> m_beforeSendState;
-    std::unique_ptr<SentryBackendEventHookState> m_beforeBreadcrumbState;
-    std::unique_ptr<SentryBackendEventHookState> m_beforeSendLogState;
-    std::unique_ptr<SentryBackendEventHookState> m_beforeSendMetricState;
-    std::unique_ptr<SentryBackendEventHookState> m_onCrashState;
-    std::unique_ptr<SentryBackendCrashHookState> m_crashHookState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeSendState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeBreadcrumbState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeSendLogState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeSendMetricState;
+    std::unique_ptr<SentrySdkEventHookState> m_onCrashState;
+    std::unique_ptr<SentrySdkCrashHookState> m_crashHookState;
     QStringList m_fingerprint;
     QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;

@@ -37,6 +37,31 @@ jobs:
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST
       SENTRY_APP_RUNNER_REF: 4f101037aa769e48dd721b88512e19426b894500
+      SENTRY_COMPOSE_SERVICES: >-
+        nginx
+        events-consumer
+        attachments-consumer
+        post-process-forwarder-errors
+        post-process-forwarder-issue-platform
+        ingest-feedback-events
+        ingest-occurrences
+        metrics-consumer
+        generic-metrics-consumer
+        billing-metrics-consumer
+        subscription-consumer-eap-items
+        snuba-errors-consumer
+        snuba-outcomes-consumer
+        snuba-group-attributes-consumer
+        snuba-replacer
+        snuba-issue-occurrence-consumer
+        snuba-subscription-consumer-eap-items
+        snuba-metrics-consumer
+        snuba-generic-metrics-distributions-consumer
+        snuba-generic-metrics-sets-consumer
+        snuba-generic-metrics-counters-consumer
+        snuba-generic-metrics-gauges-consumer
+        snuba-eap-items-consumer
+        taskworker
 
     steps:
       - name: Check out sources
@@ -125,7 +150,12 @@ jobs:
           EOF
 
       - name: Save Sentry self-hosted volume cache
-        if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
+        if: >-
+          steps.restore-self-hosted-volumes.outputs.cache-hit != 'true' &&
+          (
+            github.event_name != 'pull_request' ||
+            github.event.pull_request.head.repo.full_name == github.repository
+          )
         uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
@@ -146,7 +176,12 @@ jobs:
 
       - name: Start Sentry self-hosted
         working-directory: self-hosted
-        run: docker compose --ansi never --env-file .env --env-file .env.custom up --wait
+        run: |
+          if [ "$SENTRY_COMPOSE_PROFILES" = "feature-complete" ]; then
+            docker compose --ansi never --env-file .env --env-file .env.custom up --wait $SENTRY_COMPOSE_SERVICES
+          else
+            docker compose --ansi never --env-file .env --env-file .env.custom up --wait
+          fi
 
       - name: Create Sentry test user
         working-directory: self-hosted

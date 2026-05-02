@@ -1,9 +1,11 @@
 #include <SentryQml/private/sentrynativesdk_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
+#include <SentryQml/private/sentryhint_p.h>
 
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryattachment.h>
+#include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryuser.h>
 
@@ -27,6 +29,8 @@
 #ifndef SENTRY_QML_SDK_NAME
 #    define SENTRY_QML_SDK_NAME "sentry.native.qml"
 #endif
+
+extern "C" void sentry__hint_free(sentry_hint_t *hint);
 
 struct SentryNativeEventHookState
 {
@@ -264,6 +268,83 @@ QVariantMap userFromVariantMap(const QVariantMap &user)
         nativeUser.remove(ipAddressKey);
     }
     return nativeUser;
+}
+
+QString feedbackValue(const QVariantMap &feedback,
+                      const QString &key,
+                      const QString &fallbackKey = {},
+                      const QString &secondFallbackKey = {})
+{
+    if (feedback.contains(key)) {
+        return feedback.value(key).toString();
+    }
+    if (!fallbackKey.isEmpty() && feedback.contains(fallbackKey)) {
+        return feedback.value(fallbackKey).toString();
+    }
+    if (!secondFallbackKey.isEmpty() && feedback.contains(secondFallbackKey)) {
+        return feedback.value(secondFallbackKey).toString();
+    }
+    return {};
+}
+
+struct NativeHintDeleter
+{
+    void operator()(sentry_hint_t *hint) const { sentry__hint_free(hint); }
+};
+
+void setNativeAttachmentFilename(sentry_attachment_t *attachment, const QString &filename)
+{
+    if (!attachment || filename.isEmpty()) {
+        return;
+    }
+
+#if defined(Q_OS_WIN)
+    const std::wstring wideFilename = filename.toStdWString();
+    sentry_attachment_set_filenamew_n(attachment, wideFilename.c_str(), wideFilename.size());
+#else
+    const QByteArray encodedFilename = QFile::encodeName(filename);
+    sentry_attachment_set_filename_n(
+        attachment, encodedFilename.constData(), static_cast<size_t>(encodedFilename.size()));
+#endif
+}
+
+void setNativeAttachmentContentType(sentry_attachment_t *attachment, const QString &contentType)
+{
+    if (!attachment || contentType.isEmpty()) {
+        return;
+    }
+
+    const QByteArray utf8ContentType = contentType.toUtf8();
+    sentry_attachment_set_content_type_n(
+        attachment, utf8ContentType.constData(), static_cast<size_t>(utf8ContentType.size()));
+}
+
+sentry_attachment_t *attachHintFile(sentry_hint_t *hint, const QString &path)
+{
+    const QString nativePath = QDir::toNativeSeparators(path);
+#if defined(Q_OS_WIN)
+    const std::wstring widePath = nativePath.toStdWString();
+    return sentry_hint_attach_filew_n(hint, widePath.c_str(), widePath.size());
+#else
+    const QByteArray encodedPath = QFile::encodeName(nativePath);
+    return sentry_hint_attach_file_n(hint, encodedPath.constData(), static_cast<size_t>(encodedPath.size()));
+#endif
+}
+
+sentry_attachment_t *attachHintBytes(sentry_hint_t *hint, const QByteArray &bytes, const QString &filename)
+{
+#if defined(Q_OS_WIN)
+    const std::wstring wideFilename = filename.toStdWString();
+    return sentry_hint_attach_bytesw_n(
+        hint, bytes.constData(), static_cast<size_t>(bytes.size()), wideFilename.c_str(), wideFilename.size());
+#else
+    const QByteArray encodedFilename = QFile::encodeName(filename);
+    return sentry_hint_attach_bytes_n(hint,
+                                      bytes.constData(),
+                                      static_cast<size_t>(bytes.size()),
+                                      encodedFilename.constData(),
+                                      static_cast<size_t>(encodedFilename.size()));
+#endif
 }
 
 sentry_value_t fingerprintFromStringList(const QStringList &fingerprint)
@@ -1097,6 +1178,97 @@ QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, 
         static_cast<size_t>(text.size()));
 
     return captureEvent(sentry, event, SentryNativeCaptureMode::Manual);
+}
+
+bool SentryNativeSdk::captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint)
+{
+    if (!ensureCanCall(sentry, "captureFeedback", "capturing feedback", "hooks")) {
+        return false;
+    }
+
+    const QString message = feedbackValue(feedback, QStringLiteral("message"));
+    if (message.trimmed().isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry feedback message must not be empty."));
+        }
+        return false;
+    }
+
+    const QString contactEmail = feedbackValue(feedback,
+                                               QStringLiteral("email"),
+                                               QStringLiteral("contactEmail"),
+                                               QStringLiteral("contact_email"));
+    const QString name = feedbackValue(feedback, QStringLiteral("name"));
+    const QString associatedEventId = feedbackValue(feedback,
+                                                    QStringLiteral("associatedEventId"),
+                                                    QStringLiteral("associated_event_id"),
+                                                    QStringLiteral("eventId"))
+                                          .trimmed();
+
+    sentry_uuid_t nativeAssociatedEventId = sentry_uuid_nil();
+    const sentry_uuid_t *nativeAssociatedEventIdPtr = nullptr;
+    if (!associatedEventId.isEmpty()) {
+        const QByteArray eventId = associatedEventId.toUtf8();
+        nativeAssociatedEventId = sentry_uuid_from_string_n(eventId.constData(), static_cast<size_t>(eventId.size()));
+        if (sentry_uuid_is_nil(&nativeAssociatedEventId)) {
+            if (sentry) {
+                emit sentry->errorOccurred(QStringLiteral("Sentry feedback associatedEventId must be a valid event ID."));
+            }
+            return false;
+        }
+        nativeAssociatedEventIdPtr = &nativeAssociatedEventId;
+    }
+
+    const QByteArray messageUtf8 = message.toUtf8();
+    const QByteArray contactEmailUtf8 = contactEmail.toUtf8();
+    const QByteArray nameUtf8 = name.toUtf8();
+    sentry_value_t nativeFeedback =
+        sentry_value_new_feedback_n(messageUtf8.constData(),
+                                    static_cast<size_t>(messageUtf8.size()),
+                                    contactEmail.isEmpty() ? nullptr : contactEmailUtf8.constData(),
+                                    static_cast<size_t>(contactEmailUtf8.size()),
+                                    name.isEmpty() ? nullptr : nameUtf8.constData(),
+                                    static_cast<size_t>(nameUtf8.size()),
+                                    nativeAssociatedEventIdPtr);
+
+    std::unique_ptr<sentry_hint_t, NativeHintDeleter> nativeHint;
+    if (hint && !hint->d->attachments.isEmpty()) {
+        nativeHint.reset(sentry_hint_new());
+        if (!nativeHint) {
+            sentry_value_decref(nativeFeedback);
+            if (sentry) {
+                emit sentry->errorOccurred(QStringLiteral("Sentry hint could not be created."));
+            }
+            return false;
+        }
+
+        for (const SentryHintAttachment &attachment : hint->d->attachments) {
+            sentry_attachment_t *nativeAttachment = nullptr;
+            if (attachment.type == SentryHintAttachmentType::File) {
+                nativeAttachment = attachHintFile(nativeHint.get(), attachment.path);
+                setNativeAttachmentFilename(nativeAttachment, attachment.filename);
+            } else {
+                nativeAttachment = attachHintBytes(nativeHint.get(), attachment.bytes, attachment.filename);
+            }
+
+            if (!nativeAttachment) {
+                sentry_value_decref(nativeFeedback);
+                if (sentry) {
+                    emit sentry->errorOccurred(QStringLiteral("Sentry hint attachment could not be added."));
+                }
+                return false;
+            }
+
+            setNativeAttachmentContentType(nativeAttachment, attachment.contentType);
+        }
+    }
+
+    if (nativeHint) {
+        sentry_capture_feedback_with_hint(nativeFeedback, nativeHint.release());
+    } else {
+        sentry_capture_feedback(nativeFeedback);
+    }
+    return true;
 }
 
 QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode)

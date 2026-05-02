@@ -220,6 +220,11 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("breadcrumbAdded").toBool(), true);
     QCOMPARE(object->property("fileAttached").toBool(), true);
     QCOMPARE(object->property("bytesAttached").toBool(), true);
+    QCOMPARE(object->property("feedbackFileAttached").toBool(), true);
+    QCOMPARE(object->property("feedbackBytesAttached").toBool(), true);
+    QCOMPARE(object->property("feedbackAttachmentCount").toInt(), 2);
+    QCOMPARE(object->property("bareFeedbackCaptured").toBool(), true);
+    QCOMPARE(object->property("feedbackCaptured").toBool(), true);
     QCOMPARE(object->property("sessionStarted").toBool(), true);
     QCOMPARE(object->property("sessionEnded").toBool(), true);
     QCOMPARE(object->property("genericMetricCaptured").toBool(), true);
@@ -250,6 +255,8 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Declarative options integration message"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration message"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration exception"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration bare feedback"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration feedback"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("missingIntegrationFunction"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration log"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("qml.integration.duration"), 5000);
@@ -317,6 +324,49 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(byteAttachment.headers.value(QStringLiteral("filename")).toString(), QStringLiteral("inline.txt"));
     QCOMPARE(byteAttachment.headers.value(QStringLiteral("content_type")).toString(), QStringLiteral("text/plain"));
     QCOMPARE(byteAttachment.payload, QByteArrayLiteral("integration bytes payload"));
+
+    const QList<EnvelopeItem> bareFeedbackItems = findEnvelopeItems(server.bodies(), "Integration bare feedback");
+    QVERIFY(!bareFeedbackItems.isEmpty());
+
+    const EnvelopeItem bareFeedback =
+        findItem(bareFeedbackItems, QStringLiteral("feedback"), "Integration bare feedback");
+    QVERIFY(!bareFeedback.payload.isEmpty());
+    QVERIFY(bareFeedback.payload.contains("\"message\":\"Integration bare feedback\""));
+    QVERIFY(bareFeedback.payload.contains("\"contact_email\":\"bare-feedback@example.com\""));
+    QVERIFY(findItem(bareFeedbackItems, QStringLiteral("attachment")).payload.isEmpty());
+
+    const QList<EnvelopeItem> feedbackItems = findEnvelopeItems(server.bodies(), "Integration feedback");
+    QVERIFY(!feedbackItems.isEmpty());
+
+    const EnvelopeItem feedback = findItem(feedbackItems, QStringLiteral("feedback"), "Integration feedback");
+    QVERIFY(!feedback.payload.isEmpty());
+    QVERIFY(feedback.payload.contains("\"message\":\"Integration feedback\""));
+    QVERIFY(feedback.payload.contains("\"contact_email\":\"feedback@example.com\""));
+    QVERIFY(feedback.payload.contains("\"name\":\"Feedback User\""));
+
+    QString normalizedAssociatedEventId = object->property("messageEventId").toString();
+    normalizedAssociatedEventId.remove(QLatin1Char('-'));
+    const QByteArray expectedAssociatedEventId =
+        QByteArrayLiteral("\"associated_event_id\":\"") + normalizedAssociatedEventId.toUtf8() + QByteArrayLiteral("\"");
+    QVERIFY(feedback.payload.contains(expectedAssociatedEventId));
+
+    const EnvelopeItem feedbackFileAttachment =
+        findItem(feedbackItems, QStringLiteral("attachment"), "integration file payload");
+    QVERIFY(!feedbackFileAttachment.payload.isEmpty());
+    QCOMPARE(feedbackFileAttachment.headers.value(QStringLiteral("filename")).toString(),
+             QStringLiteral("feedback-diagnostic.log"));
+    QCOMPARE(feedbackFileAttachment.headers.value(QStringLiteral("content_type")).toString(),
+             QStringLiteral("text/plain"));
+    QCOMPARE(feedbackFileAttachment.payload, QByteArrayLiteral("integration file payload"));
+
+    const EnvelopeItem feedbackByteAttachment =
+        findItem(feedbackItems, QStringLiteral("attachment"), "integration feedback bytes payload");
+    QVERIFY(!feedbackByteAttachment.payload.isEmpty());
+    QCOMPARE(feedbackByteAttachment.headers.value(QStringLiteral("filename")).toString(),
+             QStringLiteral("feedback-inline.txt"));
+    QCOMPARE(feedbackByteAttachment.headers.value(QStringLiteral("content_type")).toString(),
+             QStringLiteral("text/plain"));
+    QCOMPARE(feedbackByteAttachment.payload, QByteArrayLiteral("integration feedback bytes payload"));
 }
 
 QTEST_MAIN(SentryQmlIntegrationTest)

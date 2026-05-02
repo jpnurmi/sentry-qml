@@ -256,6 +256,11 @@ QString Sentry::captureException(const QJSValue &exception)
     return m_qmlEngine->captureException(exception);
 }
 
+bool Sentry::captureFeedback(const QVariantMap &feedback, SentryHint *hint)
+{
+    return SentryNativeSdk::instance()->captureFeedback(this, feedback, hint);
+}
+
 void Sentry::ensureQmlEngine(QQmlEngine *engine)
 {
     if (!engine || m_qmlEngine) {

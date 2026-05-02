@@ -13,13 +13,13 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
         ../include/SentryQml/private/sentryhint_p.h
-        ../include/SentryQml/private/sentrynativesdk_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
+        sentrybackend_p.h
+        native/sentrynativebackend.cpp
         sentry.cpp
         sentryattachment.cpp
         sentryevent.cpp
         sentryhint.cpp
-        sentrynativesdk.cpp
         sentryoptions.cpp
         sentryqmlengine.cpp
         sentryuser.cpp

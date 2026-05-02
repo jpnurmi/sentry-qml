@@ -1,4 +1,4 @@
-#include <SentryQml/private/sentrynativesdk_p.h>
+#include "../sentrybackend_p.h"
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
@@ -15,7 +15,9 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qjsondocument.h>
 #include <QtCore/qstringlist.h>
+#include <QtCore/qmetatype.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopedvaluerollback.h>
 #include <QtCore/qthread.h>
@@ -32,7 +34,7 @@
 
 extern "C" void sentry__hint_free(sentry_hint_t *hint);
 
-struct SentryNativeEventHookState
+struct SentryBackendEventHookState
 {
     QPointer<Sentry> sentry;
     QPointer<QJSEngine> engine;
@@ -41,42 +43,168 @@ struct SentryNativeEventHookState
     QString propertyName;
 };
 
-struct SentryNativeCrashHookState
+struct SentryBackendCrashHookState
 {
-    SentryNativeSdk *sdk = nullptr;
-    SentryNativeEventHookState *qmlHook = nullptr;
-};
-
-struct SentryNativeValue
-{
-    SentryNativeValue()
-        : value(sentry_value_new_null())
-    {
-    }
-
-    ~SentryNativeValue()
-    {
-        sentry_value_decref(value);
-    }
-
-    void reset(sentry_value_t newValue = sentry_value_new_null())
-    {
-        sentry_value_decref(value);
-        value = newValue;
-    }
-
-    sentry_value_t ref() const
-    {
-        sentry_value_incref(value);
-        return value;
-    }
-
-    sentry_value_t value;
+    SentryBackend *sdk = nullptr;
+    SentryBackendEventHookState *qmlHook = nullptr;
 };
 
 namespace {
 
 thread_local int hookDepth = 0;
+
+bool isSupportedInteger(const QVariant &value)
+{
+    switch (value.metaType().id()) {
+    case QMetaType::Char:
+    case QMetaType::SChar:
+    case QMetaType::UChar:
+    case QMetaType::Short:
+    case QMetaType::UShort:
+    case QMetaType::Int:
+    case QMetaType::UInt:
+        return true;
+    default:
+        return false;
+    }
+}
+
+sentry_value_t nativeValueFromVariant(const QVariant &value)
+{
+    if (!value.isValid() || value.isNull()) {
+        return sentry_value_new_null();
+    }
+
+    switch (value.metaType().id()) {
+    case QMetaType::Bool:
+        return sentry_value_new_bool(value.toBool() ? 1 : 0);
+    case QMetaType::LongLong:
+        return sentry_value_new_int64(value.toLongLong());
+    case QMetaType::ULongLong:
+        return sentry_value_new_uint64(value.toULongLong());
+    case QMetaType::Float:
+    case QMetaType::Double:
+        return sentry_value_new_double(value.toDouble());
+    case QMetaType::QString: {
+        const QByteArray utf8 = value.toString().toUtf8();
+        return sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size()));
+    }
+    case QMetaType::QVariantList: {
+        sentry_value_t list = sentry_value_new_list();
+        const QVariantList values = value.toList();
+        for (const QVariant &item : values) {
+            sentry_value_append(list, nativeValueFromVariant(item));
+        }
+        return list;
+    }
+    case QMetaType::QStringList: {
+        sentry_value_t list = sentry_value_new_list();
+        const QStringList values = value.toStringList();
+        for (const QString &item : values) {
+            sentry_value_append(list, nativeValueFromVariant(item));
+        }
+        return list;
+    }
+    case QMetaType::QVariantMap: {
+        sentry_value_t object = sentry_value_new_object();
+        const QVariantMap values = value.toMap();
+        for (auto it = values.cbegin(); it != values.cend(); ++it) {
+            const QByteArray key = it.key().toUtf8();
+            sentry_value_set_by_key_n(
+                object, key.constData(), static_cast<size_t>(key.size()), nativeValueFromVariant(it.value()));
+        }
+        return object;
+    }
+    default:
+        break;
+    }
+
+    if (isSupportedInteger(value)) {
+        return sentry_value_new_int64(value.toLongLong());
+    }
+
+    const QByteArray utf8 = value.toString().toUtf8();
+    return sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size()));
+}
+
+QVariant nativeValueToVariant(sentry_value_t value)
+{
+    char *json = sentry_value_to_json(value);
+    if (!json) {
+        return {};
+    }
+
+    QJsonParseError error;
+    const QJsonDocument document = QJsonDocument::fromJson(QByteArray(json), &error);
+    sentry_free(json);
+
+    if (error.error != QJsonParseError::NoError) {
+        return {};
+    }
+
+    return document.toVariant();
+}
+
+sentry_value_t nativeAttributeFromVariant(const QVariant &value)
+{
+    QVariant attributeValue = value;
+    QString unit;
+
+    if (value.metaType().id() == QMetaType::QVariantMap) {
+        const QVariantMap object = value.toMap();
+        if (object.contains(QStringLiteral("value")) || object.contains(QStringLiteral("unit"))) {
+            attributeValue = object.value(QStringLiteral("value"));
+            unit = object.value(QStringLiteral("unit")).toString();
+        }
+    }
+
+    const QByteArray unitUtf8 = unit.toUtf8();
+    return sentry_value_new_attribute_n(nativeValueFromVariant(attributeValue),
+                                        unit.isEmpty() ? nullptr : unitUtf8.constData(),
+                                        unit.isEmpty() ? 0 : static_cast<size_t>(unitUtf8.size()));
+}
+
+sentry_value_t nativeAttributesFromVariantMap(const QVariantMap &attributes)
+{
+    sentry_value_t nativeAttributes = sentry_value_new_object();
+    for (auto it = attributes.cbegin(); it != attributes.cend(); ++it) {
+        if (it.key().isEmpty()) {
+            continue;
+        }
+
+        sentry_value_t attribute = nativeAttributeFromVariant(it.value());
+        if (sentry_value_is_null(attribute)) {
+            continue;
+        }
+
+        const QByteArray key = it.key().toUtf8();
+        sentry_value_set_by_key_n(
+            nativeAttributes, key.constData(), static_cast<size_t>(key.size()), attribute);
+    }
+    return nativeAttributes;
+}
+
+sentry_value_t nativeFingerprintFromStringList(const QStringList &fingerprint)
+{
+    sentry_value_t nativeFingerprint = sentry_value_new_list();
+    for (const QString &part : fingerprint) {
+        const QByteArray utf8 = part.toUtf8();
+        sentry_value_append(
+            nativeFingerprint, sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size())));
+    }
+    return nativeFingerprint;
+}
+
+QString eventIdFromUuid(const sentry_uuid_t &uuid)
+{
+    if (sentry_uuid_is_nil(&uuid)) {
+        return {};
+    }
+
+    char uuidString[37] = {};
+    sentry_uuid_as_string(&uuid, uuidString);
+    return QString::fromLatin1(uuidString);
+}
 
 void setUtf8Option(const QString &value, void (*setter)(sentry_options_t *, const char *, size_t), sentry_options_t *options)
 {
@@ -93,7 +221,7 @@ bool createEventHookState(Sentry *sentry,
                           const QJSValue &callback,
                           const QString &propertyName,
                           bool requireSameThread,
-                          std::unique_ptr<SentryNativeEventHookState> *state)
+                          std::unique_ptr<SentryBackendEventHookState> *state)
 {
     if (callback.isUndefined() || callback.isNull()) {
         return true;
@@ -111,7 +239,7 @@ bool createEventHookState(Sentry *sentry,
         return false;
     }
 
-    auto hookState = std::make_unique<SentryNativeEventHookState>();
+    auto hookState = std::make_unique<SentryBackendEventHookState>();
     hookState->sentry = sentry;
     hookState->engine = engine;
     hookState->callback = callback;
@@ -121,7 +249,7 @@ bool createEventHookState(Sentry *sentry,
     return true;
 }
 
-sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState *state)
+sentry_value_t invokeValueHook(sentry_value_t value, SentryBackendEventHookState *state)
 {
     if (!state || !state->engine || !state->callback.isCallable()) {
         return value;
@@ -132,7 +260,7 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState 
     }
 
     const QScopedValueRollback<int> rollback(hookDepth, hookDepth + 1);
-    QJSValue scriptValue = SentryEvent::toScriptValue(state->engine, value);
+    QJSValue scriptValue = SentryEvent::toScriptValue(state->engine, nativeValueToVariant(value));
     if (scriptValue.isUndefined()) {
         return value;
     }
@@ -155,7 +283,7 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState 
         return sentry_value_new_null();
     }
 
-    sentry_value_t replacement = SentryEvent::fromVariant(result.toVariant());
+    sentry_value_t replacement = nativeValueFromVariant(result.toVariant());
     if (sentry_value_is_null(replacement)) {
         sentry_value_decref(value);
         return replacement;
@@ -167,53 +295,44 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentryNativeEventHookState 
 
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
-    return invokeValueHook(event, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(event, static_cast<SentryBackendEventHookState *>(userData));
 }
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
 {
-    auto *state = static_cast<SentryNativeCrashHookState *>(userData);
+    auto *state = static_cast<SentryBackendCrashHookState *>(userData);
     if (!state) {
         return event;
     }
     if (state->sdk) {
-        state->sdk->applyFingerprintToEvent(event);
+        QVariantMap eventMap = nativeValueToVariant(event).toMap();
+        state->sdk->applyFingerprintToEvent(&eventMap);
+        if (!eventMap.isEmpty()) {
+            sentry_value_decref(event);
+            event = nativeValueFromVariant(eventMap);
+        }
     }
     return invokeValueHook(event, state->qmlHook);
 }
 
 sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
 {
-    return invokeValueHook(breadcrumb, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(breadcrumb, static_cast<SentryBackendEventHookState *>(userData));
 }
 
 sentry_value_t beforeSendLogCallback(sentry_value_t log, void *userData)
 {
-    return invokeValueHook(log, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(log, static_cast<SentryBackendEventHookState *>(userData));
 }
 
 sentry_value_t beforeSendMetricCallback(sentry_value_t metric, void *userData)
 {
-    return invokeValueHook(metric, static_cast<SentryNativeEventHookState *>(userData));
+    return invokeValueHook(metric, static_cast<SentryBackendEventHookState *>(userData));
 }
 
 QString levelNameFromString(const QString &level)
 {
-    switch (SentryEvent::levelFromString(level)) {
-    case SENTRY_LEVEL_TRACE:
-        return QStringLiteral("trace");
-    case SENTRY_LEVEL_DEBUG:
-        return QStringLiteral("debug");
-    case SENTRY_LEVEL_WARNING:
-        return QStringLiteral("warning");
-    case SENTRY_LEVEL_ERROR:
-        return QStringLiteral("error");
-    case SENTRY_LEVEL_FATAL:
-        return QStringLiteral("fatal");
-    case SENTRY_LEVEL_INFO:
-    default:
-        return QStringLiteral("info");
-    }
+    return SentryEvent::levelNameFromString(level);
 }
 
 void setStringValue(sentry_value_t object, const char *key, const QString &value)
@@ -252,7 +371,7 @@ sentry_value_t breadcrumbFromVariantMap(const QVariantMap &breadcrumb)
 
         const QByteArray key = it.key().toUtf8();
         sentry_value_set_by_key_n(
-            nativeBreadcrumb, key.constData(), static_cast<size_t>(key.size()), SentryEvent::fromVariant(it.value()));
+            nativeBreadcrumb, key.constData(), static_cast<size_t>(key.size()), nativeValueFromVariant(it.value()));
     }
 
     return nativeBreadcrumb;
@@ -347,17 +466,6 @@ sentry_attachment_t *attachHintBytes(sentry_hint_t *hint, const QByteArray &byte
 #endif
 }
 
-sentry_value_t fingerprintFromStringList(const QStringList &fingerprint)
-{
-    sentry_value_t nativeFingerprint = sentry_value_new_list();
-    for (const QString &part : fingerprint) {
-        const QByteArray utf8 = part.toUtf8();
-        sentry_value_append(
-            nativeFingerprint, sentry_value_new_string_n(utf8.constData(), static_cast<size_t>(utf8.size())));
-    }
-    return nativeFingerprint;
-}
-
 sentry_level_t logLevelFromInt(int level)
 {
     switch (level) {
@@ -388,31 +496,30 @@ bool checkMetricResult(Sentry *sentry, sentry_metrics_result_t result)
 
 } // namespace
 
-SentryNativeSdk *SentryNativeSdk::instance()
+SentryBackend *SentryBackend::instance()
 {
-    static SentryNativeSdk sdk;
+    static SentryBackend sdk;
     return &sdk;
 }
 
-SentryNativeSdk::SentryNativeSdk(QObject *parent)
+SentryBackend::SentryBackend(QObject *parent)
     : QObject(parent)
-    , m_fingerprint(std::make_unique<SentryNativeValue>())
 {
 }
 
-SentryNativeSdk::~SentryNativeSdk()
+SentryBackend::~SentryBackend()
 {
     if (m_initialized && QCoreApplication::instance() && !QCoreApplication::closingDown()) {
         close();
     }
 }
 
-bool SentryNativeSdk::isInitialized() const
+bool SentryBackend::isInitialized() const
 {
     return m_initialized;
 }
 
-bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
+bool SentryBackend::init(Sentry *sentry, SentryOptions *options)
 {
     if (m_initialized) {
         return true;
@@ -442,7 +549,7 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryNativeEventHookState> beforeBreadcrumbState;
+    std::unique_ptr<SentryBackendEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
                               options->beforeBreadcrumb(),
@@ -452,13 +559,13 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryNativeEventHookState> beforeSendLogState;
+    std::unique_ptr<SentryBackendEventHookState> beforeSendLogState;
     if (!createEventHookState(
             sentry, options, options->beforeSendLog(), QStringLiteral("beforeSendLog"), true, &beforeSendLogState)) {
         return false;
     }
 
-    std::unique_ptr<SentryNativeEventHookState> beforeSendMetricState;
+    std::unique_ptr<SentryBackendEventHookState> beforeSendMetricState;
     if (!createEventHookState(sentry,
                               options,
                               options->beforeSendMetric(),
@@ -468,17 +575,17 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    std::unique_ptr<SentryNativeEventHookState> beforeSendState;
+    std::unique_ptr<SentryBackendEventHookState> beforeSendState;
     if (!createEventHookState(
             sentry, options, options->beforeSend(), QStringLiteral("beforeSend"), true, &beforeSendState)) {
         return false;
     }
 
-    std::unique_ptr<SentryNativeEventHookState> onCrashState;
+    std::unique_ptr<SentryBackendEventHookState> onCrashState;
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
     }
-    auto crashHookState = std::make_unique<SentryNativeCrashHookState>();
+    auto crashHookState = std::make_unique<SentryBackendCrashHookState>();
     crashHookState->sdk = this;
     crashHookState->qmlHook = onCrashState.get();
 
@@ -549,14 +656,14 @@ bool SentryNativeSdk::init(Sentry *sentry, SentryOptions *options)
     m_crashHookState = std::move(crashHookState);
     const SentryUser *user = options->user();
     if (user && !user->isEmpty()) {
-        sentry_set_user(SentryEvent::fromVariant(user->toVariantMap()));
+        sentry_set_user(nativeValueFromVariant(user->toVariantMap()));
     }
     setInitialized(true);
     connectToApplicationShutdown();
     return true;
 }
 
-bool SentryNativeSdk::flush(int timeoutMs)
+bool SentryBackend::flush(int timeoutMs)
 {
     if (!m_initialized) {
         return true;
@@ -565,7 +672,7 @@ bool SentryNativeSdk::flush(int timeoutMs)
     return sentry_flush(timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs)) == 0;
 }
 
-bool SentryNativeSdk::close()
+bool SentryBackend::close()
 {
     if (!m_initialized) {
         return true;
@@ -580,18 +687,18 @@ bool SentryNativeSdk::close()
     m_beforeSendState.reset();
     m_crashHookState.reset();
     m_onCrashState.reset();
-    m_fingerprint->reset();
+    m_fingerprint.clear();
     invalidateAttachments();
     setInitialized(false);
     return true;
 }
 
-void SentryNativeSdk::closeBeforeApplicationShutdown()
+void SentryBackend::closeBeforeApplicationShutdown()
 {
     close();
 }
 
-void SentryNativeSdk::connectToApplicationShutdown()
+void SentryBackend::connectToApplicationShutdown()
 {
     if (m_applicationShutdownConnection || !QCoreApplication::instance()) {
         return;
@@ -600,13 +707,13 @@ void SentryNativeSdk::connectToApplicationShutdown()
     m_applicationShutdownConnection = QObject::connect(QCoreApplication::instance(),
                                                        &QCoreApplication::aboutToQuit,
                                                        this,
-                                                       &SentryNativeSdk::closeBeforeApplicationShutdown,
+                                                       &SentryBackend::closeBeforeApplicationShutdown,
                                                        Qt::DirectConnection);
 }
 
-void SentryNativeSdk::detachSentry(Sentry *sentry)
+void SentryBackend::detachSentry(Sentry *sentry)
 {
-    auto detach = [sentry](std::unique_ptr<SentryNativeEventHookState> &state)
+    auto detach = [sentry](std::unique_ptr<SentryBackendEventHookState> &state)
     {
         if (state && state->sentry == sentry) {
             state->sentry = nullptr;
@@ -622,7 +729,7 @@ void SentryNativeSdk::detachSentry(Sentry *sentry)
     detach(m_onCrashState);
 }
 
-bool SentryNativeSdk::ensureCanCall(Sentry *sentry,
+bool SentryBackend::ensureCanCall(Sentry *sentry,
                                     const char *method,
                                     const char *action,
                                     const char *hookType) const
@@ -638,7 +745,7 @@ bool SentryNativeSdk::ensureCanCall(Sentry *sentry,
     return ensureInitialized(sentry, action);
 }
 
-bool SentryNativeSdk::ensureInitialized(Sentry *sentry, const char *action) const
+bool SentryBackend::ensureInitialized(Sentry *sentry, const char *action) const
 {
     if (m_initialized) {
         return true;
@@ -651,7 +758,7 @@ bool SentryNativeSdk::ensureInitialized(Sentry *sentry, const char *action) cons
     return false;
 }
 
-bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
+bool SentryBackend::setRelease(Sentry *sentry, const QString &release)
 {
     if (!ensureCanCall(sentry, "setRelease", "setting releases")) {
         return false;
@@ -669,7 +776,7 @@ bool SentryNativeSdk::setRelease(Sentry *sentry, const QString &release)
     return true;
 }
 
-bool SentryNativeSdk::setEnvironment(Sentry *sentry, const QString &environment)
+bool SentryBackend::setEnvironment(Sentry *sentry, const QString &environment)
 {
     if (!ensureCanCall(sentry, "setEnvironment", "setting environments")) {
         return false;
@@ -687,7 +794,7 @@ bool SentryNativeSdk::setEnvironment(Sentry *sentry, const QString &environment)
     return true;
 }
 
-bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
+bool SentryBackend::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (!ensureCanCall(sentry, "setUser", "setting users")) {
         return false;
@@ -700,11 +807,11 @@ bool SentryNativeSdk::setUser(Sentry *sentry, const QVariantMap &user)
         return false;
     }
 
-    sentry_set_user(SentryEvent::fromVariant(userFromVariantMap(user)));
+    sentry_set_user(nativeValueFromVariant(userFromVariantMap(user)));
     return true;
 }
 
-bool SentryNativeSdk::removeUser(Sentry *sentry)
+bool SentryBackend::removeUser(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "removeUser", "removing users")) {
         return false;
@@ -714,7 +821,7 @@ bool SentryNativeSdk::removeUser(Sentry *sentry)
     return true;
 }
 
-bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &value)
+bool SentryBackend::setTag(Sentry *sentry, const QString &key, const QString &value)
 {
     if (!ensureCanCall(sentry, "setTag", "setting tags")) {
         return false;
@@ -736,7 +843,7 @@ bool SentryNativeSdk::setTag(Sentry *sentry, const QString &key, const QString &
     return true;
 }
 
-bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
+bool SentryBackend::removeTag(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeTag", "removing tags")) {
         return false;
@@ -754,7 +861,7 @@ bool SentryNativeSdk::removeTag(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryNativeSdk::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
+bool SentryBackend::setContext(Sentry *sentry, const QString &key, const QVariantMap &context)
 {
     if (!ensureCanCall(sentry, "setContext", "setting contexts")) {
         return false;
@@ -770,11 +877,11 @@ bool SentryNativeSdk::setContext(Sentry *sentry, const QString &key, const QVari
     const QByteArray utf8Key = key.toUtf8();
     sentry_set_context_n(utf8Key.constData(),
                          static_cast<size_t>(utf8Key.size()),
-                         SentryEvent::fromVariant(context));
+                         nativeValueFromVariant(context));
     return true;
 }
 
-bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
+bool SentryBackend::removeContext(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeContext", "removing contexts")) {
         return false;
@@ -792,7 +899,7 @@ bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryNativeSdk::setAttribute(Sentry *sentry, const QString &key, const QVariant &value)
+bool SentryBackend::setAttribute(Sentry *sentry, const QString &key, const QVariant &value)
 {
     if (!ensureCanCall(sentry, "setAttribute", "setting attributes")) {
         return false;
@@ -805,7 +912,7 @@ bool SentryNativeSdk::setAttribute(Sentry *sentry, const QString &key, const QVa
         return false;
     }
 
-    sentry_value_t attribute = SentryEvent::attributeFromVariant(value);
+    sentry_value_t attribute = nativeAttributeFromVariant(value);
     if (sentry_value_is_null(attribute)) {
         if (sentry) {
             emit sentry->errorOccurred(QStringLiteral("Sentry attribute value must be a boolean, number, string, "
@@ -819,7 +926,7 @@ bool SentryNativeSdk::setAttribute(Sentry *sentry, const QString &key, const QVa
     return true;
 }
 
-bool SentryNativeSdk::removeAttribute(Sentry *sentry, const QString &key)
+bool SentryBackend::removeAttribute(Sentry *sentry, const QString &key)
 {
     if (!ensureCanCall(sentry, "removeAttribute", "removing attributes")) {
         return false;
@@ -837,7 +944,7 @@ bool SentryNativeSdk::removeAttribute(Sentry *sentry, const QString &key)
     return true;
 }
 
-bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
+bool SentryBackend::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
 {
     if (!ensureCanCall(sentry, "setFingerprint", "setting fingerprints")) {
         return false;
@@ -850,22 +957,22 @@ bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerpr
         return false;
     }
 
-    m_fingerprint->reset(fingerprintFromStringList(fingerprint));
+    m_fingerprint = fingerprint;
     return true;
 }
 
-bool SentryNativeSdk::removeFingerprint(Sentry *sentry)
+bool SentryBackend::removeFingerprint(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "removeFingerprint", "removing fingerprints")) {
         return false;
     }
 
-    m_fingerprint->reset();
+    m_fingerprint.clear();
     sentry_remove_fingerprint();
     return true;
 }
 
-SentryAttachment *SentryNativeSdk::attachFile(Sentry *sentry, const QString &path, const QString &contentType)
+SentryAttachment *SentryBackend::attachFile(Sentry *sentry, const QString &path, const QString &contentType)
 {
     if (!ensureCanCall(sentry, "attachFile", "attaching files")) {
         return nullptr;
@@ -903,7 +1010,7 @@ SentryAttachment *SentryNativeSdk::attachFile(Sentry *sentry, const QString &pat
     return wrapper;
 }
 
-SentryAttachment *SentryNativeSdk::attachBytes(Sentry *sentry,
+SentryAttachment *SentryBackend::attachBytes(Sentry *sentry,
                                               const QByteArray &bytes,
                                               const QString &filename,
                                               const QString &contentType)
@@ -955,7 +1062,7 @@ SentryAttachment *SentryNativeSdk::attachBytes(Sentry *sentry,
     return wrapper;
 }
 
-bool SentryNativeSdk::clearAttachments(Sentry *sentry)
+bool SentryBackend::clearAttachments(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "clearAttachments", "clearing attachments")) {
         return false;
@@ -966,7 +1073,7 @@ bool SentryNativeSdk::clearAttachments(Sentry *sentry)
     return true;
 }
 
-void SentryNativeSdk::trackAttachment(SentryAttachment *attachment)
+void SentryBackend::trackAttachment(SentryAttachment *attachment)
 {
     if (!attachment) {
         return;
@@ -975,12 +1082,12 @@ void SentryNativeSdk::trackAttachment(SentryAttachment *attachment)
     m_attachments.append(attachment);
 }
 
-void SentryNativeSdk::detachAttachment(SentryAttachment *attachment)
+void SentryBackend::detachAttachment(SentryAttachment *attachment)
 {
     m_attachments.removeAll(attachment);
 }
 
-void SentryNativeSdk::invalidateAttachments()
+void SentryBackend::invalidateAttachments()
 {
     const QList<SentryAttachment *> attachments = m_attachments;
     m_attachments.clear();
@@ -991,7 +1098,7 @@ void SentryNativeSdk::invalidateAttachments()
     }
 }
 
-void SentryNativeSdk::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
+void SentryBackend::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
 {
     if (!attachment || !attachment->handle()) {
         return;
@@ -1008,7 +1115,7 @@ void SentryNativeSdk::setAttachmentFilename(SentryAttachment *attachment, const 
 #endif
 }
 
-void SentryNativeSdk::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
+void SentryBackend::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
 {
     if (!attachment || !attachment->handle()) {
         return;
@@ -1020,7 +1127,7 @@ void SentryNativeSdk::setAttachmentContentType(SentryAttachment *attachment, con
                                          static_cast<size_t>(utf8ContentType.size()));
 }
 
-bool SentryNativeSdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
+bool SentryBackend::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
 {
     if (!ensureCanCall(sentry, "removeAttachment", "removing attachments")) {
         return false;
@@ -1039,7 +1146,7 @@ bool SentryNativeSdk::removeAttachment(Sentry *sentry, SentryAttachment *attachm
     return true;
 }
 
-bool SentryNativeSdk::startSession(Sentry *sentry)
+bool SentryBackend::startSession(Sentry *sentry)
 {
     if (!ensureCanCall(sentry, "startSession", "starting sessions")) {
         return false;
@@ -1049,7 +1156,7 @@ bool SentryNativeSdk::startSession(Sentry *sentry)
     return true;
 }
 
-bool SentryNativeSdk::endSession(Sentry *sentry, int status)
+bool SentryBackend::endSession(Sentry *sentry, int status)
 {
     if (!ensureCanCall(sentry, "endSession", "ending sessions")) {
         return false;
@@ -1075,7 +1182,7 @@ bool SentryNativeSdk::endSession(Sentry *sentry, int status)
     return true;
 }
 
-bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
+bool SentryBackend::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
 {
     if (!ensureCanCall(sentry, "addBreadcrumb", "adding breadcrumbs")) {
         return false;
@@ -1092,7 +1199,7 @@ bool SentryNativeSdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrum
     return true;
 }
 
-bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
+bool SentryBackend::log(Sentry *sentry, int level, const QString &message, const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "log", "logging", "hooks")) {
         return false;
@@ -1107,14 +1214,14 @@ bool SentryNativeSdk::log(Sentry *sentry, int level, const QString &message, con
 
     const QByteArray body = message.toUtf8();
     const log_return_value_t result
-        = sentry_log(logLevelFromInt(level), body.constData(), SentryEvent::attributesFromVariantMap(attributes));
+        = sentry_log(logLevelFromInt(level), body.constData(), nativeAttributesFromVariantMap(attributes));
     if (result == SENTRY_LOG_RETURN_FAILED && sentry) {
         emit sentry->errorOccurred(QStringLiteral("Sentry log could not be queued."));
     }
     return result == SENTRY_LOG_RETURN_SUCCESS;
 }
 
-bool SentryNativeSdk::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
+bool SentryBackend::count(Sentry *sentry, const QString &name, qint64 value, const QVariantMap &attributes)
 {
     if (!ensureCanCall(sentry, "count", "recording metrics", "hooks")) {
         return false;
@@ -1129,11 +1236,11 @@ bool SentryNativeSdk::count(Sentry *sentry, const QString &name, qint64 value, c
 
     const QByteArray metricName = name.toUtf8();
     const sentry_metrics_result_t result = sentry_metrics_count(
-        metricName.constData(), static_cast<int64_t>(value), SentryEvent::attributesFromVariantMap(attributes));
+        metricName.constData(), static_cast<int64_t>(value), nativeAttributesFromVariantMap(attributes));
     return checkMetricResult(sentry, result);
 }
 
-bool SentryNativeSdk::gauge(Sentry *sentry,
+bool SentryBackend::gauge(Sentry *sentry,
                             const QString &name,
                             double value,
                             const QString &unit,
@@ -1162,11 +1269,11 @@ bool SentryNativeSdk::gauge(Sentry *sentry,
     const sentry_metrics_result_t result = sentry_metrics_gauge(metricName.constData(),
                                                                value,
                                                                unit.isEmpty() ? nullptr : metricUnit.constData(),
-                                                               SentryEvent::attributesFromVariantMap(attributes));
+                                                               nativeAttributesFromVariantMap(attributes));
     return checkMetricResult(sentry, result);
 }
 
-bool SentryNativeSdk::distribution(Sentry *sentry,
+bool SentryBackend::distribution(Sentry *sentry,
                                    const QString &name,
                                    double value,
                                    const QString &unit,
@@ -1196,11 +1303,11 @@ bool SentryNativeSdk::distribution(Sentry *sentry,
         = sentry_metrics_distribution(metricName.constData(),
                                       value,
                                       unit.isEmpty() ? nullptr : metricUnit.constData(),
-                                      SentryEvent::attributesFromVariantMap(attributes));
+                                      nativeAttributesFromVariantMap(attributes));
     return checkMetricResult(sentry, result);
 }
 
-QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)
+QString SentryBackend::captureMessage(Sentry *sentry, const QString &message, const QString &level)
 {
     if (!ensureInitialized(sentry, "capturing messages")) {
         return {};
@@ -1213,19 +1320,19 @@ QString SentryNativeSdk::captureMessage(Sentry *sentry, const QString &message, 
         return {};
     }
 
-    const QByteArray logger = QByteArrayLiteral("qml");
-    const QByteArray text = message.toUtf8();
-    sentry_value_t event = sentry_value_new_message_event_n(
-        static_cast<sentry_level_t>(SentryEvent::levelFromString(level)),
-        logger.constData(),
-        static_cast<size_t>(logger.size()),
-        text.constData(),
-        static_cast<size_t>(text.size()));
+    const QVariantMap event = {
+        {QStringLiteral("level"), SentryEvent::levelNameFromString(level)},
+        {QStringLiteral("logger"), QStringLiteral("qml")},
+        {QStringLiteral("message"),
+         QVariantMap{
+             {QStringLiteral("formatted"), message},
+         }},
+    };
 
-    return captureEvent(sentry, event, SentryNativeCaptureMode::Manual);
+    return captureEvent(sentry, event, SentryCaptureMode::Manual);
 }
 
-bool SentryNativeSdk::captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint)
+bool SentryBackend::captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint)
 {
     if (!ensureCanCall(sentry, "captureFeedback", "capturing feedback", "hooks")) {
         return false;
@@ -1316,11 +1423,10 @@ bool SentryNativeSdk::captureFeedback(Sentry *sentry, const QVariantMap &feedbac
     return true;
 }
 
-QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode)
+QString SentryBackend::captureEvent(Sentry *sentry, const QVariantMap &event, SentryCaptureMode mode)
 {
     if (hookDepth > 0) {
-        sentry_value_decref(event);
-        if (mode == SentryNativeCaptureMode::Manual && sentry) {
+        if (mode == SentryCaptureMode::Manual && sentry) {
             emit sentry->errorOccurred(
                 QStringLiteral("Sentry.capture* cannot be called from Sentry event hooks."));
         }
@@ -1328,34 +1434,34 @@ QString SentryNativeSdk::captureEvent(Sentry *sentry, sentry_value_t event, Sent
     }
 
     if (!m_initialized) {
-        sentry_value_decref(event);
         return {};
     }
 
-    if (!m_fingerprint || sentry_value_is_null(m_fingerprint->value)) {
-        return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
+    if (m_fingerprint.isEmpty()) {
+        return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
     }
 
     sentry_scope_t *scope = sentry_local_scope_new();
     if (!scope) {
-        applyFingerprintToEvent(event);
-        return SentryEvent::eventIdFromUuid(sentry_capture_event(event));
+        QVariantMap eventWithFingerprint = event;
+        applyFingerprintToEvent(&eventWithFingerprint);
+        return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(eventWithFingerprint)));
     }
 
-    sentry_scope_set_fingerprints(scope, m_fingerprint->ref());
-    return SentryEvent::eventIdFromUuid(sentry_capture_event_with_scope(event, scope));
+    sentry_scope_set_fingerprints(scope, nativeFingerprintFromStringList(m_fingerprint));
+    return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(event), scope));
 }
 
-void SentryNativeSdk::applyFingerprintToEvent(sentry_value_t event) const
+void SentryBackend::applyFingerprintToEvent(QVariantMap *event) const
 {
-    if (!m_fingerprint || sentry_value_is_null(m_fingerprint->value)) {
+    if (!event || m_fingerprint.isEmpty()) {
         return;
     }
 
-    sentry_value_set_by_key(event, "fingerprint", m_fingerprint->ref());
+    event->insert(QStringLiteral("fingerprint"), m_fingerprint);
 }
 
-void SentryNativeSdk::setInitialized(bool initialized)
+void SentryBackend::setInitialized(bool initialized)
 {
     if (m_initialized == initialized) {
         return;

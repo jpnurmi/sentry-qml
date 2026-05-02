@@ -44,9 +44,10 @@ if(SENTRY_QML_TEST_JUNIT)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
 endif()
 
-option(SENTRY_QML_BUILD_E2E_TESTS "Build opt-in tests that send events to a real Sentry instance" OFF)
+option(SENTRY_QML_BUILD_E2E_TESTS "Build the opt-in E2E app that sends events to a real Sentry instance" OFF)
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/e2e" SENTRY_QML_E2E_QML_DIR)
 
 add_sentry_qml_test(tst_unit
     tst_unit.cpp
@@ -85,15 +86,36 @@ if(TARGET sentry-crash)
 endif()
 
 if(SENTRY_QML_BUILD_E2E_TESTS)
-    add_sentry_qml_test(tst_e2e
-        tst_e2e.cpp
+    add_executable(sentry_qml_e2e_app
+        e2e/e2e_app.cpp
     )
 
-    target_compile_definitions(tst_e2e PRIVATE
-        SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
+    target_compile_definitions(sentry_qml_e2e_app PRIVATE
+        SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
+        SENTRY_QML_E2E_QML_DIR="${SENTRY_QML_E2E_QML_DIR}"
     )
 
-    target_sources(tst_e2e PRIVATE
-        qml/E2ETest.qml
+    target_link_libraries(sentry_qml_e2e_app
+        PRIVATE
+            SentryQml
+            Qt6::Core
+            Qt6::Network
+            Qt6::Qml
+    )
+
+    add_dependencies(sentry_qml_e2e_app SentryQmlplugin)
+
+    if(TARGET sentry-crash)
+        add_dependencies(sentry_qml_e2e_app sentry-crash)
+        add_custom_command(TARGET sentry_qml_e2e_app POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:sentry-crash>"
+                "$<TARGET_FILE_DIR:sentry_qml_e2e_app>/$<TARGET_FILE_NAME:sentry-crash>"
+            VERBATIM
+        )
+    endif()
+
+    target_sources(sentry_qml_e2e_app PRIVATE
+        e2e/E2EApp.qml
     )
 endif()

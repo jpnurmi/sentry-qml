@@ -33,15 +33,20 @@ class SentryClient:
         self.cookies = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
 
-    def request(self, path, data=None, method=None, headers=None, allowed=(200,)):
+    def request(self, path, data=None, json_data=None, method=None, headers=None, allowed=(200,)):
         url = path if path.startswith("http://") or path.startswith("https://") else f"{self.base_url}{path}"
         body = None
         request_headers = {"User-Agent": "sentry-qml-e2e"}
         if headers:
             request_headers.update(headers)
+        if data is not None and json_data is not None:
+            raise ValueError("Use either data or json_data, not both.")
         if data is not None:
-            body = urllib.parse.urlencode(data).encode()
+            body = urllib.parse.urlencode(data, doseq=True).encode()
             request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
+        elif json_data is not None:
+            body = json.dumps(json_data).encode()
+            request_headers.setdefault("Content-Type", "application/json")
 
         request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
         try:
@@ -107,6 +112,23 @@ class SentryClient:
             return status, None
         return status, json.loads(text)
 
+    def create_auth_token(self):
+        csrf = self.cookie("sc")
+        _, text = self.request(
+            "/api/0/api-tokens/",
+            method="POST",
+            json_data={
+                "name": "sentry-qml-e2e",
+                "scopes": ["event:read", "org:read", "project:read"],
+            },
+            headers={"Referer": self.base_url, "X-CSRFToken": csrf},
+            allowed=(201,),
+        )
+        token = json.loads(text).get("token")
+        if not token:
+            raise RuntimeError("Created an auth token but the response did not include the token value.")
+        return token
+
 
 def poll(timeout, interval, description, callback):
     deadline = time.monotonic() + timeout
@@ -124,8 +146,12 @@ def poll(timeout, interval, description, callback):
     raise RuntimeError(f"Timed out waiting for {description}.")
 
 
-def write_output(name, value, output_path):
-    print(f"{name}={value}")
+def write_output(name, value, output_path, secret=False):
+    if secret:
+        print(f"::add-mask::{value}")
+        print(f"{name}=***")
+    else:
+        print(f"{name}={value}")
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output_file:
             output_file.write(f"{name}={value}\n")
@@ -143,7 +169,9 @@ def configure(args):
         return None
 
     dsn = poll(args.timeout, 2, "project DSN", fetch_dsn)
+    auth_token = client.create_auth_token()
     write_output("dsn", dsn, args.github_output or os.environ.get("GITHUB_OUTPUT"))
+    write_output("auth_token", auth_token, args.github_output or os.environ.get("GITHUB_OUTPUT"), secret=True)
 
 
 def poll_event(args):

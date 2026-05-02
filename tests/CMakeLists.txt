@@ -28,7 +28,7 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    add_test(NAME ${target} COMMAND ${target})
+    add_test(NAME ${target} COMMAND ${target} -o -,txt)
 endfunction()
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
@@ -62,6 +62,10 @@ if(TARGET sentry-crash)
 
     target_compile_definitions(tst_crash PRIVATE
         SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
+    )
+
+    target_include_directories(tst_crash PRIVATE
+        "${SENTRY_NATIVE_DIR}"
     )
 
     target_sources(tst_crash PRIVATE

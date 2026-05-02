@@ -25,9 +25,12 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
+
+#include <sentry.h>
 
 #if defined(Q_OS_WIN)
 #    ifndef NOMINMAX
@@ -181,6 +184,13 @@ void triggerFastFail()
 
 volatile int stackOverflowSink = 0;
 
+void prepareStackOverflowCrash()
+{
+#if defined(Q_OS_WIN)
+    sentry_set_thread_stack_guarantee(64 * 1024);
+#endif
+}
+
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_MSVC(4717)
 Q_NEVER_INLINE void triggerStackOverflow(int depth)
@@ -210,6 +220,7 @@ public:
         } else if (type == QLatin1String("unhandled-cpp-exception")) {
             triggerUnhandledCppException();
         } else if (type == QLatin1String("stack-overflow")) {
+            prepareStackOverflowCrash();
             triggerStackOverflow(0);
 #if defined(Q_OS_WIN)
         } else if (type == QLatin1String("fastfail")) {

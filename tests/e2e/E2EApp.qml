@@ -8,8 +8,13 @@ QtObject {
     property bool success: false
     property bool feedbackAttached: false
     property bool feedbackCaptured: false
+    property bool attributeSet: false
+    property bool logCaptured: false
+    property bool metricCaptured: false
     property string eventId: ""
+    property string attributeRunId: testRunId.replace(/[^A-Za-z0-9_]/g, "_")
     property string message: "Sentry QML E2E " + testRunId
+    property string attributesLogMessage: "Sentry QML E2E attributes " + testRunId
     property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
     property SentryHint feedbackHint: SentryHint {}
@@ -20,6 +25,8 @@ QtObject {
         environment: "ci"
         shutdownTimeout: 5000
         autoSessionTracking: false
+        enableLogs: testAction === "attributes-capture"
+        enableMetrics: testAction === "attributes-capture"
         user: SentryUser {
             userId: "e2e-user"
             username: "e2e"
@@ -54,6 +61,17 @@ QtObject {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && feedbackAttached && feedbackCaptured && flushed && closed
+        } else if (testAction === "attributes-capture") {
+            attributeSet = Sentry.setAttribute("sentry_qml_e2e_run_id", attributeRunId)
+            logCaptured = Sentry.info(attributesLogMessage, {
+                "sentry_qml_e2e_local": "log"
+            })
+            metricCaptured = Sentry.count("sentry_qml_e2e_attributes", 1, {
+                "sentry_qml_e2e_local": "metric"
+            })
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized && attributeSet && logCaptured && metricCaptured && flushed && closed
         } else if (testAction === "crash-send") {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()

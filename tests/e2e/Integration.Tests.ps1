@@ -227,6 +227,45 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'Global attributes' {
+        BeforeAll {
+            $script:AttributesRunId = $script:RunId -replace '[^A-Za-z0-9_]', '_'
+            $script:AttributesMessage = "Sentry QML E2E attributes $script:RunId"
+            $script:AttributesResult = Invoke-E2EAction -Action 'attributes-capture'
+            $script:AttributesLogs = Get-SentryTestLog `
+                -AttributeName 'sentry_qml_e2e_run_id' `
+                -AttributeValue $script:AttributesRunId `
+                -TimeoutSeconds 180 `
+                -Fields @('sentry_qml_e2e_local')
+            $script:AttributesMetrics = Get-SentryTestMetric `
+                -MetricName 'sentry_qml_e2e_attributes' `
+                -AttributeName 'sentry_qml_e2e_run_id' `
+                -AttributeValue $script:AttributesRunId `
+                -TimeoutSeconds 180 `
+                -Fields @('sentry_qml_e2e_local')
+        }
+
+        It 'exits cleanly' {
+            $script:AttributesResult.ExitCode | Should -Be 0
+        }
+
+        It 'captures a log with the global attribute' {
+            $script:AttributesLogs | Should -Not -BeNullOrEmpty
+            $logsJson = $script:AttributesLogs | ConvertTo-Json -Depth 16 -Compress
+            $logsJson.Contains($script:AttributesMessage) | Should -BeTrue
+            $logsJson.Contains($script:AttributesRunId) | Should -BeTrue
+            $logsJson.Contains('sentry_qml_e2e_local') | Should -BeTrue
+        }
+
+        It 'captures a metric with the global attribute' {
+            $script:AttributesMetrics | Should -Not -BeNullOrEmpty
+            $metricsJson = $script:AttributesMetrics | ConvertTo-Json -Depth 16 -Compress
+            $metricsJson.Contains('sentry_qml_e2e_attributes') | Should -BeTrue
+            $metricsJson.Contains($script:AttributesRunId) | Should -BeTrue
+            $metricsJson.Contains('sentry_qml_e2e_local') | Should -BeTrue
+        }
+    }
+
     Context 'Crash capture' {
         BeforeAll {
             $script:CrashId = [guid]::NewGuid().ToString()

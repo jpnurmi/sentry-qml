@@ -77,7 +77,8 @@ int main(int argc, char *argv[])
     const QStringList arguments = app.arguments();
     const QString action = arguments.value(1);
     if (action.isEmpty()) {
-        qCritical("usage: sentry_qml_e2e_app <message-capture|feedback-capture|crash-capture|crash-send> [crash-id]");
+        qCritical("usage: sentry_qml_e2e_app "
+                  "<message-capture|feedback-capture|attributes-capture|crash-capture|crash-send> [crash-id]");
         return 64;
     }
 
@@ -143,6 +144,12 @@ int main(int argc, char *argv[])
             printMarker(QStringLiteral("EVENT_CAPTURED"), eventId);
         }
         printResult(action, success, eventId);
+        return success ? 0 : 1;
+    }
+
+    if (action == QLatin1String("attributes-capture")) {
+        const bool success = object->property("success").toBool();
+        printResult(action, success);
         return success ? 0 : 1;
     }
 

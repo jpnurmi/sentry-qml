@@ -96,6 +96,16 @@ bool Sentry::removeContext(const QString &key)
     return SentryNativeSdk::instance()->removeContext(this, key);
 }
 
+bool Sentry::setAttribute(const QString &key, const QVariant &value)
+{
+    return SentryNativeSdk::instance()->setAttribute(this, key, value);
+}
+
+bool Sentry::removeAttribute(const QString &key)
+{
+    return SentryNativeSdk::instance()->removeAttribute(this, key);
+}
+
 bool Sentry::setFingerprint(const QStringList &fingerprint)
 {
     return SentryNativeSdk::instance()->setFingerprint(this, fingerprint);

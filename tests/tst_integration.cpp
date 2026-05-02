@@ -4,6 +4,7 @@
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
 #include <QtCore/qmetaobject.h>
+#include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qtcpserver.h>
@@ -14,7 +15,6 @@
 #include <QtTest/qtest.h>
 
 #include <algorithm>
-#include <cstdio>
 #include <memory>
 
 class SentryQmlIntegrationTest : public QObject
@@ -232,6 +232,8 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("messageEventId").toString().size(), 36);
     QCOMPARE(object->property("exceptionEventId").toString().size(), 36);
 
+    QTest::ignoreMessage(QtWarningMsg,
+                         QRegularExpression(QStringLiteral(".*missingIntegrationFunction is not defined")));
     QMetaObject::invokeMethod(object.get(), "triggerUncaughtQmlError");
     QCOMPARE(object->property("uncaughtTriggered").toBool(), true);
 
@@ -317,14 +319,6 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(byteAttachment.payload, QByteArrayLiteral("integration bytes payload"));
 }
 
-int main(int argc, char *argv[])
-{
-    std::fputs("tst_integration: starting\n", stderr);
-    QCoreApplication app(argc, argv);
-    SentryQmlIntegrationTest test;
-    const int result = QTest::qExec(&test, argc, argv);
-    std::fprintf(stderr, "tst_integration: finished with %d\n", result);
-    return result;
-}
+QTEST_MAIN(SentryQmlIntegrationTest)
 
 #include "tst_integration.moc"

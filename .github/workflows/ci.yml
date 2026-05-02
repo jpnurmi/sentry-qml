@@ -116,10 +116,6 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
-      - name: Print CTest log
-        if: failure()
-        run: cmake -E cat build/Testing/Temporary/LastTest.log
-
       - name: Publish test results
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0

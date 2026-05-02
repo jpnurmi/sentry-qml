@@ -4,6 +4,7 @@
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qmetaobject.h>
+#include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qtcpserver.h>
@@ -1252,6 +1253,8 @@ void SentryQmlUnitTest::capturesUncaughtQmlError()
     }
     QVERIFY2(!component.isError(), qPrintable(component.errorString()));
 
+    QTest::ignoreMessage(QtWarningMsg,
+                         QRegularExpression(QStringLiteral(".*missingQmlFunction is not defined")));
     const std::unique_ptr<QObject> object(component.create());
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("initialized").toBool(), true);

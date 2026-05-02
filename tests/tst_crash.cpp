@@ -23,7 +23,6 @@
 
 #include <cassert>
 #include <csignal>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -181,18 +180,17 @@ void triggerFastFail()
 
 volatile int stackOverflowSink = 0;
 
-void prepareStackOverflowCrash()
-{
-#if defined(Q_OS_WIN)
-    ULONG stackGuarantee = 64 * 1024;
-    SetThreadStackGuarantee(&stackGuarantee);
-#endif
-}
-
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_MSVC(4717)
 Q_NEVER_INLINE void triggerStackOverflow(int depth)
 {
+#if defined(Q_OS_WIN)
+    if (depth == 0) {
+        ULONG stackGuarantee = 64 * 1024;
+        SetThreadStackGuarantee(&stackGuarantee);
+    }
+#endif
+
     volatile char buffer[32768];
     for (size_t index = 0; index < sizeof(buffer); index += 512) {
         buffer[index] = static_cast<char>(depth);
@@ -218,7 +216,6 @@ public:
         } else if (type == QLatin1String("unhandled-cpp-exception")) {
             triggerUnhandledCppException();
         } else if (type == QLatin1String("stack-overflow")) {
-            prepareStackOverflowCrash();
             triggerStackOverflow(0);
 #if defined(Q_OS_WIN)
         } else if (type == QLatin1String("fastfail")) {
@@ -232,8 +229,6 @@ public:
 
 int runCrashTarget(int argc, char *argv[])
 {
-    std::fputs("tst_crash: starting target\n", stderr);
-
 #if defined(Q_OS_WIN)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
 #    if defined(_MSC_VER)
@@ -300,7 +295,6 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope_data()
 void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 {
     QFETCH(QString, crashType);
-    std::fprintf(stderr, "tst_crash: testing %s\n", qPrintable(crashType));
 
 #if defined(Q_OS_WIN)
     if (crashType == QLatin1String("assert-failure")
@@ -359,17 +353,13 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 
 int main(int argc, char *argv[])
 {
-    std::fputs("tst_crash: starting\n", stderr);
-
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == QLatin1String("--crash")) {
         return runCrashTarget(argc, argv);
     }
 
     QCoreApplication app(argc, argv);
     SentryQmlCrashTest test;
-    const int result = QTest::qExec(&test, argc, argv);
-    std::fprintf(stderr, "tst_crash: finished with %d\n", result);
-    return result;
+    return QTest::qExec(&test, argc, argv);
 }
 
 #include "tst_crash.moc"

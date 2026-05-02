@@ -40,7 +40,9 @@ function(add_sentry_qml_test target)
 endfunction()
 
 option(SENTRY_QML_TEST_JUNIT "Write QtTest JUnit XML test reports" OFF)
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
+if(SENTRY_QML_TEST_JUNIT)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
+endif()
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
 

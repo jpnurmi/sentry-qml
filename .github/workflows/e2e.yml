@@ -12,10 +12,10 @@ on:
         description: Sentry self-hosted Docker Compose profile
         required: true
         type: choice
-        default: errors-only
+        default: feature-complete
         options:
-          - errors-only
           - feature-complete
+          - errors-only
       qt_version:
         description: Qt version
         required: true
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'errors-only' }}
+      SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
       SENTRY_QT_VERSION: ${{ inputs.qt_version || '6.11.0' }}
       SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
       SENTRY_TEST_URL: http://127.0.0.1:9000

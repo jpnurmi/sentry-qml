@@ -37,6 +37,7 @@ private slots:
     void sendsLogs();
     void sendsMetrics();
     void capturesManualException();
+    void capturesFeedback();
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
@@ -1176,6 +1177,95 @@ void SentryQmlUnitTest::capturesManualException()
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("eventId").toString().size(), 36);
     QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlUnitTest::capturesFeedback()
+{
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    const QString attachmentPath = QDir(temporaryDir.path()).filePath(QStringLiteral("feedback.log"));
+    QFile attachmentFile(attachmentPath);
+    QVERIFY(attachmentFile.open(QIODevice::WriteOnly));
+    QCOMPARE(attachmentFile.write("feedback file attachment payload"), qint64(32));
+    attachmentFile.close();
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    engine.rootContext()->setContextProperty(QStringLiteral("testAttachmentPath"), attachmentPath);
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool fileAttached: false
+            property bool bytesAttached: false
+            property bool feedbackCaptured: false
+            property bool flushed: false
+            property bool closed: false
+            property int attachmentCount: 0
+            property SentryHint feedbackHint: SentryHint {}
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                fileAttached = feedbackHint.attachFile(testAttachmentPath, "text/plain", "feedback-file.log")
+                bytesAttached = feedbackHint.attachBytes("feedback bytes attachment payload", "feedback-bytes.txt", "text/plain")
+                attachmentCount = feedbackHint.attachmentCount
+                feedbackCaptured = Sentry.captureFeedback({
+                    message: "Feedback from tst_unit",
+                    email: "feedback@example.com",
+                    name: "Feedback User",
+                    associatedEventId: "c993afb6-b4ac-48a6-b61b-2558e601d65d"
+                }, feedbackHint)
+                flushed = Sentry.flush(2000)
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryFeedbackTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("fileAttached").toBool(), true);
+    QCOMPARE(object->property("bytesAttached").toBool(), true);
+    QCOMPARE(object->property("attachmentCount").toInt(), 2);
+    QCOMPARE(object->property("feedbackCaptured").toBool(), true);
+    QCOMPARE(object->property("flushed").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
+    const QByteArray body = server.body();
+    QVERIFY(body.contains("\"type\":\"feedback\""));
+    QVERIFY(body.contains("\"type\":\"attachment\""));
+    QVERIFY(body.contains("\"message\":\"Feedback from tst_unit\""));
+    QVERIFY(body.contains("\"contact_email\":\"feedback@example.com\""));
+    QVERIFY(body.contains("\"name\":\"Feedback User\""));
+    QVERIFY(body.contains("\"associated_event_id\":\"c993afb6b4ac48a6b61b2558e601d65d\""));
+    QVERIFY(body.contains("\"filename\":\"feedback-file.log\""));
+    QVERIFY(body.contains("\"filename\":\"feedback-bytes.txt\""));
+    QVERIFY(body.contains("\"content_type\":\"text/plain\""));
+    QVERIFY(body.contains("feedback file attachment payload"));
+    QVERIFY(body.contains("feedback bytes attachment payload"));
 }
 
 void SentryQmlUnitTest::capturesUncaughtQmlError()

@@ -16,6 +16,10 @@ QtObject {
     property bool breadcrumbAdded: false
     property bool fileAttached: false
     property bool bytesAttached: false
+    property bool feedbackFileAttached: false
+    property bool feedbackBytesAttached: false
+    property bool bareFeedbackCaptured: false
+    property bool feedbackCaptured: false
     property bool sessionStarted: false
     property bool sessionEnded: false
     property bool beforeBreadcrumbCalled: false
@@ -36,8 +40,10 @@ QtObject {
     property string declarativeEventId: ""
     property string messageEventId: ""
     property string exceptionEventId: ""
+    property int feedbackAttachmentCount: 0
     property var fileAttachment: null
     property var bytesAttachment: null
+    property SentryHint feedbackHint: SentryHint {}
     property SentryOptions options: SentryOptions {
         dsn: testDsn
         databasePath: testDatabasePath
@@ -119,8 +125,21 @@ QtObject {
         fileAttached = !!fileAttachment && fileAttachment.valid
         bytesAttachment = Sentry.attachBytes("integration bytes payload", "inline.txt", "text/plain")
         bytesAttached = !!bytesAttachment && bytesAttachment.valid
+        feedbackFileAttached = feedbackHint.attachFile(testAttachmentPath, "text/plain", "feedback-diagnostic.log")
+        feedbackBytesAttached = feedbackHint.attachBytes("integration feedback bytes payload", "feedback-inline.txt", "text/plain")
+        feedbackAttachmentCount = feedbackHint.attachmentCount
         sessionStarted = Sentry.startSession()
         messageEventId = Sentry.captureMessage("Integration message", "warning")
+        bareFeedbackCaptured = Sentry.captureFeedback({
+            message: "Integration bare feedback",
+            email: "bare-feedback@example.com"
+        })
+        feedbackCaptured = Sentry.captureFeedback({
+            message: "Integration feedback",
+            email: "feedback@example.com",
+            name: "Feedback User",
+            associatedEventId: messageEventId
+        }, feedbackHint)
         try {
             throw new Error("Integration exception")
         } catch (exception) {

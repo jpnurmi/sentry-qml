@@ -92,6 +92,65 @@ BeforeAll {
         $result | ConvertTo-Json -Depth 8 | Out-File -FilePath (Get-OutputFilePath "$Action-result.json")
         return $result
     }
+
+    function script:Invoke-SentryProjectIssues {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Query,
+
+            [int]$Limit = 25
+        )
+
+        $queryParameters = @{
+            query = $Query
+            limit = $Limit
+            sort = 'date'
+        }
+        $queryString = ($queryParameters.GetEnumerator() | ForEach-Object {
+            "$($_.Key)=$([System.Web.HttpUtility]::UrlEncode([string]$_.Value))"
+        }) -join '&'
+        $uri = "$($script:BaseUrl)/api/0/projects/sentry/internal/issues/?$queryString"
+
+        $response = Invoke-WebRequest `
+            -Uri $uri `
+            -Method 'GET' `
+            -Headers @{ Authorization = "Bearer $env:SENTRY_AUTH_TOKEN" } `
+            -ContentType 'application/json'
+
+        return , @($response.Content | ConvertFrom-Json -AsHashtable)
+    }
+
+    function script:Get-SentryTestFeedbackIssue {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Message,
+
+            [int]$TimeoutSeconds = 180
+        )
+
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $lastError = $null
+        do {
+            try {
+                $issues = Invoke-SentryProjectIssues -Query 'issue.category:feedback'
+                foreach ($issue in @($issues)) {
+                    $issueJson = $issue | ConvertTo-Json -Depth 16 -Compress
+                    if ($issueJson.Contains($Message)) {
+                        return $issue
+                    }
+                }
+            } catch {
+                $lastError = $_
+            }
+
+            Start-Sleep -Seconds 5
+        } while ([DateTime]::UtcNow -lt $deadline)
+
+        if ($lastError) {
+            throw "Feedback issue '$Message' was not found. Last API error: $lastError"
+        }
+        throw "Feedback issue '$Message' was not found within $TimeoutSeconds seconds."
+    }
 }
 
 AfterAll {
@@ -130,6 +189,36 @@ Describe 'Sentry QML E2E' {
         It 'keeps the QML correlation tags' {
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'e2e_run_id' | Should -Be $script:RunId
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'test.action' | Should -Be 'message-capture'
+        }
+    }
+
+    Context 'Feedback capture' {
+        BeforeAll {
+            $script:FeedbackMessage = "Sentry QML E2E feedback $script:RunId"
+            $script:FeedbackEventMessage = "Sentry QML E2E feedback event $script:RunId"
+            $script:FeedbackResult = Invoke-E2EAction -Action 'feedback-capture'
+            $script:FeedbackEventIds = Get-EventIds -AppOutput $script:FeedbackResult.Output -ExpectedCount 1
+            $script:FeedbackEvent = Get-SentryTestEvent -EventId $script:FeedbackEventIds[0] -TimeoutSeconds 180
+            $script:FeedbackIssue = Get-SentryTestFeedbackIssue `
+                -Message $script:FeedbackMessage `
+                -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            $script:FeedbackResult.ExitCode | Should -Be 0
+        }
+
+        It 'captures the associated message event in Sentry' {
+            $script:FeedbackEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:FeedbackEvent -Name 'title' | Should -Be $script:FeedbackEventMessage
+            Get-TagValue -SentryEvent $script:FeedbackEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:FeedbackEvent -Key 'test.action' | Should -Be 'feedback-capture'
+        }
+
+        It 'captures feedback as a separate Sentry issue' {
+            $script:FeedbackIssue | Should -Not -BeNullOrEmpty
+            $feedbackJson = $script:FeedbackIssue | ConvertTo-Json -Depth 16 -Compress
+            $feedbackJson.Contains($script:FeedbackMessage) | Should -BeTrue
         }
     }
 

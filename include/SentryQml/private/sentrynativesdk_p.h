@@ -11,6 +11,7 @@
 
 class Sentry;
 class SentryAttachment;
+class SentryHint;
 struct SentryNativeEventHookState;
 struct SentryNativeCrashHookState;
 struct SentryNativeValue;
@@ -71,6 +72,7 @@ public:
                       const QVariantMap &attributes);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, sentry_value_t event, SentryNativeCaptureMode mode);
+    bool captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint);
     void applyFingerprintToEvent(sentry_value_t event) const;
 
 signals:

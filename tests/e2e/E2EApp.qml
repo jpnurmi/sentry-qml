@@ -6,8 +6,13 @@ QtObject {
     property bool flushed: false
     property bool closed: false
     property bool success: false
+    property bool feedbackAttached: false
+    property bool feedbackCaptured: false
     property string eventId: ""
     property string message: "Sentry QML E2E " + testRunId
+    property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
+    property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
+    property SentryHint feedbackHint: SentryHint {}
     property SentryOptions options: SentryOptions {
         dsn: testDsn
         databasePath: testDatabasePath
@@ -33,6 +38,22 @@ QtObject {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && flushed && closed
+        } else if (testAction === "feedback-capture") {
+            eventId = Sentry.captureMessage(feedbackEventMessage, "info")
+            feedbackAttached = feedbackHint.attachBytes(
+                "Sentry QML E2E feedback attachment " + testRunId,
+                "feedback.txt",
+                "text/plain"
+            )
+            feedbackCaptured = Sentry.captureFeedback({
+                message: feedbackMessage,
+                email: "e2e-feedback@example.com",
+                name: "Sentry QML E2E",
+                associatedEventId: eventId
+            }, feedbackHint)
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized && eventId !== "" && feedbackAttached && feedbackCaptured && flushed && closed
         } else if (testAction === "crash-send") {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SentryQml/sentryattachment.h>
+#include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryqmlglobal.h>
 
@@ -112,6 +113,7 @@ public:
                                   const QVariantMap &attributes = {});
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
     Q_INVOKABLE QString captureException(const QJSValue &exception);
+    Q_INVOKABLE bool captureFeedback(const QVariantMap &feedback, SentryHint *hint = nullptr);
 
 signals:
     void initializedChanged();

@@ -7,15 +7,18 @@ qt_add_qml_module(SentryQml
     SOURCES
         ../include/SentryQml/sentryattachment.h
         ../include/SentryQml/sentry.h
+        ../include/SentryQml/sentryhint.h
         ../include/SentryQml/sentryoptions.h
         ../include/SentryQml/sentryqmlglobal.h
         ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
+        ../include/SentryQml/private/sentryhint_p.h
         ../include/SentryQml/private/sentrynativesdk_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
         sentry.cpp
         sentryattachment.cpp
         sentryevent.cpp
+        sentryhint.cpp
         sentrynativesdk.cpp
         sentryoptions.cpp
         sentryqmlengine.cpp

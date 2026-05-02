@@ -1,6 +1,7 @@
 name: E2E
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       self_hosted_ref:
@@ -24,11 +25,14 @@ permissions:
   contents: read
 
 jobs:
-  self-hosted-sentry:
-    name: Test (Qt ${{ inputs.qt_version }}, Linux x64)
+  test:
+    name: Test (Qt ${{ inputs.qt_version || '6.11.0' }}, Linux x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
+      SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'errors-only' }}
+      SENTRY_QT_VERSION: ${{ inputs.qt_version || '6.11.0' }}
+      SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
       SENTRY_TEST_URL: http://127.0.0.1:9000
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST
@@ -52,7 +56,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: getsentry/self-hosted
-          ref: ${{ inputs.self_hosted_ref }}
+          ref: ${{ env.SENTRY_SELF_HOSTED_REF }}
           path: self-hosted
           persist-credentials: false
 
@@ -67,7 +71,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: ${{ inputs.qt_version }}
+          version: ${{ env.SENTRY_QT_VERSION }}
           host: linux
           target: desktop
           arch: linux_gcc_64
@@ -85,7 +89,7 @@ jobs:
         working-directory: self-hosted
         run: |
           cat > .env.custom <<EOF
-          COMPOSE_PROFILES=${{ inputs.compose_profiles }}
+          COMPOSE_PROFILES=$SENTRY_COMPOSE_PROFILES
           SENTRY_BIND=127.0.0.1:9000
           SENTRY_EVENT_RETENTION_DAYS=1
           EOF
@@ -94,7 +98,7 @@ jobs:
         id: restore-self-hosted-volumes
         uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
-          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ inputs.self_hosted_ref }}-${{ inputs.compose_profiles }}
+          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
           volumes: |
             sentry-postgres
             sentry-clickhouse
@@ -109,10 +113,10 @@ jobs:
         run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
 
       - name: Save Sentry self-hosted volume cache
-        if: steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
         uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
-          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ inputs.self_hosted_ref }}-${{ inputs.compose_profiles }}
+          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
           volumes: |
             sentry-postgres
             sentry-clickhouse

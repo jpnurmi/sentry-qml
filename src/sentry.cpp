@@ -4,7 +4,7 @@
 
 #include <SentryQml/sentryoptions.h>
 
-#include "sentrysdk_p.h"
+#include <SentryQml/private/sentrysdk_p.h>
 
 #include <cmath>
 

@@ -1,4 +1,4 @@
-#include "../sentrysdk_p.h"
+#include <SentryQml/private/sentrysdk_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>

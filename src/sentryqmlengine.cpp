@@ -4,7 +4,7 @@
 
 #include <SentryQml/sentry.h>
 
-#include "sentrysdk_p.h"
+#include <SentryQml/private/sentrysdk_p.h>
 
 #include <QtCore/qlist.h>
 #include <QtCore/qurl.h>

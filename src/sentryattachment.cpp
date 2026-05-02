@@ -1,6 +1,6 @@
 #include <SentryQml/sentryattachment.h>
 
-#include "sentrysdk_p.h"
+#include <SentryQml/private/sentrysdk_p.h>
 
 struct SentryAttachmentPrivate
 {

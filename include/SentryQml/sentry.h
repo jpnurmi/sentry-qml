@@ -73,6 +73,8 @@ public:
     Q_INVOKABLE bool removeTag(const QString &key);
     Q_INVOKABLE bool setContext(const QString &key, const QVariantMap &context);
     Q_INVOKABLE bool removeContext(const QString &key);
+    Q_INVOKABLE bool setAttribute(const QString &key, const QVariant &value);
+    Q_INVOKABLE bool removeAttribute(const QString &key);
     Q_INVOKABLE bool setFingerprint(const QStringList &fingerprint);
     Q_INVOKABLE bool removeFingerprint();
     Q_INVOKABLE SentryAttachment *attachFile(const QString &path, const QString &contentType = QString());

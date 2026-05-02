@@ -12,6 +12,10 @@ QtObject {
     property bool contextSet: false
     property bool removedContextSet: false
     property bool contextRemoved: false
+    property bool attributeSet: false
+    property bool attributeWithUnitSet: false
+    property bool removedAttributeSet: false
+    property bool attributeRemoved: false
     property bool fingerprintSet: false
     property bool breadcrumbAdded: false
     property bool fileAttached: false
@@ -113,6 +117,13 @@ QtObject {
         })
         removedContextSet = Sentry.setContext("removed_context", { present: true })
         contextRemoved = Sentry.removeContext("removed_context")
+        attributeSet = Sentry.setAttribute("qml.integration.global", "integration-global")
+        attributeWithUnitSet = Sentry.setAttribute("qml.integration.global_duration", {
+            value: 99,
+            unit: "millisecond"
+        })
+        removedAttributeSet = Sentry.setAttribute("qml.integration.removed_global", "removed")
+        attributeRemoved = Sentry.removeAttribute("qml.integration.removed_global")
         fingerprintSet = Sentry.setFingerprint(["{{ default }}", "integration"])
         breadcrumbAdded = Sentry.addBreadcrumb({
             message: "integration breadcrumb",

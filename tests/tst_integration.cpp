@@ -216,6 +216,10 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("contextSet").toBool(), true);
     QCOMPARE(object->property("removedContextSet").toBool(), true);
     QCOMPARE(object->property("contextRemoved").toBool(), true);
+    QCOMPARE(object->property("attributeSet").toBool(), true);
+    QCOMPARE(object->property("attributeWithUnitSet").toBool(), true);
+    QCOMPARE(object->property("removedAttributeSet").toBool(), true);
+    QCOMPARE(object->property("attributeRemoved").toBool(), true);
     QCOMPARE(object->property("fingerprintSet").toBool(), true);
     QCOMPARE(object->property("breadcrumbAdded").toBool(), true);
     QCOMPARE(object->property("fileAttached").toBool(), true);
@@ -268,6 +272,10 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(allBodies.contains("qml.integration.generic"));
     QVERIFY(allBodies.contains("qml.integration.clicks"));
     QVERIFY(allBodies.contains("qml.integration.active_items"));
+    QVERIFY(allBodies.contains("qml.integration.global"));
+    QVERIFY(allBodies.contains("integration-global"));
+    QVERIFY(allBodies.contains("qml.integration.global_duration"));
+    QVERIFY(!allBodies.contains("qml.integration.removed_global"));
     QVERIFY(allBodies.contains("millisecond"));
     QVERIFY(allBodies.contains("qml.integration.before_send_metric"));
     QVERIFY(allBodies.contains("\"status\":\"exited\""));

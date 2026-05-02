@@ -980,6 +980,10 @@ void SentryQmlUnitTest::sendsLogs()
         QtObject {
             property bool initialized: false
             property bool beforeSendLogCalled: false
+            property bool globalAttributeSet: false
+            property bool globalAttributeWithUnitSet: false
+            property bool removedGlobalAttributeSet: false
+            property bool globalAttributeRemoved: false
             property bool logged: false
             property bool loggedWithLevel: false
             property bool closed: false
@@ -1001,6 +1005,13 @@ void SentryQmlUnitTest::sendsLogs()
 
             Component.onCompleted: {
                 initialized = Sentry.init(options)
+                globalAttributeSet = Sentry.setAttribute("qml.test.global", "log-global")
+                globalAttributeWithUnitSet = Sentry.setAttribute("qml.test.global_duration", {
+                    value: 25,
+                    unit: "millisecond"
+                })
+                removedGlobalAttributeSet = Sentry.setAttribute("qml.test.removed_global", "removed")
+                globalAttributeRemoved = Sentry.removeAttribute("qml.test.removed_global")
                 logged = Sentry.warn("Structured QML log", {
                     "qml.test.screen": "settings",
                     "qml.test.duration": {
@@ -1025,6 +1036,10 @@ void SentryQmlUnitTest::sendsLogs()
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("beforeSendLogCalled").toBool(), true);
+    QCOMPARE(object->property("globalAttributeSet").toBool(), true);
+    QCOMPARE(object->property("globalAttributeWithUnitSet").toBool(), true);
+    QCOMPARE(object->property("removedGlobalAttributeSet").toBool(), true);
+    QCOMPARE(object->property("globalAttributeRemoved").toBool(), true);
     QCOMPARE(object->property("logged").toBool(), true);
     QCOMPARE(object->property("loggedWithLevel").toBool(), true);
     QCOMPARE(object->property("closed").toBool(), true);
@@ -1036,6 +1051,10 @@ void SentryQmlUnitTest::sendsLogs()
     QVERIFY(server.body().contains("settings"));
     QVERIFY(server.body().contains("qml.test.duration"));
     QVERIFY(server.body().contains("millisecond"));
+    QVERIFY(server.body().contains("qml.test.global"));
+    QVERIFY(server.body().contains("log-global"));
+    QVERIFY(server.body().contains("qml.test.global_duration"));
+    QVERIFY(!server.body().contains("qml.test.removed_global"));
     QVERIFY(server.body().contains("qml.test.hook"));
 }
 
@@ -1062,6 +1081,10 @@ void SentryQmlUnitTest::sendsMetrics()
         QtObject {
             property bool initialized: false
             property bool beforeSendMetricCalled: false
+            property bool globalAttributeSet: false
+            property bool globalAttributeWithUnitSet: false
+            property bool removedGlobalAttributeSet: false
+            property bool globalAttributeRemoved: false
             property bool genericMetric: false
             property bool counted: false
             property bool gauged: false
@@ -1084,6 +1107,13 @@ void SentryQmlUnitTest::sendsMetrics()
 
             Component.onCompleted: {
                 initialized = Sentry.init(options)
+                globalAttributeSet = Sentry.setAttribute("qml.test.global", "metric-global")
+                globalAttributeWithUnitSet = Sentry.setAttribute("qml.test.global_duration", {
+                    value: 50,
+                    unit: "millisecond"
+                })
+                removedGlobalAttributeSet = Sentry.setAttribute("qml.test.removed_global", "removed")
+                globalAttributeRemoved = Sentry.removeAttribute("qml.test.removed_global")
                 genericMetric = Sentry.metric(Sentry.Count, "qml.test.generic", 2, "", {
                     "qml.test.screen": "settings"
                 })
@@ -1110,6 +1140,10 @@ void SentryQmlUnitTest::sendsMetrics()
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("beforeSendMetricCalled").toBool(), true);
+    QCOMPARE(object->property("globalAttributeSet").toBool(), true);
+    QCOMPARE(object->property("globalAttributeWithUnitSet").toBool(), true);
+    QCOMPARE(object->property("removedGlobalAttributeSet").toBool(), true);
+    QCOMPARE(object->property("globalAttributeRemoved").toBool(), true);
     QCOMPARE(object->property("genericMetric").toBool(), true);
     QCOMPARE(object->property("counted").toBool(), true);
     QCOMPARE(object->property("gauged").toBool(), true);
@@ -1128,6 +1162,10 @@ void SentryQmlUnitTest::sendsMetrics()
     QVERIFY(server.body().contains("distribution"));
     QVERIFY(server.body().contains("millisecond"));
     QVERIFY(server.body().contains("qml.test.operation"));
+    QVERIFY(server.body().contains("qml.test.global"));
+    QVERIFY(server.body().contains("metric-global"));
+    QVERIFY(server.body().contains("qml.test.global_duration"));
+    QVERIFY(!server.body().contains("qml.test.removed_global"));
     QVERIFY(server.body().contains("qml.test.hook"));
 }
 

@@ -112,6 +112,18 @@ jobs:
           SKIP_SNUBA_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
         run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
 
+      - name: Enable Sentry E2E feature flags
+        working-directory: self-hosted
+        run: |
+          cat >> sentry/sentry.conf.py <<'EOF'
+
+          SENTRY_FEATURES.update(
+              {
+                  "organizations:tracemetrics-ingestion": True,
+              }
+          )
+          EOF
+
       - name: Save Sentry self-hosted volume cache
         if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
         uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1

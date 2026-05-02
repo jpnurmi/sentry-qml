@@ -46,6 +46,8 @@ public:
     bool removeTag(Sentry *sentry, const QString &key);
     bool setContext(Sentry *sentry, const QString &key, const QVariantMap &context);
     bool removeContext(Sentry *sentry, const QString &key);
+    bool setAttribute(Sentry *sentry, const QString &key, const QVariant &value);
+    bool removeAttribute(Sentry *sentry, const QString &key);
     bool setFingerprint(Sentry *sentry, const QStringList &fingerprint);
     bool removeFingerprint(Sentry *sentry);
     SentryAttachment *attachFile(Sentry *sentry, const QString &path, const QString &contentType);

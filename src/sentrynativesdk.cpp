@@ -792,6 +792,51 @@ bool SentryNativeSdk::removeContext(Sentry *sentry, const QString &key)
     return true;
 }
 
+bool SentryNativeSdk::setAttribute(Sentry *sentry, const QString &key, const QVariant &value)
+{
+    if (!ensureCanCall(sentry, "setAttribute", "setting attributes")) {
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry attribute key must not be empty."));
+        }
+        return false;
+    }
+
+    sentry_value_t attribute = SentryEvent::attributeFromVariant(value);
+    if (sentry_value_is_null(attribute)) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry attribute value must be a boolean, number, string, "
+                                                      "or list of booleans, numbers, or strings."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    sentry_set_attribute_n(utf8Key.constData(), static_cast<size_t>(utf8Key.size()), attribute);
+    return true;
+}
+
+bool SentryNativeSdk::removeAttribute(Sentry *sentry, const QString &key)
+{
+    if (!ensureCanCall(sentry, "removeAttribute", "removing attributes")) {
+        return false;
+    }
+
+    if (key.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry attribute key must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Key = key.toUtf8();
+    sentry_remove_attribute_n(utf8Key.constData(), static_cast<size_t>(utf8Key.size()));
+    return true;
+}
+
 bool SentryNativeSdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
 {
     if (!ensureCanCall(sentry, "setFingerprint", "setting fingerprints")) {

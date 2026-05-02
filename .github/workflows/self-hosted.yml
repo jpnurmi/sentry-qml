@@ -1,0 +1,103 @@
+name: Self-Hosted
+
+on:
+  workflow_dispatch:
+    inputs:
+      self_hosted_ref:
+        description: getsentry/self-hosted ref to preinstall
+        required: true
+        default: "26.4.0"
+      compose_profiles:
+        description: Sentry self-hosted Docker Compose profile
+        required: true
+        type: choice
+        default: feature-complete
+        options:
+          - feature-complete
+          - errors-only
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build (${{ inputs.self_hosted_ref }}, ${{ inputs.compose_profiles }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
+      SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Select bundle image
+        run: echo "SENTRY_SELF_HOSTED_BUNDLE_IMAGE=$(bash .github/scripts/sentry-self-hosted-bundle-image.sh)" >> "$GITHUB_ENV"
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /home/runner/Android /usr/local/lib/android /opt/android /usr/local/android-sdk
+          sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
+          df -h
+
+      - name: Check out Sentry self-hosted
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: getsentry/self-hosted
+          ref: ${{ env.SENTRY_SELF_HOSTED_REF }}
+          path: self-hosted
+          persist-credentials: false
+
+      - name: Configure Sentry self-hosted
+        working-directory: self-hosted
+        run: |
+          cat > .env.custom <<EOF
+          COMPOSE_PROFILES=$SENTRY_COMPOSE_PROFILES
+          SENTRY_BIND=127.0.0.1:9000
+          SENTRY_EVENT_RETENTION_DAYS=1
+          EOF
+
+      - name: Install Sentry self-hosted
+        working-directory: self-hosted
+        env:
+          REPORT_SELF_HOSTED_ISSUES: 0
+        run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
+
+      - name: Enable Sentry E2E feature flags
+        working-directory: self-hosted
+        run: |
+          cat >> sentry/sentry.conf.py <<'EOF'
+
+          SENTRY_FEATURES.update(
+              {
+                  "organizations:tracemetrics-ingestion": True,
+              }
+          )
+          EOF
+
+      - name: Stop Sentry self-hosted
+        working-directory: self-hosted
+        run: docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans
+
+      - name: Build Sentry self-hosted bundle
+        run: bash .github/scripts/export-sentry-self-hosted-bundle.sh
+
+      - name: Log in to GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Push Sentry self-hosted bundle
+        run: docker push "$SENTRY_SELF_HOSTED_BUNDLE_IMAGE"
+
+      - name: Clean up Sentry self-hosted
+        if: always()
+        run: |
+          test -d self-hosted || exit 0
+          cd self-hosted
+          docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans || true

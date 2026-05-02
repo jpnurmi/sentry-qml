@@ -20,9 +20,13 @@ on:
         description: Qt version
         required: true
         default: "6.11.0"
+      self_hosted_bundle_image:
+        description: Preinstalled Sentry self-hosted bundle image
+        required: false
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   test:
@@ -37,6 +41,7 @@ jobs:
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST
       SENTRY_APP_RUNNER_REF: 4f101037aa769e48dd721b88512e19426b894500
+      SENTRY_SELF_HOSTED_BUNDLE_IMAGE: ${{ inputs.self_hosted_bundle_image }}
 
     steps:
       - name: Check out sources
@@ -69,7 +74,14 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
           df -h
 
+      - name: Restore preinstalled Sentry self-hosted
+        id: restore-self-hosted
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/restore-sentry-self-hosted-bundle.sh
+
       - name: Check out Sentry self-hosted
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: getsentry/self-hosted
@@ -94,25 +106,15 @@ jobs:
           SENTRY_EVENT_RETENTION_DAYS=1
           EOF
 
-      - name: Restore Sentry self-hosted volume cache
-        id: restore-self-hosted-volumes
-        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
-        with:
-          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
-          volumes: |
-            sentry-postgres
-            sentry-clickhouse
-            sentry-kafka
-
       - name: Install Sentry self-hosted
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         working-directory: self-hosted
         env:
           REPORT_SELF_HOSTED_ISSUES: 0
-          SKIP_SENTRY_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
-          SKIP_SNUBA_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
         run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
 
       - name: Enable Sentry E2E feature flags
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         working-directory: self-hosted
         run: |
           cat >> sentry/sentry.conf.py <<'EOF'
@@ -123,16 +125,6 @@ jobs:
               }
           )
           EOF
-
-      - name: Save Sentry self-hosted volume cache
-        if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
-        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
-        with:
-          key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
-          volumes: |
-            sentry-postgres
-            sentry-clickhouse
-            sentry-kafka
 
       - name: Set up swap
         run: |

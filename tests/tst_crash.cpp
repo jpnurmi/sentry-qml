@@ -180,6 +180,8 @@ void triggerFastFail()
 
 volatile int stackOverflowSink = 0;
 
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_MSVC(4717)
 Q_NEVER_INLINE void triggerStackOverflow(int depth)
 {
     volatile char buffer[32768];
@@ -189,6 +191,7 @@ Q_NEVER_INLINE void triggerStackOverflow(int depth)
     triggerStackOverflow(depth + 1);
     stackOverflowSink += buffer[depth % sizeof(buffer)];
 }
+QT_WARNING_POP
 
 class CrashActions : public QObject
 {

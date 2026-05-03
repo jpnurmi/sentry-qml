@@ -2,11 +2,20 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
+#include <QtTest/qtest.h>
 
 #if defined(SENTRY_QML_TEST_HAS_ZLIB)
 #include <zlib.h>
 
 #include <limits>
+#endif
+
+#if defined(SENTRY_QML_TEST_SDK_COCOA)
+#define SENTRY_QML_EXPECT_FAIL_COCOA(reason) QEXPECT_FAIL("", reason, Continue)
+#define SENTRY_QML_SKIP_COCOA(reason) QSKIP(reason)
+#else
+#define SENTRY_QML_EXPECT_FAIL_COCOA(reason) do {} while (false)
+#define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
 #endif
 
 namespace SentryQmlTest {

@@ -1,4 +1,4 @@
-#include "httpbody_p.h"
+#include "sentryqmltest.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
@@ -18,12 +18,6 @@
 
 #include <algorithm>
 #include <memory>
-
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
-#define SENTRY_QML_SKIP_COCOA(reason) QSKIP(reason)
-#else
-#define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
-#endif
 
 class SentryQmlIntegrationTest : public QObject
 {

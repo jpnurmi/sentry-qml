@@ -1,7 +1,7 @@
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryoptions.h>
 
-#include "httpbody_p.h"
+#include "sentryqmltest.h"
 
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
@@ -18,14 +18,6 @@
 #include <QtTest/qtest.h>
 
 #include <memory>
-
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
-#define SENTRY_QML_EXPECT_FAIL_COCOA(reason) QEXPECT_FAIL("", reason, Continue)
-#define SENTRY_QML_SKIP_COCOA(reason) QSKIP(reason)
-#else
-#define SENTRY_QML_EXPECT_FAIL_COCOA(reason) do {} while (false)
-#define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
-#endif
 
 class SentryQmlUnitTest : public QObject
 {

@@ -26,7 +26,7 @@ class SentryQmlUnitTest : public QObject
 private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
-    void sendsEnvelopeWithQtTransport();
+    void sendsEnvelope();
     void setsRelease();
     void setsEnvironment();
     void setsUser();
@@ -188,7 +188,7 @@ void SentryQmlUnitTest::initializesAndCapturesMessage()
     QCOMPARE(sentry.isInitialized(), false);
 }
 
-void SentryQmlUnitTest::sendsEnvelopeWithQtTransport()
+void SentryQmlUnitTest::sendsEnvelope()
 {
     SENTRY_QML_SKIP_CRASHPAD("crashpad uses /minidump endpoint, not /envelope");
 

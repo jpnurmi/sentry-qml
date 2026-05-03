@@ -3,7 +3,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
 
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
+#if defined(SENTRY_QML_TEST_HAS_ZLIB)
 #include <zlib.h>
 
 #include <limits>
@@ -26,7 +26,7 @@ inline QByteArray httpHeaderValue(const QByteArray &headers, const QByteArray &n
     return {};
 }
 
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
+#if defined(SENTRY_QML_TEST_HAS_ZLIB)
 inline QByteArray gunzipBody(const QByteArray &body)
 {
     if (body.isEmpty() || body.size() > std::numeric_limits<uInt>::max()) {
@@ -64,7 +64,7 @@ inline QByteArray gunzipBody(const QByteArray &body)
 
 inline QByteArray decodedHttpBody(const QByteArray &headers, const QByteArray &body)
 {
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
+#if defined(SENTRY_QML_TEST_HAS_ZLIB)
     const QByteArray encoding = httpHeaderValue(headers, QByteArrayLiteral("content-encoding")).toLower();
     if (encoding.contains("gzip")) {
         return gunzipBody(body);

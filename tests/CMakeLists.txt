@@ -1,5 +1,5 @@
-if(SENTRY_QML_SDK STREQUAL "cocoa")
-    find_package(ZLIB REQUIRED)
+if(NOT TARGET ZLIB::ZLIB)
+    find_package(ZLIB QUIET)
 endif()
 
 function(add_sentry_qml_test target)
@@ -26,9 +26,12 @@ function(add_sentry_qml_test target)
             Qt6::Test
     )
 
-    if(SENTRY_QML_SDK STREQUAL "cocoa")
+    if(TARGET ZLIB::ZLIB)
         target_link_libraries(${target} PRIVATE
             ZLIB::ZLIB
+        )
+        target_compile_definitions(${target} PRIVATE
+            SENTRY_QML_TEST_HAS_ZLIB
         )
     endif()
 

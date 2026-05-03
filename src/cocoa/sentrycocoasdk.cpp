@@ -307,6 +307,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
+    m_applyHooksLocally = options->dsn().isEmpty();
 
     SentryObjCBridge::Options nativeOptions;
     nativeOptions.dsn = options->dsn();
@@ -324,15 +325,24 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.sampleRate = options->sampleRate();
     nativeOptions.maxBreadcrumbs = options->maxBreadcrumbs();
     nativeOptions.shutdownTimeout = options->shutdownTimeout();
-    nativeOptions.beforeBreadcrumb = hookFromState(m_beforeBreadcrumbState.get());
+    nativeOptions.beforeBreadcrumb = m_applyHooksLocally ? SentryObjCBridge::Hook {}
+                                                        : hookFromState(m_beforeBreadcrumbState.get());
     nativeOptions.beforeSendLog = hookFromState(m_beforeSendLogState.get());
     nativeOptions.beforeSendMetric = hookFromState(m_beforeSendMetricState.get());
-    nativeOptions.beforeSend = hookFromState(m_beforeSendState.get());
+    nativeOptions.beforeSend = m_applyHooksLocally ? SentryObjCBridge::Hook {} : hookFromState(m_beforeSendState.get());
     nativeOptions.onCrash = hookFromState(m_onCrashState.get());
-    m_applyBeforeSendLocally = options->dsn().isEmpty();
+    m_release = nativeOptions.release;
+    m_environment = nativeOptions.environment;
+    m_dist = nativeOptions.dist;
+    m_user = nativeOptions.user;
+    m_tags.clear();
+    m_contexts.clear();
+    m_breadcrumbs.clear();
+    m_maxBreadcrumbs = nativeOptions.maxBreadcrumbs;
 
     if (!SentryObjCBridge::start(nativeOptions)) {
-        m_applyBeforeSendLocally = false;
+        m_applyHooksLocally = false;
+        clearLocalScope();
         m_beforeBreadcrumbState.reset();
         m_beforeSendLogState.reset();
         m_beforeSendMetricState.reset();
@@ -377,7 +387,8 @@ bool SentrySdk::close()
     m_beforeSendState.reset();
     m_onCrashState.reset();
     m_crashHookState.reset();
-    m_applyBeforeSendLocally = false;
+    m_applyHooksLocally = false;
+    clearLocalScope();
     invalidateAttachments();
     setInitialized(false);
     return true;
@@ -455,6 +466,7 @@ bool SentrySdk::setRelease(Sentry *sentry, const QString &release)
     }
 
     SentryObjCBridge::setRelease(release);
+    m_release = release;
     return true;
 }
 
@@ -465,6 +477,7 @@ bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
     }
 
     SentryObjCBridge::setEnvironment(environment);
+    m_environment = environment;
     return true;
 }
 
@@ -474,7 +487,8 @@ bool SentrySdk::setUser(Sentry *sentry, const QVariantMap &user)
         return false;
     }
 
-    SentryObjCBridge::setUser(userFromVariantMap(user));
+    m_user = userFromVariantMap(user);
+    SentryObjCBridge::setUser(m_user);
     return true;
 }
 
@@ -485,6 +499,7 @@ bool SentrySdk::removeUser(Sentry *sentry)
     }
 
     SentryObjCBridge::removeUser();
+    m_user.clear();
     return true;
 }
 
@@ -500,6 +515,7 @@ bool SentrySdk::setTag(Sentry *sentry, const QString &key, const QString &value)
     }
 
     SentryObjCBridge::setTag(key, value);
+    m_tags.insert(key, value);
     return true;
 }
 
@@ -515,6 +531,7 @@ bool SentrySdk::removeTag(Sentry *sentry, const QString &key)
     }
 
     SentryObjCBridge::removeTag(key);
+    m_tags.remove(key);
     return true;
 }
 
@@ -530,6 +547,7 @@ bool SentrySdk::setContext(Sentry *sentry, const QString &key, const QVariantMap
     }
 
     SentryObjCBridge::setContext(key, context);
+    m_contexts.insert(key, context);
     return true;
 }
 
@@ -545,6 +563,7 @@ bool SentrySdk::removeContext(Sentry *sentry, const QString &key)
     }
 
     SentryObjCBridge::removeContext(key);
+    m_contexts.remove(key);
     return true;
 }
 
@@ -779,7 +798,25 @@ bool SentrySdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
         return false;
     }
 
-    SentryObjCBridge::addBreadcrumb(breadcrumb);
+    QVariantMap nativeBreadcrumb = breadcrumb;
+    if (m_applyHooksLocally) {
+        const SentryObjCBridge::HookResult result = invokeValueHook(nativeBreadcrumb, m_beforeBreadcrumbState.get());
+        if (result.action == SentryObjCBridge::HookResult::Drop) {
+            return true;
+        }
+        if (result.action == SentryObjCBridge::HookResult::Replace) {
+            nativeBreadcrumb = result.value.toMap();
+        }
+
+        if (m_maxBreadcrumbs > 0) {
+            m_breadcrumbs.append(nativeBreadcrumb);
+            while (m_breadcrumbs.size() > m_maxBreadcrumbs) {
+                m_breadcrumbs.removeFirst();
+            }
+        }
+    }
+
+    SentryObjCBridge::addBreadcrumb(nativeBreadcrumb);
     return true;
 }
 
@@ -929,7 +966,8 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     QVariantMap nativeEvent = event;
-    if (m_applyBeforeSendLocally) {
+    if (m_applyHooksLocally) {
+        applyLocalScopeToEvent(&nativeEvent);
         applyFingerprintToEvent(&nativeEvent);
         const SentryObjCBridge::HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
         if (result.action == SentryObjCBridge::HookResult::Drop) {
@@ -942,6 +980,57 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     return SentryObjCBridge::captureEvent(nativeEvent, m_fingerprint);
+}
+
+void SentrySdk::clearLocalScope()
+{
+    m_release.clear();
+    m_environment.clear();
+    m_dist.clear();
+    m_user.clear();
+    m_tags.clear();
+    m_contexts.clear();
+    m_breadcrumbs.clear();
+    m_maxBreadcrumbs = 100;
+}
+
+void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const
+{
+    if (!event) {
+        return;
+    }
+
+    if (!m_release.isEmpty() && !event->contains(QStringLiteral("release"))) {
+        event->insert(QStringLiteral("release"), m_release);
+    }
+    if (!m_environment.isEmpty() && !event->contains(QStringLiteral("environment"))) {
+        event->insert(QStringLiteral("environment"), m_environment);
+    }
+    if (!m_dist.isEmpty() && !event->contains(QStringLiteral("dist"))) {
+        event->insert(QStringLiteral("dist"), m_dist);
+    }
+    if (!m_user.isEmpty() && !event->contains(QStringLiteral("user"))) {
+        event->insert(QStringLiteral("user"), m_user);
+    }
+    if (!m_tags.isEmpty()) {
+        QVariantMap tags = m_tags;
+        const QVariantMap eventTags = event->value(QStringLiteral("tags")).toMap();
+        for (auto it = eventTags.cbegin(); it != eventTags.cend(); ++it) {
+            tags.insert(it.key(), it.value());
+        }
+        event->insert(QStringLiteral("tags"), tags);
+    }
+    if (!m_contexts.isEmpty()) {
+        QVariantMap contexts = m_contexts;
+        const QVariantMap eventContexts = event->value(QStringLiteral("contexts")).toMap();
+        for (auto it = eventContexts.cbegin(); it != eventContexts.cend(); ++it) {
+            contexts.insert(it.key(), it.value());
+        }
+        event->insert(QStringLiteral("contexts"), contexts);
+    }
+    if (!m_breadcrumbs.isEmpty() && !event->contains(QStringLiteral("breadcrumbs"))) {
+        event->insert(QStringLiteral("breadcrumbs"), m_breadcrumbs);
+    }
 }
 
 void SentrySdk::applyFingerprintToEvent(QVariantMap *event) const

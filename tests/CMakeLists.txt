@@ -1,3 +1,7 @@
+if(SENTRY_QML_SDK STREQUAL "cocoa")
+    find_package(ZLIB REQUIRED)
+endif()
+
 function(add_sentry_qml_test target)
     add_executable(${target}
         ${ARGN}
@@ -7,6 +11,12 @@ function(add_sentry_qml_test target)
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
     )
 
+    if(SENTRY_QML_SDK STREQUAL "cocoa")
+        target_compile_definitions(${target} PRIVATE
+            SENTRY_QML_TEST_SDK_COCOA
+        )
+    endif()
+
     target_link_libraries(${target}
         PRIVATE
             SentryQml
@@ -15,6 +25,12 @@ function(add_sentry_qml_test target)
             Qt6::Qml
             Qt6::Test
     )
+
+    if(SENTRY_QML_SDK STREQUAL "cocoa")
+        target_link_libraries(${target} PRIVATE
+            ZLIB::ZLIB
+        )
+    endif()
 
     add_dependencies(${target} SentryQmlplugin)
 

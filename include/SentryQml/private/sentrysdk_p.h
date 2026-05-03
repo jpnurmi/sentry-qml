@@ -96,6 +96,8 @@ private:
     void updateAttachments();
     void setAttachmentFilename(SentryAttachment *attachment, const QString &filename);
     void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
+    void clearLocalScope();
+    void applyLocalScopeToEvent(QVariantMap *event) const;
     void setInitialized(bool initialized);
 
     std::unique_ptr<SentrySdkEventHookState> m_beforeSendState;
@@ -104,9 +106,17 @@ private:
     std::unique_ptr<SentrySdkEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentrySdkEventHookState> m_onCrashState;
     std::unique_ptr<SentrySdkCrashHookState> m_crashHookState;
+    QString m_release;
+    QString m_environment;
+    QString m_dist;
+    QVariantMap m_user;
+    QVariantMap m_tags;
+    QVariantMap m_contexts;
+    QVariantList m_breadcrumbs;
     QStringList m_fingerprint;
     QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;
-    bool m_applyBeforeSendLocally = false;
+    int m_maxBreadcrumbs = 100;
+    bool m_applyHooksLocally = false;
     bool m_initialized = false;
 };

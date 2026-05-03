@@ -28,66 +28,24 @@ set(QML_IMPORT_PATH "${SENTRY_QML_OUTPUT_DIRECTORY}" CACHE STRING
     "QML import paths for Qt Creator and other QML tooling"
 )
 
-set(SENTRY_NATIVE_DIR "${PROJECT_SOURCE_DIR}/modules/sentry-native" CACHE PATH
-    "Path to the sentry-native checkout, normally modules/sentry-native"
-)
+set(SENTRY_QML_SDK_SUPPORTED native)
+list(JOIN SENTRY_QML_SDK_SUPPORTED ", " SENTRY_QML_SDK_SUPPORTED_TEXT)
 
-if(NOT EXISTS "${SENTRY_NATIVE_DIR}/CMakeLists.txt")
+set(SENTRY_QML_SDK "native" CACHE STRING "Sentry SDK implementation")
+set_property(CACHE SENTRY_QML_SDK PROPERTY STRINGS ${SENTRY_QML_SDK_SUPPORTED})
+
+if(NOT SENTRY_QML_SDK IN_LIST SENTRY_QML_SDK_SUPPORTED)
     message(FATAL_ERROR
-        "sentry-native was not found at SENTRY_NATIVE_DIR='${SENTRY_NATIVE_DIR}'. "
-        "Run git submodule update --init --recursive or configure with "
-        "-DSENTRY_NATIVE_DIR=/path/to/sentry-native."
+        "Unsupported SENTRY_QML_SDK value '${SENTRY_QML_SDK}' "
+        "(supported values: ${SENTRY_QML_SDK_SUPPORTED_TEXT})."
     )
 endif()
 
-set(SENTRY_BUILD_TESTS OFF CACHE BOOL "Build sentry-native tests" FORCE)
-set(SENTRY_BUILD_EXAMPLES OFF CACHE BOOL "Build sentry-native examples" FORCE)
-set(SENTRY_BUILD_BENCHMARKS OFF CACHE BOOL "Build sentry-native benchmarks" FORCE)
+set(SENTRY_QML_SDK_SOURCES)
+set(SENTRY_QML_SDK_LIBRARIES)
+set(SENTRY_QML_SDK_INCLUDE_DIRECTORIES)
 
-if(NOT DEFINED SENTRY_TRANSPORT)
-    set(SENTRY_TRANSPORT "custom" CACHE STRING
-        "sentry-native HTTP transport. Sentry QML provides a Qt transport."
-    )
-endif()
-
-if(NOT DEFINED SENTRY_BACKEND)
-    set(SENTRY_BACKEND "native" CACHE STRING
-        "sentry-native crash backend. Use 'crashpad', 'breakpad', 'inproc', 'native', or 'none'."
-    )
-endif()
-
-if(NOT DEFINED SENTRY_SDK_NAME)
-    set(SENTRY_SDK_NAME "sentry.native.qml" CACHE STRING "SDK name reported by sentry-native")
-endif()
-
-add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
-
-if(TARGET sentry-crash)
-    target_sources(sentry-crash PRIVATE src/native/sentryqtlogging.cpp)
-    target_link_libraries(sentry-crash PRIVATE Qt6::Core)
-endif()
-
-if(SENTRY_TRANSPORT STREQUAL "custom")
-    set(SENTRY_QML_QT_TRANSPORT_SOURCE "${PROJECT_SOURCE_DIR}/src/native/sentryqttransport.cpp")
-
-    target_sources(sentry PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
-    target_include_directories(sentry PRIVATE "${SENTRY_NATIVE_DIR}")
-    target_link_libraries(sentry PRIVATE Qt6::Core Qt6::Network)
-
-    if(WIN32)
-        target_compile_definitions(sentry PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    endif()
-
-    if(TARGET sentry-crash)
-        target_sources(sentry-crash PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
-        target_include_directories(sentry-crash PRIVATE "${SENTRY_NATIVE_DIR}")
-        target_link_libraries(sentry-crash PRIVATE Qt6::Core Qt6::Network)
-
-        if(WIN32)
-            target_compile_definitions(sentry-crash PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-        endif()
-    endif()
-endif()
+include("${PROJECT_SOURCE_DIR}/cmake/${SENTRY_QML_SDK}.cmake")
 
 add_subdirectory(src)
 add_subdirectory(example)

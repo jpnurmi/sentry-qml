@@ -15,7 +15,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/private/sentryhint_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
         ../include/SentryQml/private/sentrysdk_p.h
-        native/sentrynativesdk.cpp
+        ${SENTRY_QML_SDK_SOURCES}
         sentry.cpp
         sentryattachment.cpp
         sentryevent.cpp
@@ -47,7 +47,7 @@ target_include_directories(SentryQml
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE
-        "${SENTRY_NATIVE_DIR}"
+        ${SENTRY_QML_SDK_INCLUDE_DIRECTORIES}
         "${PROJECT_SOURCE_DIR}/include/SentryQml"
 )
 
@@ -81,7 +81,7 @@ target_link_libraries(SentryQml
         Qt6::Core
         Qt6::Qml
     PRIVATE
-        sentry::sentry
+        ${SENTRY_QML_SDK_LIBRARIES}
 )
 
 set_target_properties(SentryQml PROPERTIES

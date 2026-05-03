@@ -26,9 +26,14 @@ permissions:
 
 jobs:
   test:
-    name: Test (Qt ${{ inputs.qt_version || '6.11.0' }}, Linux x64)
+    name: ${{ matrix.sentry_sdk }} E2E (Qt ${{ inputs.qt_version || '6.11.0' }}, Linux x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sentry_sdk: Native
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
       SENTRY_QT_VERSION: ${{ inputs.qt_version || '6.11.0' }}
@@ -57,7 +62,11 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Configure Sentry QML
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_BUILD_E2E_TESTS=ON
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
+          -DSENTRY_QML_BUILD_E2E_TESTS=ON
 
       - name: Build E2E app
         run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel

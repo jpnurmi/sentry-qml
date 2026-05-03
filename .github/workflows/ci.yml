@@ -117,49 +117,6 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Check out Sentry Cocoa
-        if: matrix.sentry_sdk == 'Cocoa'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: getsentry/sentry-cocoa
-          ref: d5e8e7c8ca8fc8edc3d8622c6dbda29ff679d879
-          path: sentry-cocoa
-          persist-credentials: false
-
-      - name: Build SentryObjC XCFramework
-        if: matrix.sentry_sdk == 'Cocoa'
-        working-directory: sentry-cocoa
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          xcarchive="$RUNNER_TEMP/sentryobjc/macosx.xcarchive"
-          xcframework="$RUNNER_TEMP/sentryobjc/SentryObjC-Dynamic.xcframework"
-          rm -rf "$RUNNER_TEMP/sentryobjc"
-          mkdir -p "$RUNNER_TEMP/sentryobjc"
-
-          xcodebuild archive \
-            -project Sentry.xcodeproj \
-            -scheme SentryObjC \
-            -configuration Release \
-            -sdk macosx \
-            -archivePath "$xcarchive" \
-            CODE_SIGNING_REQUIRED=NO \
-            SKIP_INSTALL=NO \
-            CODE_SIGN_IDENTITY= \
-            MACH_O_TYPE=mh_dylib \
-            ARCHS="arm64 x86_64" \
-            ONLY_ACTIVE_ARCH=NO \
-            ENABLE_CODE_COVERAGE=NO \
-            GCC_GENERATE_DEBUGGING_SYMBOLS=NO
-
-          cp Sources/SentryObjCTypes/Public/*.h \
-            "$xcarchive/Products/Library/Frameworks/SentryObjC.framework/Headers/"
-
-          xcodebuild -create-xcframework \
-            -framework "$xcarchive/Products/Library/Frameworks/SentryObjC.framework" \
-            -output "$xcframework"
-
       - name: Configure Native
         if: matrix.sentry_sdk == 'Native'
         run: >
@@ -175,9 +132,8 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
-          -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           -DSENTRY_QML_TEST_JUNIT=ON
-          -DSENTRY_COCOA_XCFRAMEWORK="${{ runner.temp }}/sentryobjc/SentryObjC-Dynamic.xcframework"
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
@@ -191,7 +147,7 @@ jobs:
             lipo build/sentry-native/sentry-crash -verify_arch arm64 x86_64
           else
             lipo \
-              "$RUNNER_TEMP/sentryobjc/SentryObjC-Dynamic.xcframework/macos-arm64_x86_64/SentryObjC.framework/SentryObjC" \
+              build/sentry-cocoa/SentryObjC-Dynamic.xcframework/macos-arm64_x86_64/SentryObjC.framework/SentryObjC \
               -verify_arch arm64 x86_64
           fi
 

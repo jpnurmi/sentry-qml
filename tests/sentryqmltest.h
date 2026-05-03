@@ -18,6 +18,12 @@
 #define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
 #endif
 
+#if defined(SENTRY_QML_TEST_SDK_CRASHPAD)
+#define SENTRY_QML_SKIP_CRASHPAD(reason) QSKIP(reason)
+#else
+#define SENTRY_QML_SKIP_CRASHPAD(reason) do {} while (false)
+#endif
+
 namespace SentryQmlTest {
 
 inline QByteArray httpHeaderValue(const QByteArray &headers, const QByteArray &name)

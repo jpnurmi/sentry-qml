@@ -17,6 +17,12 @@ function(add_sentry_qml_test target)
         )
     endif()
 
+    if(SENTRY_BACKEND STREQUAL "crashpad")
+        target_compile_definitions(${target} PRIVATE
+            SENTRY_QML_TEST_SDK_CRASHPAD
+        )
+    endif()
+
     target_link_libraries(${target}
         PRIVATE
             SentryQml
@@ -43,6 +49,16 @@ function(add_sentry_qml_test target)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:sentry-crash>"
                 "$<TARGET_FILE_DIR:${target}>/$<TARGET_FILE_NAME:sentry-crash>"
+            VERBATIM
+        )
+    endif()
+
+    if(TARGET crashpad_handler)
+        add_dependencies(${target} crashpad_handler)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:crashpad_handler>"
+                "$<TARGET_FILE_DIR:${target}>/$<TARGET_FILE_NAME:crashpad_handler>"
             VERBATIM
         )
     endif()

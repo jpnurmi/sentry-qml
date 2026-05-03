@@ -190,6 +190,8 @@ void SentryQmlUnitTest::initializesAndCapturesMessage()
 
 void SentryQmlUnitTest::sendsEnvelopeWithQtTransport()
 {
+    SENTRY_QML_SKIP_CRASHPAD("crashpad uses /minidump endpoint, not /envelope");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 

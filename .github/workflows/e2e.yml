@@ -63,6 +63,10 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
+      - name: Install Crashpad dependencies
+        if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
       - name: Configure Sentry QML
         run: >
           cmake -S . -B build

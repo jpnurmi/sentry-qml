@@ -26,17 +26,16 @@ concurrency:
 
 jobs:
   e2e:
-    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt_version }}, Linux x64)
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt_version }}, ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - sentry_backend: Native
-            qt_version: "6.11.0"
-          - sentry_backend: Inproc
-            qt_version: "6.8.0"
+          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt_version: "6.8.0"}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt_version: "6.8.0"}
+          - {sentry_backend: Native, runner: ubuntu-24.04, qt_version: "6.11.0"}
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
       SENTRY_QT_VERSION: ${{ matrix.qt_version }}
@@ -63,6 +62,10 @@ jobs:
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install Crashpad dependencies
+        if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Configure Sentry QML
         run: >

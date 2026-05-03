@@ -150,6 +150,16 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
         )
     endif()
 
+    if(TARGET crashpad_handler)
+        add_dependencies(sentry_qml_e2e_app crashpad_handler)
+        add_custom_command(TARGET sentry_qml_e2e_app POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:crashpad_handler>"
+                "$<TARGET_FILE_DIR:sentry_qml_e2e_app>/$<TARGET_FILE_NAME:crashpad_handler>"
+            VERBATIM
+        )
+    endif()
+
     target_sources(sentry_qml_e2e_app PRIVATE
         e2e/E2EApp.qml
     )

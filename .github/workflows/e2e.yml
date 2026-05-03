@@ -16,27 +16,26 @@ on:
         options:
           - feature-complete
           - errors-only
-      qt_version:
-        description: Qt version
-        required: true
-        default: "6.11.0"
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: ${{ matrix.sentry_sdk }} E2E (Qt ${{ inputs.qt_version || '6.11.0' }}, Linux x64)
+    name: ${{ matrix.sentry_backend }} E2E (Qt ${{ matrix.qt_version }}, Linux x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - sentry_sdk: Native
+          - sentry_backend: Native
+            qt_version: "6.11.0"
+          - sentry_backend: Inproc
+            qt_version: "6.8.0"
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
-      SENTRY_QT_VERSION: ${{ inputs.qt_version || '6.11.0' }}
+      SENTRY_QT_VERSION: ${{ matrix.qt_version }}
       SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
       SENTRY_TEST_URL: http://127.0.0.1:9000
       SENTRY_TEST_EMAIL: test@example.com
@@ -65,7 +64,7 @@ jobs:
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
+          -DSENTRY_BACKEND=${{ matrix.sentry_backend }}
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
 
       - name: Build E2E app

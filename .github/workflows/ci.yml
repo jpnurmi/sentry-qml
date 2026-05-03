@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   ci:
-    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
+    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -30,83 +30,27 @@ jobs:
         #   pipx run aqtinstall aqt list-qt windows desktop
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
         include:
-          - runner: ubuntu-24.04
-            label: Linux x64
-            qt_version: "6.8.0"
-            qt_host: linux
-            qt_arch: linux_gcc_64
-            sentry_backend: Inproc
-          - runner: ubuntu-24.04
-            label: Linux x64
-            qt_version: "6.11.0"
-            qt_host: linux
-            qt_arch: linux_gcc_64
-            sentry_backend: Native
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-22.04, qt_version: "6.8.0", qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-22.04, qt_version: "6.8.0", qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04, qt_version: "6.11.0", qt_host: linux, qt_arch: linux_gcc_64}
 
-          - runner: ubuntu-24.04-arm
-            label: Linux ARM64
-            qt_version: "6.8.0"
-            qt_host: linux_arm64
-            qt_arch: linux_gcc_arm64
-            sentry_backend: Inproc
-          - runner: ubuntu-24.04-arm
-            label: Linux ARM64
-            qt_version: "6.11.0"
-            qt_host: linux_arm64
-            qt_arch: linux_gcc_arm64
-            sentry_backend: Native
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-22.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-22.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-22.04-arm, qt_version: "6.11.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
 
-          - runner: macos-15
-            label: macOS Universal
-            qt_version: "6.8.0"
-            qt_host: mac
-            qt_arch: clang_64
-            sentry_backend: Inproc
-          - runner: macos-26
-            label: macOS Universal
-            qt_version: "6.11.0"
-            qt_host: mac
-            qt_arch: clang_64
-            sentry_backend: Native
+          - {sentry_sdk: Cocoa, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Cocoa, runner: macos-26, qt_version: "6.11.0", qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: macos-26, qt_version: "6.11.0", qt_host: mac, qt_arch: clang_64}
 
-          - runner: macos-15
-            label: macOS Universal
-            qt_version: "6.8.0"
-            qt_host: mac
-            qt_arch: clang_64
-            sentry_sdk: Cocoa
-          - runner: macos-26
-            label: macOS Universal
-            qt_version: "6.11.0"
-            qt_host: mac
-            qt_arch: clang_64
-            sentry_sdk: Cocoa
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-2022, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-2022, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-2025, qt_version: "6.11.0", qt_host: windows, qt_arch: win64_msvc2022_64}
 
-          - runner: windows-2025
-            label: Windows x64
-            qt_version: "6.8.0"
-            qt_host: windows
-            qt_arch: win64_msvc2022_64
-            sentry_backend: Inproc
-          - runner: windows-2025
-            label: Windows x64
-            qt_version: "6.11.0"
-            qt_host: windows
-            qt_arch: win64_msvc2022_64
-            sentry_backend: Native
-
-          - runner: windows-11-arm
-            label: Windows ARM64
-            qt_version: "6.8.0"
-            qt_host: windows
-            qt_arch: win64_msvc2022_arm64_cross_compiled
-            sentry_backend: Inproc
-          - runner: windows-11-arm
-            label: Windows ARM64
-            qt_version: "6.11.0"
-            qt_host: windows
-            qt_arch: win64_msvc2022_arm64_cross_compiled
-            sentry_backend: Native
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-11-arm, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-11-arm, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-11-arm, qt_version: "6.11.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
 
     steps:
       - name: Check out sources

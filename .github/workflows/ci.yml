@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  ci:
     name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30

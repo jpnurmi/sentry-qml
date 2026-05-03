@@ -25,8 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: ${{ matrix.sentry_backend }} E2E (Qt ${{ matrix.qt_version }}, Linux x64)
+  e2e:
+    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt_version }}, Linux x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:

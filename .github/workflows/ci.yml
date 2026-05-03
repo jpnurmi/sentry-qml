@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
+    name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -31,61 +31,73 @@ jobs:
             qt_version: "6.8.0"
             qt_host: linux
             qt_arch: linux_gcc_64
+            sentry_sdk: Native
           - runner: ubuntu-24.04
             label: Linux x64
             qt_version: "6.11.0"
             qt_host: linux
             qt_arch: linux_gcc_64
+            sentry_sdk: Native
           - runner: ubuntu-24.04-arm
             label: Linux ARM64
             qt_version: "6.8.0"
             qt_host: linux_arm64
             qt_arch: linux_gcc_arm64
+            sentry_sdk: Native
           - runner: ubuntu-24.04-arm
             label: Linux ARM64
             qt_version: "6.11.0"
             qt_host: linux_arm64
             qt_arch: linux_gcc_arm64
+            sentry_sdk: Native
           - runner: macos-15
             label: macOS ARM64
             qt_version: "6.8.0"
             qt_host: mac
             qt_arch: clang_64
+            sentry_sdk: Native
           - runner: macos-15-intel
             label: macOS x64
             qt_version: "6.8.0"
             qt_host: mac
             qt_arch: clang_64
+            sentry_sdk: Native
           - runner: macos-26
             label: macOS ARM64
             qt_version: "6.11.0"
             qt_host: mac
             qt_arch: clang_64
+            sentry_sdk: Native
           - runner: macos-26-intel
             label: macOS x64
             qt_version: "6.11.0"
             qt_host: mac
             qt_arch: clang_64
+            sentry_sdk: Native
           - runner: windows-2025
             label: Windows x64
             qt_version: "6.8.0"
             qt_host: windows
             qt_arch: win64_msvc2022_64
+            sentry_sdk: Native
           - runner: windows-2025
             label: Windows x64
             qt_version: "6.11.0"
             qt_host: windows
             qt_arch: win64_msvc2022_64
+            sentry_sdk: Native
           - runner: windows-11-arm
             label: Windows ARM64
             qt_version: "6.8.0"
             qt_host: windows
             qt_arch: win64_msvc2022_arm64_cross_compiled
+            sentry_sdk: Native
           - runner: windows-11-arm
             label: Windows ARM64
             qt_version: "6.11.0"
             qt_host: windows
             qt_arch: win64_msvc2022_arm64_cross_compiled
+            sentry_sdk: Native
 
     steps:
       - name: Check out sources
@@ -105,8 +117,12 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSENTRY_QML_TEST_JUNIT=ON
+      - name: Configure ${{ matrix.sentry_sdk }}
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
+          -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
@@ -120,6 +136,6 @@ jobs:
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: Qt ${{ matrix.qt_version }}, ${{ matrix.label }}
+          name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
           path: build/tests/test-results/*.xml
           reporter: java-junit

@@ -28,7 +28,7 @@ set(QML_IMPORT_PATH "${SENTRY_QML_OUTPUT_DIRECTORY}" CACHE STRING
     "QML import paths for Qt Creator and other QML tooling"
 )
 
-set(SENTRY_QML_SDK_SUPPORTED native)
+set(SENTRY_QML_SDK_SUPPORTED native cocoa)
 list(JOIN SENTRY_QML_SDK_SUPPORTED ", " SENTRY_QML_SDK_SUPPORTED_TEXT)
 
 set(SENTRY_QML_SDK "native" CACHE STRING "Sentry SDK implementation")

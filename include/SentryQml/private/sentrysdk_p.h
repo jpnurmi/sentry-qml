@@ -93,6 +93,7 @@ private:
     void trackAttachment(SentryAttachment *attachment);
     void detachAttachment(SentryAttachment *attachment);
     void invalidateAttachments();
+    void updateAttachments();
     void setAttachmentFilename(SentryAttachment *attachment, const QString &filename);
     void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
     void setInitialized(bool initialized);
@@ -106,5 +107,6 @@ private:
     QStringList m_fingerprint;
     QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;
+    bool m_applyBeforeSendLocally = false;
     bool m_initialized = false;
 };

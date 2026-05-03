@@ -36,7 +36,7 @@ jobs:
 
           - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-22.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
           - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-22.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-22.04-arm, qt_version: "6.11.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04-arm, qt_version: "6.11.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
 
           - {sentry_sdk: Cocoa, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
           - {sentry_sdk: Cocoa, runner: macos-26, qt_version: "6.11.0", qt_host: mac, qt_arch: clang_64}

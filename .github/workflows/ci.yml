@@ -11,9 +11,13 @@ permissions:
   contents: read
   checks: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
+  ci:
+    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -31,31 +35,40 @@ jobs:
             qt_version: "6.8.0"
             qt_host: linux
             qt_arch: linux_gcc_64
-            sentry_sdk: Native
+            sentry_backend: Inproc
           - runner: ubuntu-24.04
             label: Linux x64
             qt_version: "6.11.0"
             qt_host: linux
             qt_arch: linux_gcc_64
-            sentry_sdk: Native
+            sentry_backend: Native
+
           - runner: ubuntu-24.04-arm
             label: Linux ARM64
             qt_version: "6.8.0"
             qt_host: linux_arm64
             qt_arch: linux_gcc_arm64
-            sentry_sdk: Native
+            sentry_backend: Inproc
           - runner: ubuntu-24.04-arm
             label: Linux ARM64
             qt_version: "6.11.0"
             qt_host: linux_arm64
             qt_arch: linux_gcc_arm64
-            sentry_sdk: Native
+            sentry_backend: Native
+
           - runner: macos-15
             label: macOS Universal
             qt_version: "6.8.0"
             qt_host: mac
             qt_arch: clang_64
-            sentry_sdk: Native
+            sentry_backend: Inproc
+          - runner: macos-26
+            label: macOS Universal
+            qt_version: "6.11.0"
+            qt_host: mac
+            qt_arch: clang_64
+            sentry_backend: Native
+
           - runner: macos-15
             label: macOS Universal
             qt_version: "6.8.0"
@@ -67,37 +80,33 @@ jobs:
             qt_version: "6.11.0"
             qt_host: mac
             qt_arch: clang_64
-            sentry_sdk: Native
-          - runner: macos-26
-            label: macOS Universal
-            qt_version: "6.11.0"
-            qt_host: mac
-            qt_arch: clang_64
             sentry_sdk: Cocoa
+
           - runner: windows-2025
             label: Windows x64
             qt_version: "6.8.0"
             qt_host: windows
             qt_arch: win64_msvc2022_64
-            sentry_sdk: Native
+            sentry_backend: Inproc
           - runner: windows-2025
             label: Windows x64
             qt_version: "6.11.0"
             qt_host: windows
             qt_arch: win64_msvc2022_64
-            sentry_sdk: Native
+            sentry_backend: Native
+
           - runner: windows-11-arm
             label: Windows ARM64
             qt_version: "6.8.0"
             qt_host: windows
             qt_arch: win64_msvc2022_arm64_cross_compiled
-            sentry_sdk: Native
+            sentry_backend: Inproc
           - runner: windows-11-arm
             label: Windows ARM64
             qt_version: "6.11.0"
             qt_host: windows
             qt_arch: win64_msvc2022_arm64_cross_compiled
-            sentry_sdk: Native
+            sentry_backend: Native
 
     steps:
       - name: Check out sources
@@ -118,11 +127,11 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Configure Native
-        if: matrix.sentry_sdk == 'Native'
+        if: matrix.sentry_backend != ''
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
+          ${{ matrix.sentry_backend && format('-DSENTRY_BACKEND={0}', matrix.sentry_backend) || '' }}
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
           -DSENTRY_QML_TEST_JUNIT=ON
 
@@ -142,13 +151,15 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           lipo build/src/libSentryQml.dylib -verify_arch arm64 x86_64
-          if [ "${{ matrix.sentry_sdk }}" = "Native" ]; then
-            lipo build/sentry-native/libsentry.a -verify_arch arm64 x86_64
-            lipo build/sentry-native/sentry-crash -verify_arch arm64 x86_64
-          else
+          if [ "${{ matrix.sentry_sdk }}" = "Cocoa" ]; then
             lipo \
               build/sentry-cocoa/SentryObjC-Dynamic.xcframework/macos-arm64_x86_64/SentryObjC.framework/SentryObjC \
               -verify_arch arm64 x86_64
+          else
+            lipo build/sentry-native/libsentry.a -verify_arch arm64 x86_64
+            if [ "${{ matrix.sentry_backend }}" = "Native" ]; then
+              lipo build/sentry-native/sentry-crash -verify_arch arm64 x86_64
+            fi
           fi
 
       - name: Test

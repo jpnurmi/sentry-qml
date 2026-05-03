@@ -24,6 +24,8 @@ if(NOT DEFINED SENTRY_BACKEND)
     set(SENTRY_BACKEND "native" CACHE STRING
         "sentry-native crash backend. Use 'crashpad', 'breakpad', 'inproc', 'native', or 'none'."
     )
+else()
+    string(TOLOWER "${SENTRY_BACKEND}" SENTRY_BACKEND)
 endif()
 
 if(NOT DEFINED SENTRY_SDK_NAME)

@@ -56,12 +56,24 @@ jobs:
             qt_host: mac
             qt_arch: clang_64
             sentry_sdk: Native
+          - runner: macos-15
+            label: macOS Universal
+            qt_version: "6.8.0"
+            qt_host: mac
+            qt_arch: clang_64
+            sentry_sdk: Cocoa
           - runner: macos-26
             label: macOS Universal
             qt_version: "6.11.0"
             qt_host: mac
             qt_arch: clang_64
             sentry_sdk: Native
+          - runner: macos-26
+            label: macOS Universal
+            qt_version: "6.11.0"
+            qt_host: mac
+            qt_arch: clang_64
+            sentry_sdk: Cocoa
           - runner: windows-2025
             label: Windows x64
             qt_version: "6.8.0"
@@ -105,12 +117,22 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Configure ${{ matrix.sentry_sdk }}
+      - name: Configure Native
+        if: matrix.sentry_sdk == 'Native'
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
+          -DSENTRY_QML_TEST_JUNIT=ON
+
+      - name: Configure Cocoa
+        if: matrix.sentry_sdk == 'Cocoa'
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build
@@ -120,8 +142,14 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           lipo build/src/libSentryQml.dylib -verify_arch arm64 x86_64
-          lipo build/sentry-native/libsentry.a -verify_arch arm64 x86_64
-          lipo build/sentry-native/sentry-crash -verify_arch arm64 x86_64
+          if [ "${{ matrix.sentry_sdk }}" = "Native" ]; then
+            lipo build/sentry-native/libsentry.a -verify_arch arm64 x86_64
+            lipo build/sentry-native/sentry-crash -verify_arch arm64 x86_64
+          else
+            lipo \
+              build/sentry-cocoa/SentryObjC-Dynamic.xcframework/macos-arm64_x86_64/SentryObjC.framework/SentryObjC \
+              -verify_arch arm64 x86_64
+          fi
 
       - name: Test
         run: ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure

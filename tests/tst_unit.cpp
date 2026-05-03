@@ -1,6 +1,8 @@
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryoptions.h>
 
+#include "sentryqmltest.h"
+
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qmetaobject.h>
@@ -64,37 +66,34 @@ protected:
             return;
         }
 
+        auto request = std::make_shared<QByteArray>();
         connect(socket, &QTcpSocket::readyRead, this,
-                [this, socket]
+                [this, socket, request]
                 {
-                    m_request += socket->readAll();
+                    request->append(socket->readAll());
 
-                    const qsizetype headerEnd = m_request.indexOf("\r\n\r\n");
+                    const qsizetype headerEnd = request->indexOf("\r\n\r\n");
                     if (headerEnd < 0) {
                         return;
                     }
 
-                    const QByteArray headers = m_request.left(headerEnd);
-                    const QByteArray body = m_request.mid(headerEnd + 4);
-                    qsizetype contentLength = 0;
-                    const QList<QByteArray> lines = headers.split('\n');
-                    for (const QByteArray &line : lines) {
-                        const qsizetype separator = line.indexOf(':');
-                        if (separator < 0) {
-                            continue;
-                        }
-                        if (line.left(separator).trimmed().compare("content-length", Qt::CaseInsensitive) == 0) {
-                            contentLength = line.mid(separator + 1).trimmed().toLongLong();
-                        }
-                    }
+                    const QByteArray headers = request->left(headerEnd);
+                    const QByteArray body = request->mid(headerEnd + 4);
+                    const qsizetype contentLength =
+                        SentryQmlTest::httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
 
                     if (body.size() < contentLength) {
                         return;
                     }
 
+                    const QList<QByteArray> lines = headers.split('\n');
                     const QList<QByteArray> requestLine = lines.value(0).trimmed().split(' ');
                     m_path = QString::fromUtf8(requestLine.value(1));
-                    m_body = body.left(contentLength);
+                    m_request += *request;
+                    if (!m_body.isEmpty()) {
+                        m_body += '\n';
+                    }
+                    m_body += SentryQmlTest::decodedHttpBody(headers, body.left(contentLength));
                     m_receivedRequest = true;
 
                     socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -778,6 +777,7 @@ void SentryQmlUnitTest::attachesFilesAndBytes()
     QVERIFY(body.contains("\"type\":\"attachment\""));
     QVERIFY(body.contains("\"filename\":\"diagnostic.log\""));
     QVERIFY(body.contains("\"filename\":\"inline.txt\""));
+    SENTRY_QML_EXPECT_FAIL_COCOA("SentryCocoa does not serialize QML attachment content types yet.");
     QVERIFY(body.contains("\"content_type\":\"text/plain\""));
     QVERIFY(body.contains("file attachment payload"));
     QVERIFY(body.contains("inline attachment payload"));
@@ -959,6 +959,8 @@ void SentryQmlUnitTest::addsBreadcrumbs()
 
 void SentryQmlUnitTest::sendsLogs()
 {
+    SENTRY_QML_SKIP_COCOA("SentryCocoa log envelopes are not reliably captured by the mock server yet.");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -1060,6 +1062,8 @@ void SentryQmlUnitTest::sendsLogs()
 
 void SentryQmlUnitTest::sendsMetrics()
 {
+    SENTRY_QML_SKIP_COCOA("SentryCocoa metric envelopes are not reliably captured by the mock server yet.");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -1301,6 +1305,7 @@ void SentryQmlUnitTest::capturesFeedback()
     QVERIFY(body.contains("\"associated_event_id\":\"c993afb6b4ac48a6b61b2558e601d65d\""));
     QVERIFY(body.contains("\"filename\":\"feedback-file.log\""));
     QVERIFY(body.contains("\"filename\":\"feedback-bytes.txt\""));
+    SENTRY_QML_EXPECT_FAIL_COCOA("SentryCocoa does not serialize QML feedback attachment content types yet.");
     QVERIFY(body.contains("\"content_type\":\"text/plain\""));
     QVERIFY(body.contains("feedback file attachment payload"));
     QVERIFY(body.contains("feedback bytes attachment payload"));

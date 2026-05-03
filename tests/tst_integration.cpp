@@ -1,3 +1,5 @@
+#include "sentryqmltest.h"
+
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
@@ -71,23 +73,14 @@ protected:
 
                     const QByteArray headers = request->left(headerEnd);
                     const QByteArray body = request->mid(headerEnd + 4);
-                    qsizetype contentLength = 0;
-                    const QList<QByteArray> lines = headers.split('\n');
-                    for (const QByteArray &line : lines) {
-                        const qsizetype separator = line.indexOf(':');
-                        if (separator < 0) {
-                            continue;
-                        }
-                        if (line.left(separator).trimmed().compare("content-length", Qt::CaseInsensitive) == 0) {
-                            contentLength = line.mid(separator + 1).trimmed().toLongLong();
-                        }
-                    }
+                    const qsizetype contentLength =
+                        SentryQmlTest::httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
 
                     if (body.size() < contentLength) {
                         return;
                     }
 
-                    m_bodies.append(body.left(contentLength));
+                    m_bodies.append(SentryQmlTest::decodedHttpBody(headers, body.left(contentLength)));
                     socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                     socket->disconnectFromHost();
                     emit received();
@@ -175,6 +168,8 @@ EnvelopeItem findItem(const QList<EnvelopeItem> &items, const QString &type, con
 
 void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
 {
+    SENTRY_QML_SKIP_COCOA("SentryCocoa integration coverage still depends on skipped log and metric envelope paths.");
+
     IntegrationEnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 

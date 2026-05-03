@@ -25,6 +25,10 @@ qt_add_qml_module(SentryQml
         sentryuser.cpp
 )
 
+if(SENTRY_QML_SDK_DEPENDENCIES)
+    add_dependencies(SentryQml ${SENTRY_QML_SDK_DEPENDENCIES})
+endif()
+
 get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
 if(SENTRY_QML_MULTI_CONFIG AND TARGET SentryQmlplugin)
     set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")

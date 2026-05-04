@@ -141,8 +141,10 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
         PRIVATE
             SentryQml
             Qt6::Core
+            Qt6::Gui
             Qt6::Network
             Qt6::Qml
+            Qt6::Quick
     )
 
     add_dependencies(sentry_qml_e2e_app SentryQmlplugin)

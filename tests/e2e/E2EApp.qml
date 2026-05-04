@@ -1,7 +1,12 @@
-import QtQml
+import QtQuick
 import Sentry 1.0
 
-QtObject {
+Window {
+    objectName: testAction === "view-hierarchy-capture" ? "e2eViewHierarchyWindow" : ""
+    width: 320
+    height: 240
+    visible: testAction === "view-hierarchy-capture"
+
     property bool initialized: false
     property bool flushed: false
     property bool closed: false
@@ -31,6 +36,7 @@ QtObject {
     property string attributesLogMessage: "Sentry QML E2E attributes " + testRunId
     property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
+    property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
     property SentryHint feedbackHint: SentryHint {}
     property SentryOptions options: SentryOptions {
         dsn: testDsn
@@ -42,11 +48,22 @@ QtObject {
         requireUserConsent: testAction === "consent-capture"
         enableLogs: testAction === "attributes-capture"
         enableMetrics: testAction === "attributes-capture"
+        attachViewHierarchy: testAction === "view-hierarchy-capture"
         user: SentryUser {
             userId: "e2e-user"
             username: "e2e"
             email: "e2e@example.com"
         }
+    }
+
+    Rectangle {
+        objectName: "e2eViewHierarchyChild"
+        visible: testAction === "view-hierarchy-capture"
+        x: 12
+        y: 34
+        width: 56
+        height: 78
+        opacity: 0.5
     }
 
     Component.onCompleted: {
@@ -106,6 +123,11 @@ QtObject {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && feedbackAttached && feedbackCaptured && flushed && closed
+        } else if (testAction === "view-hierarchy-capture") {
+            eventId = Sentry.captureMessage(viewHierarchyMessage, "info")
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized && eventId !== "" && flushed && closed
         } else if (testAction === "attributes-capture") {
             attributeSet = Sentry.setAttribute("sentry_qml_e2e_run_id", attributeRunId)
             logCaptured = Sentry.info(attributesLogMessage, {

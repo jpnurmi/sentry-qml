@@ -250,6 +250,42 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'View hierarchy capture' {
+        BeforeAll {
+            $script:ViewHierarchyMessage = "Sentry QML E2E view hierarchy $script:RunId"
+            $script:ViewHierarchyResult = Invoke-E2EAction -Action 'view-hierarchy-capture'
+            $script:ViewHierarchyEventIds = Get-EventIds -AppOutput $script:ViewHierarchyResult.Output -ExpectedCount 1
+            $script:ViewHierarchyEvent = Get-SentryTestEvent `
+                -EventId $script:ViewHierarchyEventIds[0] `
+                -TimeoutSeconds 180
+            $script:ViewHierarchyAttachments = Get-SentryTestEventAttachments `
+                -EventId $script:ViewHierarchyEventIds[0] `
+                -ExpectedCount 1 `
+                -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            $script:ViewHierarchyResult.ExitCode | Should -Be 0
+        }
+
+        It 'captures a message event in Sentry' {
+            $script:ViewHierarchyEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:ViewHierarchyEvent -Name 'title' | Should -Be $script:ViewHierarchyMessage
+            Get-TagValue -SentryEvent $script:ViewHierarchyEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:ViewHierarchyEvent -Key 'test.action' | Should -Be 'view-hierarchy-capture'
+        }
+
+        It 'uploads the view hierarchy attachment' {
+            $viewHierarchyAttachment = @($script:ViewHierarchyAttachments) | Where-Object {
+                (Get-ObjectValue -InputObject $_ -Name 'name') -eq 'view-hierarchy.json'
+            } | Select-Object -First 1
+
+            $viewHierarchyAttachment | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $viewHierarchyAttachment -Name 'type' | Should -Be 'event.view_hierarchy'
+            Get-ObjectValue -InputObject $viewHierarchyAttachment -Name 'mimetype' | Should -Be 'application/json'
+        }
+    }
+
     Context 'Global attributes' {
         BeforeAll {
             $script:AttributesRunId = $script:RunId -replace '[^A-Za-z0-9_]', '_'

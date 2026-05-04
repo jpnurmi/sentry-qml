@@ -1,5 +1,4 @@
 #include <QtCore/qbytearray.h>
-#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfileinfo.h>
@@ -11,6 +10,7 @@
 #include <QtCore/qtextstream.h>
 #include <QtCore/qurl.h>
 #include <QtCore/quuid.h>
+#include <QtGui/qguiapplication.h>
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
@@ -70,15 +70,16 @@ public:
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication app(argc, argv);
-    QCoreApplication::setOrganizationName(QStringLiteral("Sentry"));
-    QCoreApplication::setApplicationName(QStringLiteral("Sentry QML E2E App"));
+    QGuiApplication app(argc, argv);
+    QGuiApplication::setOrganizationName(QStringLiteral("Sentry"));
+    QGuiApplication::setApplicationName(QStringLiteral("Sentry QML E2E App"));
 
     const QStringList arguments = app.arguments();
     const QString action = arguments.value(1);
     if (action.isEmpty()) {
         qCritical("usage: sentry_qml_e2e_app "
-                  "<message-capture|consent-capture|feedback-capture|attributes-capture|crash-capture|crash-send> "
+                  "<message-capture|consent-capture|feedback-capture|view-hierarchy-capture|attributes-capture|"
+                  "crash-capture|crash-send> "
                   "[crash-id]");
         return 64;
     }
@@ -139,7 +140,7 @@ int main(int argc, char *argv[])
     }
 
     if (action == QLatin1String("message-capture") || action == QLatin1String("consent-capture")
-        || action == QLatin1String("feedback-capture")) {
+        || action == QLatin1String("feedback-capture") || action == QLatin1String("view-hierarchy-capture")) {
         const QString eventId = object->property("eventId").toString();
         const bool success = object->property("success").toBool() && !eventId.isEmpty();
         if (success) {

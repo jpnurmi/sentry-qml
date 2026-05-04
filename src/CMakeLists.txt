@@ -15,6 +15,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/private/sentryhint_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
         ../include/SentryQml/private/sentrysdk_p.h
+        ../include/SentryQml/private/sentryviewhierarchy_p.h
         ${SENTRY_QML_SDK_SOURCES}
         sentry.cpp
         sentryattachment.cpp
@@ -23,6 +24,7 @@ qt_add_qml_module(SentryQml
         sentryoptions.cpp
         sentryqmlengine.cpp
         sentryuser.cpp
+        sentryviewhierarchy.cpp
 )
 
 if(SENTRY_QML_SDK_DEPENDENCIES)
@@ -85,6 +87,7 @@ target_link_libraries(SentryQml
         Qt6::Core
         Qt6::Qml
     PRIVATE
+        Qt6::Quick
         ${SENTRY_QML_SDK_LIBRARIES}
 )
 

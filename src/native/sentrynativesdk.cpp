@@ -2,6 +2,7 @@
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
+#include <SentryQml/private/sentryviewhierarchy_p.h>
 
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryattachment.h>
@@ -9,7 +10,10 @@
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryuser.h>
 
+extern "C" {
 #include <include/sentry.h>
+#include <src/sentry_attachment.h>
+}
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
@@ -466,6 +470,25 @@ sentry_attachment_t *attachHintBytes(sentry_hint_t *hint, const QByteArray &byte
 #endif
 }
 
+void attachViewHierarchyToScope(sentry_scope_t *scope, const QByteArray &json)
+{
+    if (!scope || json.isEmpty()) {
+        return;
+    }
+
+    sentry_attachment_t *attachment = sentry_scope_attach_bytes_n(scope,
+                                                                  json.constData(),
+                                                                  static_cast<size_t>(json.size()),
+                                                                  "view-hierarchy.json",
+                                                                  std::strlen("view-hierarchy.json"));
+    if (!attachment) {
+        return;
+    }
+
+    attachment->type = VIEW_HIERARCHY;
+    setNativeAttachmentContentType(attachment, QStringLiteral("application/json"));
+}
+
 sentry_level_t logLevelFromInt(int level)
 {
     switch (level) {
@@ -655,6 +678,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::move(crashHookState);
+    m_attachViewHierarchy = options->attachViewHierarchy();
     const SentryUser *user = options->user();
     if (user && !user->isEmpty()) {
         sentry_set_user(nativeValueFromVariant(user->toVariantMap()));
@@ -690,6 +714,7 @@ bool SentrySdk::close()
     m_beforeSendState.reset();
     m_crashHookState.reset();
     m_onCrashState.reset();
+    m_attachViewHierarchy = false;
     m_fingerprint.clear();
     invalidateAttachments();
     setInitialized(false);
@@ -1494,8 +1519,16 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         return {};
     }
 
-    if (m_fingerprint.isEmpty()) {
+    if (m_fingerprint.isEmpty() && !m_attachViewHierarchy) {
         return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
+    }
+
+    QByteArray viewHierarchy;
+    if (m_attachViewHierarchy) {
+        viewHierarchy = SentryViewHierarchy::toJson();
+        if (m_fingerprint.isEmpty() && viewHierarchy.isEmpty()) {
+            return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
+        }
     }
 
     sentry_scope_t *scope = sentry_local_scope_new();
@@ -1505,7 +1538,10 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(eventWithFingerprint)));
     }
 
-    sentry_scope_set_fingerprints(scope, nativeFingerprintFromStringList(m_fingerprint));
+    if (!m_fingerprint.isEmpty()) {
+        sentry_scope_set_fingerprints(scope, nativeFingerprintFromStringList(m_fingerprint));
+    }
+    attachViewHierarchyToScope(scope, viewHierarchy);
     return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(event), scope));
 }
 

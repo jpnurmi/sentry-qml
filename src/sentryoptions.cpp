@@ -172,6 +172,21 @@ void SentryOptions::setRequireUserConsent(bool requireUserConsent)
     emit requireUserConsentChanged();
 }
 
+bool SentryOptions::attachViewHierarchy() const
+{
+    return m_attachViewHierarchy;
+}
+
+void SentryOptions::setAttachViewHierarchy(bool attachViewHierarchy)
+{
+    if (m_attachViewHierarchy == attachViewHierarchy) {
+        return;
+    }
+
+    m_attachViewHierarchy = attachViewHierarchy;
+    emit attachViewHierarchyChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;

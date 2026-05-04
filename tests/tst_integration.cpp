@@ -25,6 +25,7 @@ class SentryQmlIntegrationTest : public QObject
 
 private slots:
     void capturesSdkFeaturesThroughHttpTransport();
+    void attachesViewHierarchyWhenEnabled();
 };
 
 class IntegrationEnvelopeServer : public QTcpServer
@@ -164,6 +165,58 @@ EnvelopeItem findItem(const QList<EnvelopeItem> &items, const QString &type, con
                                            && (needle.isEmpty() || candidate.payload.contains(needle));
                                    });
     return item != items.cend() ? *item : EnvelopeItem {};
+}
+
+void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
+{
+    IntegrationEnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    const QUrl fixtureUrl = QUrl::fromLocalFile(
+        QDir(QStringLiteral(SENTRY_QML_TEST_QML_DIR)).filePath(QStringLiteral("ViewHierarchyTest.qml")));
+    QQmlComponent component(&engine, fixtureUrl);
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("eventId").toString().size(), 36);
+    QCOMPARE(object->property("flushed").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("View hierarchy event"), 5000);
+
+    const QList<EnvelopeItem> items = findEnvelopeItems(server.bodies(), "View hierarchy event");
+    QVERIFY(!items.isEmpty());
+
+    const EnvelopeItem event = findItem(items, QStringLiteral("event"), "View hierarchy event");
+    QVERIFY(!event.payload.isEmpty());
+
+    const EnvelopeItem viewHierarchy = findItem(items, QStringLiteral("attachment"), "viewHierarchyChild");
+    QVERIFY(!viewHierarchy.payload.isEmpty());
+    QCOMPARE(viewHierarchy.headers.value(QStringLiteral("filename")).toString(),
+             QStringLiteral("view-hierarchy.json"));
+    QCOMPARE(viewHierarchy.headers.value(QStringLiteral("attachment_type")).toString(),
+             QStringLiteral("event.view_hierarchy"));
+    QCOMPARE(viewHierarchy.headers.value(QStringLiteral("content_type")).toString(),
+             QStringLiteral("application/json"));
+    QVERIFY(viewHierarchy.payload.contains("\"rendering_system\":\"Qt Quick\""));
+    QVERIFY(viewHierarchy.payload.contains("viewHierarchyWindow"));
+    QVERIFY(viewHierarchy.payload.contains("viewHierarchyChild"));
 }
 
 void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()

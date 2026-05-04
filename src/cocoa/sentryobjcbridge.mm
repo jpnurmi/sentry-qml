@@ -764,22 +764,37 @@ SentryObjCMetric *runMetricHook(SentryObjCMetric *metric, const SentryObjCBridge
     return metric;
 }
 
+SentryAttachmentType nativeAttachmentType(const SentryObjCBridge::Attachment &attachment)
+{
+    if (attachment.attachmentType == SentryObjCBridge::Attachment::ViewHierarchy) {
+        return kSentryAttachmentTypeViewHierarchy;
+    }
+    return kSentryAttachmentTypeEventAttachment;
+}
+
 SentryAttachment *nativeAttachment(const SentryObjCBridge::Attachment &attachment)
 {
     NSString *filename = nsStringOrNil(attachment.filename);
     NSString *contentType = nsStringOrNil(attachment.contentType);
+    const SentryAttachmentType attachmentType = nativeAttachmentType(attachment);
 
     if (attachment.type == SentryObjCBridge::Attachment::Bytes) {
         NSData *data = [NSData dataWithBytes:attachment.bytes.constData()
                                       length:static_cast<NSUInteger>(attachment.bytes.size())];
-        return [[SentryAttachment alloc] initWithData:data filename:filename ?: @"" contentType:contentType];
+        return [[SentryAttachment alloc] initWithData:data
+                                             filename:filename ?: @""
+                                          contentType:contentType
+                                       attachmentType:attachmentType];
     }
 
     const QString nativePath = QDir::toNativeSeparators(attachment.path);
     if (!filename) {
         filename = nsString(QFileInfo(nativePath).fileName());
     }
-    return [[SentryAttachment alloc] initWithPath:nsString(nativePath) filename:filename contentType:contentType];
+    return [[SentryAttachment alloc] initWithPath:nsString(nativePath)
+                                        filename:filename
+                                     contentType:contentType
+                                  attachmentType:attachmentType];
 }
 
 NSArray<SentryAttachment *> *nativeAttachments(const QList<SentryObjCBridge::Attachment> &attachments)
@@ -1087,16 +1102,29 @@ void distribution(const QString &name, double value, const QString &unit, const 
 
 QString captureEvent(const QVariantMap &event, const QStringList &fingerprint)
 {
+    return captureEvent(event, fingerprint, {});
+}
+
+QString captureEvent(const QVariantMap &event,
+                     const QStringList &fingerprint,
+                     const QList<Attachment> &attachments)
+{
     @autoreleasepool {
         SentryEvent *nativeEvent = eventFromVariantMap(event);
         SentryId *eventId = nil;
-        if (fingerprint.isEmpty()) {
+        if (fingerprint.isEmpty() && attachments.isEmpty()) {
             eventId = [SentrySDK captureEvent:nativeEvent];
         } else {
             NSArray<NSString *> *nativeFingerprint = stringArrayFromStringList(fingerprint);
+            NSArray<SentryAttachment *> *nativeEventAttachments = nativeAttachments(attachments);
             eventId = [SentrySDK captureEvent:nativeEvent
                                withScopeBlock:^(SentryScope *scope) {
-                                   [scope setFingerprint:nativeFingerprint];
+                                   if (nativeFingerprint.count > 0) {
+                                       [scope setFingerprint:nativeFingerprint];
+                                   }
+                                   for (SentryAttachment *attachment in nativeEventAttachments) {
+                                       [scope addAttachment:attachment];
+                                   }
                                }];
         }
         return qtSentryIdString(eventId);

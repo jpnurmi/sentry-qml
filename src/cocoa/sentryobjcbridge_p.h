@@ -33,7 +33,14 @@ struct Attachment
         Bytes
     };
 
+    enum AttachmentType
+    {
+        EventAttachment,
+        ViewHierarchy
+    };
+
     Type type = File;
+    AttachmentType attachmentType = EventAttachment;
     QString path;
     QByteArray bytes;
     QString filename;
@@ -89,6 +96,9 @@ void count(const QString &name, quint64 value, const QVariantMap &attributes);
 void gauge(const QString &name, double value, const QString &unit, const QVariantMap &attributes);
 void distribution(const QString &name, double value, const QString &unit, const QVariantMap &attributes);
 QString captureEvent(const QVariantMap &event, const QStringList &fingerprint);
+QString captureEvent(const QVariantMap &event,
+                     const QStringList &fingerprint,
+                     const QList<Attachment> &attachments);
 void captureFeedback(const QVariantMap &feedback, const QList<Attachment> &attachments);
 
 } // namespace SentryObjCBridge

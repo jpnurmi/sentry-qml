@@ -20,6 +20,7 @@
 #include <QtCore/qthread.h>
 #include <QtQml/qjsengine.h>
 #include <QtQml/qjsvalue.h>
+#include <QtQml/qqmlinfo.h>
 
 #include <cmath>
 
@@ -264,6 +265,11 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    if (options->requireUserConsent()) {
+        qmlWarning(options) << "SentryOptions.requireUserConsent is not supported by the Sentry Cocoa SDK "
+                               "and will be ignored.";
+    }
+
     std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
@@ -456,6 +462,46 @@ bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
         emit sentry->errorOccurred(
             QStringLiteral("Sentry must be initialized before %1.").arg(QString::fromLatin1(action)));
     }
+    return false;
+}
+
+int SentrySdk::userConsent() const
+{
+    return -1;
+}
+
+bool SentrySdk::isUserConsentRequired() const
+{
+    return false;
+}
+
+bool SentrySdk::giveUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "giveUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Cocoa SDK.";
+    return false;
+}
+
+bool SentrySdk::revokeUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "revokeUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Cocoa SDK.";
+    return false;
+}
+
+bool SentrySdk::resetUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "resetUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Cocoa SDK.";
     return false;
 }
 

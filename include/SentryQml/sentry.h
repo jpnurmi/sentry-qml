@@ -25,6 +25,8 @@ class SENTRYQML_EXPORT Sentry : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(bool initialized READ isInitialized NOTIFY initializedChanged)
+    Q_PROPERTY(UserConsent userConsent READ userConsent NOTIFY userConsentChanged)
+    Q_PROPERTY(bool userConsentRequired READ isUserConsentRequired NOTIFY userConsentRequiredChanged)
 
 public:
     enum Level
@@ -55,16 +57,29 @@ public:
     };
     Q_ENUM(SessionStatus)
 
+    enum UserConsent
+    {
+        UserConsentUnknown = -1,
+        UserConsentRevoked = 0,
+        UserConsentGiven = 1
+    };
+    Q_ENUM(UserConsent)
+
     explicit Sentry(QObject *parent = nullptr);
     ~Sentry() override;
 
     static Sentry *create(QQmlEngine *engine, QJSEngine *scriptEngine);
 
     bool isInitialized() const;
+    UserConsent userConsent() const;
+    bool isUserConsentRequired() const;
 
     Q_INVOKABLE bool init(SentryOptions *options);
     Q_INVOKABLE bool flush(int timeoutMs = 2000);
     Q_INVOKABLE bool close();
+    Q_INVOKABLE bool giveUserConsent();
+    Q_INVOKABLE bool revokeUserConsent();
+    Q_INVOKABLE bool resetUserConsent();
     Q_INVOKABLE bool setRelease(const QString &release);
     Q_INVOKABLE bool setEnvironment(const QString &environment);
     Q_INVOKABLE bool setUser(const QVariantMap &user);
@@ -119,6 +134,8 @@ public:
 
 signals:
     void initializedChanged();
+    void userConsentChanged();
+    void userConsentRequiredChanged();
     void errorOccurred(const QString &message);
 
 private:

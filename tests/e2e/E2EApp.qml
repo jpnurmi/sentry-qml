@@ -11,9 +11,23 @@ QtObject {
     property bool attributeSet: false
     property bool logCaptured: false
     property bool metricCaptured: false
+    property bool consentRequired: false
+    property bool consentInitiallyUnknown: false
+    property bool consentGiven: false
+    property bool consentAfterGive: false
+    property bool consentRevoked: false
+    property bool consentAfterRevoke: false
+    property bool consentReset: false
+    property bool consentAfterReset: false
+    property bool flushedBeforeConsent: false
     property string eventId: ""
+    property string blockedEventId: ""
+    property string revokedEventId: ""
     property string attributeRunId: testRunId.replace(/[^A-Za-z0-9_]/g, "_")
     property string message: "Sentry QML E2E " + testRunId
+    property string consentBlockedMessage: "Sentry QML E2E consent blocked " + testRunId
+    property string consentMessage: "Sentry QML E2E consent " + testRunId
+    property string consentRevokedMessage: "Sentry QML E2E consent revoked " + testRunId
     property string attributesLogMessage: "Sentry QML E2E attributes " + testRunId
     property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
@@ -25,6 +39,7 @@ QtObject {
         environment: "ci"
         shutdownTimeout: 5000
         autoSessionTracking: false
+        requireUserConsent: testAction === "consent-capture"
         enableLogs: testAction === "attributes-capture"
         enableMetrics: testAction === "attributes-capture"
         user: SentryUser {
@@ -45,6 +60,36 @@ QtObject {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && flushed && closed
+        } else if (testAction === "consent-capture") {
+            consentRequired = Sentry.userConsentRequired
+            consentInitiallyUnknown = Sentry.userConsent === Sentry.UserConsentUnknown
+            blockedEventId = Sentry.captureMessage(consentBlockedMessage, "info")
+            flushedBeforeConsent = Sentry.flush(10000)
+            consentGiven = Sentry.giveUserConsent()
+            consentAfterGive = Sentry.userConsent === Sentry.UserConsentGiven
+            eventId = Sentry.captureMessage(consentMessage, "info")
+            flushed = Sentry.flush(10000)
+            consentRevoked = Sentry.revokeUserConsent()
+            consentAfterRevoke = Sentry.userConsent === Sentry.UserConsentRevoked
+            revokedEventId = Sentry.captureMessage(consentRevokedMessage, "info")
+            consentReset = Sentry.resetUserConsent()
+            consentAfterReset = Sentry.userConsent === Sentry.UserConsentUnknown
+            closed = Sentry.close()
+            success = initialized
+                && consentRequired
+                && consentInitiallyUnknown
+                && blockedEventId !== ""
+                && flushedBeforeConsent
+                && consentGiven
+                && consentAfterGive
+                && eventId !== ""
+                && flushed
+                && consentRevoked
+                && consentAfterRevoke
+                && revokedEventId !== ""
+                && consentReset
+                && consentAfterReset
+                && closed
         } else if (testAction === "feedback-capture") {
             eventId = Sentry.captureMessage(feedbackEventMessage, "info")
             feedbackAttached = feedbackHint.attachBytes(

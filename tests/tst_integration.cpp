@@ -226,6 +226,11 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("feedbackCaptured").toBool(), true);
     QCOMPARE(object->property("sessionStarted").toBool(), true);
     QCOMPARE(object->property("sessionEnded").toBool(), true);
+    QCOMPARE(object->property("consentRequired").toBool(), true);
+    QCOMPARE(object->property("consentInitiallyUnknown").toBool(), true);
+    QCOMPARE(object->property("consentGiven").toBool(), true);
+    QCOMPARE(object->property("consentAfterGive").toBool(), true);
+    QCOMPARE(object->property("flushedBeforeConsent").toBool(), true);
     QCOMPARE(object->property("genericMetricCaptured").toBool(), true);
     QCOMPARE(object->property("countCaptured").toBool(), true);
     QCOMPARE(object->property("gaugeCaptured").toBool(), true);
@@ -233,6 +238,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("logCaptured").toBool(), true);
     QCOMPARE(object->property("enumLogCaptured").toBool(), true);
     QCOMPARE(object->property("declarativeEventId").toString().size(), 36);
+    QCOMPARE(object->property("blockedBeforeConsentEventId").toString().size(), 36);
     QCOMPARE(object->property("messageEventId").toString().size(), 36);
     QCOMPARE(object->property("exceptionEventId").toString().size(), 36);
 
@@ -243,6 +249,10 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
 
     QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
     QCOMPARE(object->property("flushed").toBool(), true);
+    QCOMPARE(object->property("consentRevoked").toBool(), true);
+    QCOMPARE(object->property("consentAfterRevoke").toBool(), true);
+    QCOMPARE(object->property("consentReset").toBool(), true);
+    QCOMPARE(object->property("consentAfterReset").toBool(), true);
     QCOMPARE(object->property("closed").toBool(), true);
     QCOMPARE(object->property("fileInvalidated").toBool(), true);
     QCOMPARE(object->property("bytesInvalidated").toBool(), true);
@@ -274,6 +284,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(allBodies.contains("millisecond"));
     QVERIFY(allBodies.contains("qml.integration.before_send_metric"));
     QVERIFY(allBodies.contains("\"status\":\"exited\""));
+    QVERIFY(!allBodies.contains("Integration consent blocked before user consent"));
 
     const QList<EnvelopeItem> declarativeItems =
         findEnvelopeItems(server.bodies(), "Declarative options integration message");

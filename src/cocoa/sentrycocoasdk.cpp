@@ -12,6 +12,7 @@
 #include <SentryQml/sentryuser.h>
 
 #include <QtCore/qcoreapplication.h>
+#include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qmetatype.h>
@@ -265,8 +266,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     }
 
     if (options->requireUserConsent()) {
-        emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
-        return false;
+        qWarning("SentryOptions.requireUserConsent is not supported by the Sentry Cocoa SDK and will be ignored.");
     }
 
     std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
@@ -480,7 +480,8 @@ bool SentrySdk::giveUserConsent(Sentry *sentry)
         return false;
     }
 
-    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+    Q_UNUSED(sentry)
+    qWarning("Sentry user consent is not supported by the Sentry Cocoa SDK.");
     return false;
 }
 
@@ -490,7 +491,8 @@ bool SentrySdk::revokeUserConsent(Sentry *sentry)
         return false;
     }
 
-    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+    Q_UNUSED(sentry)
+    qWarning("Sentry user consent is not supported by the Sentry Cocoa SDK.");
     return false;
 }
 
@@ -500,7 +502,8 @@ bool SentrySdk::resetUserConsent(Sentry *sentry)
         return false;
     }
 
-    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+    Q_UNUSED(sentry)
+    qWarning("Sentry user consent is not supported by the Sentry Cocoa SDK.");
     return false;
 }
 

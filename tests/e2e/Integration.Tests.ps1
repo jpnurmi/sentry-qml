@@ -197,6 +197,29 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'User consent' {
+        BeforeAll {
+            $script:ConsentMessage = "Sentry QML E2E consent $script:RunId"
+            $script:ConsentResult = Invoke-E2EAction -Action 'consent-capture'
+            $script:ConsentEventIds = Get-EventIds -AppOutput $script:ConsentResult.Output -ExpectedCount 1
+            $script:ConsentEvent = Get-SentryTestEvent -EventId $script:ConsentEventIds[0] -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            $script:ConsentResult.ExitCode | Should -Be 0
+        }
+
+        It 'captures the post-consent event in Sentry' {
+            $script:ConsentEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:ConsentEvent -Name 'title' | Should -Be $script:ConsentMessage
+        }
+
+        It 'keeps the QML correlation tags' {
+            Get-TagValue -SentryEvent $script:ConsentEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:ConsentEvent -Key 'test.action' | Should -Be 'consent-capture'
+        }
+    }
+
     Context 'Feedback capture' {
         BeforeAll {
             $script:FeedbackMessage = "Sentry QML E2E feedback $script:RunId"

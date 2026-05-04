@@ -26,6 +26,15 @@ QtObject {
     property bool feedbackCaptured: false
     property bool sessionStarted: false
     property bool sessionEnded: false
+    property bool consentRequired: false
+    property bool consentInitiallyUnknown: false
+    property bool consentGiven: false
+    property bool consentAfterGive: false
+    property bool consentRevoked: false
+    property bool consentAfterRevoke: false
+    property bool consentReset: false
+    property bool consentAfterReset: false
+    property bool flushedBeforeConsent: false
     property bool beforeBreadcrumbCalled: false
     property bool beforeSendCalled: false
     property bool beforeSendLogCalled: false
@@ -41,6 +50,7 @@ QtObject {
     property bool closed: false
     property bool fileInvalidated: false
     property bool bytesInvalidated: false
+    property string blockedBeforeConsentEventId: ""
     property string declarativeEventId: ""
     property string messageEventId: ""
     property string exceptionEventId: ""
@@ -55,6 +65,7 @@ QtObject {
         environment: "declarative"
         dist: "42"
         autoSessionTracking: false
+        requireUserConsent: true
         enableLogs: true
         enableMetrics: true
         maxBreadcrumbs: 10
@@ -97,6 +108,12 @@ QtObject {
 
     Component.onCompleted: {
         initialized = Sentry.init(options)
+        consentRequired = Sentry.userConsentRequired
+        consentInitiallyUnknown = Sentry.userConsent === Sentry.UserConsentUnknown
+        blockedBeforeConsentEventId = Sentry.captureMessage("Integration consent blocked before user consent")
+        flushedBeforeConsent = Sentry.flush(2000)
+        consentGiven = Sentry.giveUserConsent()
+        consentAfterGive = Sentry.userConsent === Sentry.UserConsentGiven
         declarativeEventId = Sentry.captureMessage("Declarative options integration message")
         releaseSet = Sentry.setRelease("sentry-qml@runtime")
         environmentSet = Sentry.setEnvironment("runtime")
@@ -178,6 +195,10 @@ QtObject {
 
     function finish() {
         flushed = Sentry.flush(2000)
+        consentRevoked = Sentry.revokeUserConsent()
+        consentAfterRevoke = Sentry.userConsent === Sentry.UserConsentRevoked
+        consentReset = Sentry.resetUserConsent()
+        consentAfterReset = Sentry.userConsent === Sentry.UserConsentUnknown
         closed = Sentry.close()
         fileInvalidated = !!fileAttachment && !fileAttachment.valid
         bytesInvalidated = !!bytesAttachment && !bytesAttachment.valid

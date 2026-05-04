@@ -23,6 +23,7 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool enableLogs READ enableLogs WRITE setEnableLogs NOTIFY enableLogsChanged)
     Q_PROPERTY(bool enableMetrics READ enableMetrics WRITE setEnableMetrics NOTIFY enableMetricsChanged)
     Q_PROPERTY(bool autoSessionTracking READ autoSessionTracking WRITE setAutoSessionTracking NOTIFY autoSessionTrackingChanged)
+    Q_PROPERTY(bool requireUserConsent READ requireUserConsent WRITE setRequireUserConsent NOTIFY requireUserConsentChanged)
     Q_PROPERTY(double sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
     Q_PROPERTY(int maxBreadcrumbs READ maxBreadcrumbs WRITE setMaxBreadcrumbs NOTIFY maxBreadcrumbsChanged)
     Q_PROPERTY(int shutdownTimeout READ shutdownTimeout WRITE setShutdownTimeout NOTIFY shutdownTimeoutChanged)
@@ -65,6 +66,9 @@ public:
     bool autoSessionTracking() const;
     void setAutoSessionTracking(bool autoSessionTracking);
 
+    bool requireUserConsent() const;
+    void setRequireUserConsent(bool requireUserConsent);
+
     double sampleRate() const;
     void setSampleRate(double sampleRate);
 
@@ -100,6 +104,7 @@ signals:
     void enableLogsChanged();
     void enableMetricsChanged();
     void autoSessionTrackingChanged();
+    void requireUserConsentChanged();
     void sampleRateChanged();
     void maxBreadcrumbsChanged();
     void shutdownTimeoutChanged();
@@ -120,6 +125,7 @@ private:
     bool m_enableLogs = true;
     bool m_enableMetrics = true;
     bool m_autoSessionTracking = true;
+    bool m_requireUserConsent = false;
     double m_sampleRate = 1.0;
     int m_maxBreadcrumbs = 100;
     int m_shutdownTimeout = 2000;

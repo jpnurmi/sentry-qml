@@ -602,6 +602,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_set_enable_logs(nativeOptions, options->enableLogs() ? 1 : 0);
     sentry_options_set_enable_metrics(nativeOptions, options->enableMetrics() ? 1 : 0);
     sentry_options_set_auto_session_tracking(nativeOptions, options->autoSessionTracking() ? 1 : 0);
+    sentry_options_set_require_user_consent(nativeOptions, options->requireUserConsent() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
@@ -659,6 +660,8 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         sentry_set_user(nativeValueFromVariant(user->toVariantMap()));
     }
     setInitialized(true);
+    emit userConsentRequiredChanged();
+    emit userConsentChanged();
     connectToApplicationShutdown();
     return true;
 }
@@ -690,6 +693,8 @@ bool SentrySdk::close()
     m_fingerprint.clear();
     invalidateAttachments();
     setInitialized(false);
+    emit userConsentRequiredChanged();
+    emit userConsentChanged();
     return true;
 }
 
@@ -756,6 +761,58 @@ bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
             QStringLiteral("Sentry must be initialized before %1.").arg(QString::fromLatin1(action)));
     }
     return false;
+}
+
+int SentrySdk::userConsent() const
+{
+    return static_cast<int>(sentry_user_consent_get());
+}
+
+bool SentrySdk::isUserConsentRequired() const
+{
+    return sentry_user_consent_is_required() != 0;
+}
+
+bool SentrySdk::giveUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "giveUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    const int oldConsent = userConsent();
+    sentry_user_consent_give();
+    if (oldConsent != userConsent()) {
+        emit userConsentChanged();
+    }
+    return true;
+}
+
+bool SentrySdk::revokeUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "revokeUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    const int oldConsent = userConsent();
+    sentry_user_consent_revoke();
+    if (oldConsent != userConsent()) {
+        emit userConsentChanged();
+    }
+    return true;
+}
+
+bool SentrySdk::resetUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "resetUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    const int oldConsent = userConsent();
+    sentry_user_consent_reset();
+    if (oldConsent != userConsent()) {
+        emit userConsentChanged();
+    }
+    return true;
 }
 
 bool SentrySdk::setRelease(Sentry *sentry, const QString &release)

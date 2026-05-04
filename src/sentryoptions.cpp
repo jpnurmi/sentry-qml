@@ -157,6 +157,21 @@ void SentryOptions::setAutoSessionTracking(bool autoSessionTracking)
     emit autoSessionTrackingChanged();
 }
 
+bool SentryOptions::requireUserConsent() const
+{
+    return m_requireUserConsent;
+}
+
+void SentryOptions::setRequireUserConsent(bool requireUserConsent)
+{
+    if (m_requireUserConsent == requireUserConsent) {
+        return;
+    }
+
+    m_requireUserConsent = requireUserConsent;
+    emit requireUserConsentChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;

@@ -264,6 +264,11 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    if (options->requireUserConsent()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
@@ -456,6 +461,46 @@ bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
         emit sentry->errorOccurred(
             QStringLiteral("Sentry must be initialized before %1.").arg(QString::fromLatin1(action)));
     }
+    return false;
+}
+
+int SentrySdk::userConsent() const
+{
+    return -1;
+}
+
+bool SentrySdk::isUserConsentRequired() const
+{
+    return false;
+}
+
+bool SentrySdk::giveUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "giveUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+    return false;
+}
+
+bool SentrySdk::revokeUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "revokeUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
+    return false;
+}
+
+bool SentrySdk::resetUserConsent(Sentry *sentry)
+{
+    if (!ensureCanCall(sentry, "resetUserConsent", "changing user consent")) {
+        return false;
+    }
+
+    emit sentry->errorOccurred(QStringLiteral("Sentry user consent is not supported by SentryCocoa."));
     return false;
 }
 

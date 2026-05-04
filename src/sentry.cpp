@@ -12,6 +12,9 @@ Sentry::Sentry(QObject *parent)
     : QObject(parent)
 {
     QObject::connect(SentrySdk::instance(), &SentrySdk::initializedChanged, this, &Sentry::initializedChanged);
+    QObject::connect(SentrySdk::instance(), &SentrySdk::userConsentChanged, this, &Sentry::userConsentChanged);
+    QObject::connect(
+        SentrySdk::instance(), &SentrySdk::userConsentRequiredChanged, this, &Sentry::userConsentRequiredChanged);
 }
 
 Sentry::~Sentry()
@@ -31,6 +34,16 @@ Sentry *Sentry::create(QQmlEngine *engine, QJSEngine *scriptEngine)
 bool Sentry::isInitialized() const
 {
     return SentrySdk::instance()->isInitialized();
+}
+
+Sentry::UserConsent Sentry::userConsent() const
+{
+    return static_cast<UserConsent>(SentrySdk::instance()->userConsent());
+}
+
+bool Sentry::isUserConsentRequired() const
+{
+    return SentrySdk::instance()->isUserConsentRequired();
 }
 
 bool Sentry::init(SentryOptions *options)
@@ -55,6 +68,21 @@ bool Sentry::close()
         m_qmlEngine->uninstallWarningHandler();
     }
     return SentrySdk::instance()->close();
+}
+
+bool Sentry::giveUserConsent()
+{
+    return SentrySdk::instance()->giveUserConsent(this);
+}
+
+bool Sentry::revokeUserConsent()
+{
+    return SentrySdk::instance()->revokeUserConsent(this);
+}
+
+bool Sentry::resetUserConsent()
+{
+    return SentrySdk::instance()->resetUserConsent(this);
 }
 
 bool Sentry::setRelease(const QString &release)

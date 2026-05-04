@@ -35,6 +35,11 @@ public:
     bool close();
     void detachSentry(Sentry *sentry);
 
+    int userConsent() const;
+    bool isUserConsentRequired() const;
+    bool giveUserConsent(Sentry *sentry);
+    bool revokeUserConsent(Sentry *sentry);
+    bool resetUserConsent(Sentry *sentry);
     bool setRelease(Sentry *sentry, const QString &release);
     bool setEnvironment(Sentry *sentry, const QString &environment);
     bool setUser(Sentry *sentry, const QVariantMap &user);
@@ -76,6 +81,8 @@ public:
 
 signals:
     void initializedChanged();
+    void userConsentChanged();
+    void userConsentRequiredChanged();
 
 private:
     friend class SentryAttachment;

@@ -27,6 +27,7 @@ private slots:
     void importsQmlModule();
     void initializesAndCapturesMessage();
     void sendsEnvelope();
+    void handlesUserConsent();
     void setsRelease();
     void setsEnvironment();
     void setsUser();
@@ -126,6 +127,7 @@ void SentryQmlUnitTest::importsQmlModule()
         QtObject {
             property SentryOptions options: SentryOptions {
                 debug: true
+                requireUserConsent: true
                 sampleRate: 1.0
                 onCrash: function(event) { return event }
             }
@@ -143,6 +145,12 @@ void SentryQmlUnitTest::importsQmlModule()
                 && Sentry.SessionCrashed === 1
                 && Sentry.SessionAbnormal === 2
                 && Sentry.SessionExited === 3
+            property bool consentReady: options.requireUserConsent
+                && Sentry.UserConsentUnknown === -1
+                && Sentry.UserConsentRevoked === 0
+                && Sentry.UserConsentGiven === 1
+                && Sentry.userConsent === Sentry.UserConsentUnknown
+                && !Sentry.userConsentRequired
 
             Component.onCompleted: {
                 options.shutdownTimeout = 100
@@ -160,6 +168,7 @@ void SentryQmlUnitTest::importsQmlModule()
     QCOMPARE(object->property("levelsReady").toBool(), true);
     QCOMPARE(object->property("metricsReady").toBool(), true);
     QCOMPARE(object->property("sessionsReady").toBool(), true);
+    QCOMPARE(object->property("consentReady").toBool(), true);
 }
 
 void SentryQmlUnitTest::initializesAndCapturesMessage()
@@ -217,6 +226,122 @@ void SentryQmlUnitTest::sendsEnvelope()
     QVERIFY(server.body().contains("Sent through QtNetwork"));
 
     QVERIFY(sentry.close());
+}
+
+void SentryQmlUnitTest::handlesUserConsent()
+{
+    SENTRY_QML_SKIP_COCOA("SentryCocoa does not expose user consent.");
+    SENTRY_QML_SKIP_CRASHPAD("crashpad transport does not use the HTTP envelope path this test inspects.");
+
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool required: false
+            property bool flushedWithoutConsent: false
+            property bool consentGiven: false
+            property bool flushedAfterGive: false
+            property bool consentRevoked: false
+            property bool flushedAfterRevoke: false
+            property bool consentReset: false
+            property bool closed: false
+            property int initialConsent: 99
+            property int consentAfterGive: 99
+            property int consentAfterRevoke: 99
+            property int consentAfterReset: 99
+            property string blockedEventId: ""
+            property string allowedEventId: ""
+            property string revokedEventId: ""
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                autoSessionTracking: false
+                requireUserConsent: true
+                shutdownTimeout: 2000
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                required = Sentry.userConsentRequired
+                initialConsent = Sentry.userConsent
+                blockedEventId = Sentry.captureMessage("Consent blocked message")
+                flushedWithoutConsent = Sentry.flush(2000)
+            }
+
+            function grantAndCapture() {
+                consentGiven = Sentry.giveUserConsent()
+                consentAfterGive = Sentry.userConsent
+                allowedEventId = Sentry.captureMessage("Consent allowed message")
+                flushedAfterGive = Sentry.flush(2000)
+            }
+
+            function revokeAndCapture() {
+                consentRevoked = Sentry.revokeUserConsent()
+                consentAfterRevoke = Sentry.userConsent
+                revokedEventId = Sentry.captureMessage("Consent revoked message")
+                flushedAfterRevoke = Sentry.flush(2000)
+            }
+
+            function resetAndClose() {
+                consentReset = Sentry.resetUserConsent()
+                consentAfterReset = Sentry.userConsent
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryUserConsentTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("required").toBool(), true);
+    QCOMPARE(object->property("initialConsent").toInt(), -1);
+    QCOMPARE(object->property("blockedEventId").toString().size(), 36);
+    QCOMPARE(object->property("flushedWithoutConsent").toBool(), true);
+
+    QTest::qWait(500);
+    QVERIFY(!server.receivedRequest());
+
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "grantAndCapture"));
+    QCOMPARE(object->property("consentGiven").toBool(), true);
+    QCOMPARE(object->property("consentAfterGive").toInt(), 1);
+    QCOMPARE(object->property("allowedEventId").toString().size(), 36);
+    QCOMPARE(object->property("flushedAfterGive").toBool(), true);
+    QTRY_VERIFY_WITH_TIMEOUT(server.body().contains("Consent allowed message"), 5000);
+    QVERIFY(!server.body().contains("Consent blocked message"));
+
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "revokeAndCapture"));
+    QCOMPARE(object->property("consentRevoked").toBool(), true);
+    QCOMPARE(object->property("consentAfterRevoke").toInt(), 0);
+    QCOMPARE(object->property("revokedEventId").toString().size(), 36);
+    QCOMPARE(object->property("flushedAfterRevoke").toBool(), true);
+    QTest::qWait(500);
+    QVERIFY(!server.body().contains("Consent revoked message"));
+
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "resetAndClose"));
+    QCOMPARE(object->property("consentReset").toBool(), true);
+    QCOMPARE(object->property("consentAfterReset").toInt(), -1);
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlUnitTest::setsRelease()

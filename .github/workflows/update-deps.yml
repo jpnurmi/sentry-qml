@@ -19,7 +19,7 @@ jobs:
           name: Sentry self-hosted
           path: .github/dependencies/self-hosted.properties
           pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
-          post-update-script: scripts/update-self-hosted-workflows.sh
+          post-update-script: scripts/update-self-hosted.sh
           changelog-entry: false
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
 
@@ -42,6 +42,6 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}
           pattern: ${{ matrix.pattern }}
-          post-update-script: scripts/update-qt-workflows.sh
+          post-update-script: scripts/update-qt.sh
           changelog-entry: false
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}

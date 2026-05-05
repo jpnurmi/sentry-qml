@@ -11,7 +11,30 @@ permissions:
   actions: write
 
 jobs:
+  sentry-sdks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Sentry Native SDK
+            path: modules/sentry-native
+            pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
+          - name: Sentry Cocoa SDK
+            path: modules/sentry-cocoa
+            pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
+    steps:
+      - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.path }}
+          pattern: ${{ matrix.pattern }}
+          changelog-entry: false
+          ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
+
   self-hosted:
+    name: Sentry self-hosted
     runs-on: ubuntu-latest
     steps:
       - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3

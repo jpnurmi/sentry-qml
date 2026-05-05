@@ -1,0 +1,35 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  qt:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Qt LTS
+            path: .github/dependencies/qt-lts.properties
+            pattern: '^v?6\.8\.\d+$'
+          - name: Qt stable
+            path: .github/dependencies/qt-stable.properties
+            pattern: '^v?6\.\d+\.\d+$'
+    steps:
+      - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.path }}
+          pattern: ${{ matrix.pattern }}
+          post-update-script: scripts/update-qt-workflows.sh
+          changelog-entry: false
+          ssh-key: ${{ secrets.CI_DEPLOY_KEY }}

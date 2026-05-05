@@ -31,6 +31,7 @@ jobs:
           path: ${{ matrix.path }}
           pattern: ${{ matrix.pattern }}
           changelog-entry: false
+          api-token: ${{ secrets.CI_GITHUB_TOKEN }}
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
 
   self-hosted:
@@ -40,10 +41,11 @@ jobs:
       - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
         with:
           name: Sentry self-hosted
-          path: .github/dependencies/self-hosted.properties
+          path: modules/self-hosted.properties
           pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
           post-update-script: scripts/update-self-hosted.sh
           changelog-entry: false
+          api-token: ${{ secrets.CI_GITHUB_TOKEN }}
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
 
   qt:
@@ -54,10 +56,10 @@ jobs:
       matrix:
         include:
           - name: Qt LTS
-            path: .github/dependencies/qt-lts.properties
+            path: modules/qt-lts.properties
             pattern: '^v?6\.8\.\d+$'
           - name: Qt stable
-            path: .github/dependencies/qt-stable.properties
+            path: modules/qt-stable.properties
             pattern: '^v?6\.\d+\.\d+$'
     steps:
       - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
@@ -67,4 +69,5 @@ jobs:
           pattern: ${{ matrix.pattern }}
           post-update-script: scripts/update-qt.sh
           changelog-entry: false
+          api-token: ${{ secrets.CI_GITHUB_TOKEN }}
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}

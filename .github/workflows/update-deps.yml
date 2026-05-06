@@ -25,7 +25,7 @@ jobs:
             path: modules/sentry-cocoa
             pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
     steps:
-      - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
+      - uses: getsentry/github-workflows/updater@jpnurmi/fix/updater-pr-ci # 26f565c05d0dd49f703d238706b775883037d76b # v3
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}
@@ -38,7 +38,7 @@ jobs:
     name: Sentry self-hosted
     runs-on: ubuntu-latest
     steps:
-      - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
+      - uses: getsentry/github-workflows/updater@jpnurmi/fix/updater-pr-ci # 26f565c05d0dd49f703d238706b775883037d76b # v3
         with:
           name: Sentry self-hosted
           path: modules/self-hosted.properties
@@ -62,7 +62,7 @@ jobs:
             path: modules/qt-stable.properties
             pattern: '^v?6\.\d+\.\d+$'
     steps:
-      - uses: getsentry/github-workflows/updater@26f565c05d0dd49f703d238706b775883037d76b # v3
+      - uses: getsentry/github-workflows/updater@jpnurmi/fix/updater-pr-ci # 26f565c05d0dd49f703d238706b775883037d76b # v3
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}

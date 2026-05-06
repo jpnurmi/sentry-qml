@@ -85,6 +85,35 @@ BeforeAll {
         return $null
     }
 
+    function script:Save-SentryTestEventAttachment {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$EventId,
+
+            [Parameter(Mandatory = $true)]
+            $Attachment,
+
+            [Parameter(Mandatory = $true)]
+            [string]$OutputPath
+        )
+
+        $attachmentId = Get-ObjectValue -InputObject $Attachment -Name 'id'
+        if ([string]::IsNullOrEmpty([string]$attachmentId)) {
+            throw 'Sentry event attachment does not have an id.'
+        }
+
+        $eventIdWithoutHyphens = $EventId -replace '-', ''
+        $resource =
+            "events/$eventIdWithoutHyphens/attachments/$attachmentId/?download=1"
+        $uri = "$($script:BaseUrl)/api/0/projects/sentry/internal/$resource"
+
+        Invoke-WebRequest `
+            -Uri $uri `
+            -Method 'GET' `
+            -Headers @{ Authorization = "Bearer $env:SENTRY_AUTH_TOKEN" } `
+            -OutFile $OutputPath
+    }
+
     function script:Invoke-E2EAction {
         param(
             [Parameter(Mandatory = $true)]
@@ -283,6 +312,11 @@ Describe 'Sentry QML E2E' {
             $viewHierarchyAttachment | Should -Not -BeNullOrEmpty
             Get-ObjectValue -InputObject $viewHierarchyAttachment -Name 'type' | Should -Be 'event.view_hierarchy'
             Get-ObjectValue -InputObject $viewHierarchyAttachment -Name 'mimetype' | Should -Be 'application/json'
+
+            Save-SentryTestEventAttachment `
+                -EventId $script:ViewHierarchyEventIds[0] `
+                -Attachment $viewHierarchyAttachment `
+                -OutputPath (Get-OutputFilePath 'view-hierarchy.json')
         }
     }
 

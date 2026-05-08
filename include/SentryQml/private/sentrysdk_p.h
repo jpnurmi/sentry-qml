@@ -124,6 +124,7 @@ private:
     QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;
     int m_maxBreadcrumbs = 100;
+    bool m_attachViewHierarchy = false;
     bool m_applyHooksLocally = false;
     bool m_initialized = false;
 };

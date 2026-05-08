@@ -131,7 +131,7 @@ void SentryQmlUnitTest::importsQmlModule()
                 sampleRate: 1.0
                 onCrash: function(event) { return event }
             }
-            property bool ready: !Sentry.initialized && options.debug
+            property bool ready: !Sentry.initialized && options.debug && !options.attachViewHierarchy
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0

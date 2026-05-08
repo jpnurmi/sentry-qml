@@ -102,8 +102,15 @@ target_compile_definitions(tst_integration PRIVATE
     SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
 )
 
+target_link_libraries(tst_integration PRIVATE Qt6::Quick)
+
 target_sources(tst_integration PRIVATE
     qml/IntegrationTest.qml
+    qml/ViewHierarchyTest.qml
+)
+
+set_tests_properties(tst_integration PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
 if(TARGET sentry-crash)
@@ -134,8 +141,10 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
         PRIVATE
             SentryQml
             Qt6::Core
+            Qt6::Gui
             Qt6::Network
             Qt6::Qml
+            Qt6::Quick
     )
 
     add_dependencies(sentry_qml_e2e_app SentryQmlplugin)

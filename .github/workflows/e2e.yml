@@ -43,7 +43,7 @@ jobs:
       SENTRY_TEST_URL: http://127.0.0.1:9000
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST
-      SENTRY_APP_RUNNER_REF: 4f101037aa769e48dd721b88512e19426b894500
+      SENTRY_APP_RUNNER_REF: d6f83b1ba5bfeb24a86ef5dd8d6cffa2ef4f56ab
 
     steps:
       - name: Check out sources

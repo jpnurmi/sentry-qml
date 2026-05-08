@@ -4,6 +4,7 @@
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
+#include <SentryQml/private/sentryviewhierarchy_p.h>
 
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryattachment.h>
@@ -167,6 +168,17 @@ SentryObjCBridge::Attachment hintAttachment(const SentryHintAttachment &attachme
     native.filename = attachment.filename;
     native.contentType = attachment.contentType;
     return native;
+}
+
+SentryObjCBridge::Attachment viewHierarchyAttachment(const QByteArray &bytes)
+{
+    SentryObjCBridge::Attachment attachment;
+    attachment.type = SentryObjCBridge::Attachment::Bytes;
+    attachment.attachmentType = SentryObjCBridge::Attachment::ViewHierarchy;
+    attachment.bytes = bytes;
+    attachment.filename = QStringLiteral("view-hierarchy.json");
+    attachment.contentType = QStringLiteral("application/json");
+    return attachment;
 }
 
 bool isSupportedInteger(const QVariant &value)
@@ -345,6 +357,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_contexts.clear();
     m_breadcrumbs.clear();
     m_maxBreadcrumbs = nativeOptions.maxBreadcrumbs;
+    m_attachViewHierarchy = options->attachViewHierarchy();
 
     if (!SentryObjCBridge::start(nativeOptions)) {
         m_applyHooksLocally = false;
@@ -1022,10 +1035,19 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         if (result.action == SentryObjCBridge::HookResult::Replace) {
             nativeEvent = result.value.toMap();
         }
-        return SentryObjCBridge::captureEvent(nativeEvent, {});
     }
 
-    return SentryObjCBridge::captureEvent(nativeEvent, m_fingerprint);
+    const QStringList fingerprint = m_applyHooksLocally ? QStringList {} : m_fingerprint;
+    if (!m_attachViewHierarchy) {
+        return SentryObjCBridge::captureEvent(nativeEvent, fingerprint);
+    }
+
+    QList<SentryObjCBridge::Attachment> attachments;
+    const QByteArray viewHierarchy = SentryViewHierarchy::toJson();
+    if (!viewHierarchy.isEmpty()) {
+        attachments.append(viewHierarchyAttachment(viewHierarchy));
+    }
+    return SentryObjCBridge::captureEvent(nativeEvent, fingerprint, attachments);
 }
 
 void SentrySdk::clearLocalScope()
@@ -1038,6 +1060,7 @@ void SentrySdk::clearLocalScope()
     m_contexts.clear();
     m_breadcrumbs.clear();
     m_maxBreadcrumbs = 100;
+    m_attachViewHierarchy = false;
 }
 
 void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const

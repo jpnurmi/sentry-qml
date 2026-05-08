@@ -15,6 +15,7 @@ target_compile_definitions(sentry_qml_example PRIVATE
 
 target_link_libraries(sentry_qml_example
     PRIVATE
+        SentryQml
         Qt6::Core
         Qt6::Qml
         Qt6::Quick
@@ -32,4 +33,8 @@ if(TARGET sentry-crash)
         VERBATIM
     )
     add_dependencies(sentry_qml_example sentry_qml_example_deploy_sentry_crash)
+endif()
+
+if(ANDROID AND COMMAND sentry_qml_configure_android_target)
+    sentry_qml_configure_android_target(sentry_qml_example)
 endif()

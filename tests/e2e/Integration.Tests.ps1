@@ -11,17 +11,28 @@ BeforeAll {
     . "$env:SENTRY_APP_RUNNER_PATH/import-modules.ps1"
 
     $script:AppPath = $env:SENTRY_QML_E2E_APP_PATH
+    $script:AppPackagePath = $env:SENTRY_QML_E2E_APP_PACKAGE_PATH
     $script:DevicePlatform = if ($env:SENTRY_QML_E2E_PLATFORM) {
         $env:SENTRY_QML_E2E_PLATFORM
     } else {
         'Local'
     }
+    $script:IsAndroid = $script:DevicePlatform -eq 'Adb'
     $script:BaseUrl = if ($env:SENTRY_TEST_URL) { $env:SENTRY_TEST_URL } else { 'http://127.0.0.1:9000' }
     $script:RunId = if ($env:SENTRY_QML_E2E_RUN_ID) { $env:SENTRY_QML_E2E_RUN_ID } else { [guid]::NewGuid().ToString() }
     $script:DatabasePath = if ($env:SENTRY_QML_E2E_DATABASE_PATH) {
         $env:SENTRY_QML_E2E_DATABASE_PATH
     } else {
         Join-Path ([System.IO.Path]::GetTempPath()) "sentry-qml-e2e-$($script:RunId)"
+    }
+    $script:AppDsn = if ($env:SENTRY_QML_E2E_APP_DSN) {
+        $env:SENTRY_QML_E2E_APP_DSN
+    } else {
+        $env:SENTRY_QML_E2E_DSN
+    }
+    if ($script:IsAndroid) {
+        $script:AppDsn = $script:AppDsn -replace '127\.0\.0\.1', '10.0.2.2'
+        $script:AppDsn = $script:AppDsn -replace 'localhost', '10.0.2.2'
     }
     $script:OutputDir = Join-Path $PSScriptRoot 'output'
 
@@ -33,12 +44,21 @@ BeforeAll {
         throw 'SENTRY_AUTH_TOKEN must be set.'
     }
 
-    if ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
+    if ($script:IsAndroid) {
+        if ([string]::IsNullOrEmpty($script:AppPackagePath) -or -not (Test-Path $script:AppPackagePath)) {
+            throw "SENTRY_QML_E2E_APP_PACKAGE_PATH does not point to an APK: $script:AppPackagePath"
+        }
+        if ([string]::IsNullOrEmpty($script:AppPath)) {
+            throw 'SENTRY_QML_E2E_APP_PATH must be set to the Android package/activity path.'
+        }
+    } elseif ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
         throw "SENTRY_QML_E2E_APP_PATH does not point to an executable: $script:AppPath"
     }
 
     New-Item -ItemType Directory -Path $script:OutputDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $script:DatabasePath -Force | Out-Null
+    if (-not $script:IsAndroid) {
+        New-Item -ItemType Directory -Path $script:DatabasePath -Force | Out-Null
+    }
     Set-OutputDir -Path $script:OutputDir
 
     $env:QT_QPA_PLATFORM = 'offscreen'
@@ -114,6 +134,35 @@ BeforeAll {
             -OutFile $OutputPath
     }
 
+    function script:Get-E2EActionArguments {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Action,
+
+            [string[]]$AdditionalArgs = @()
+        )
+
+        return @(
+            $Action,
+            '--dsn',
+            $script:AppDsn,
+            '--run-id',
+            $script:RunId,
+            '--database-path',
+            $script:DatabasePath
+        ) + $AdditionalArgs
+    }
+
+    function script:Get-AndroidLaunchArguments {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string[]]$ApplicationArguments
+        )
+
+        $applicationArgumentsString = $ApplicationArguments -join ' '
+        return @('-S', '--es', 'applicationArguments', "`"$applicationArgumentsString`"")
+    }
+
     function script:Invoke-E2EAction {
         param(
             [Parameter(Mandatory = $true)]
@@ -122,9 +171,41 @@ BeforeAll {
             [string[]]$AdditionalArgs = @()
         )
 
-        $result = Invoke-DeviceApp -ExecutablePath $script:AppPath -Arguments (@($Action) + $AdditionalArgs)
+        $applicationArguments = Get-E2EActionArguments -Action $Action -AdditionalArgs $AdditionalArgs
+        $launchArguments = if ($script:IsAndroid) {
+            Get-AndroidLaunchArguments -ApplicationArguments $applicationArguments
+        } else {
+            $applicationArguments
+        }
+        $result = Invoke-DeviceApp -ExecutablePath $script:AppPath -Arguments $launchArguments
         $result | ConvertTo-Json -Depth 8 | Out-File -FilePath (Get-OutputFilePath "$Action-result.json")
         return $result
+    }
+
+    function script:Assert-CleanExit {
+        param(
+            [Parameter(Mandatory = $true)]
+            $Result
+        )
+
+        if ($script:IsAndroid) {
+            $Result.Output | Should -Not -BeNullOrEmpty
+        } else {
+            $Result.ExitCode | Should -Be 0
+        }
+    }
+
+    function script:Assert-CrashExit {
+        param(
+            [Parameter(Mandatory = $true)]
+            $Result
+        )
+
+        if ($script:IsAndroid) {
+            $Result.Output | Should -Not -BeNullOrEmpty
+        } else {
+            $Result.ExitCode | Should -Not -Be 0
+        }
     }
 
     function script:Invoke-SentryProjectIssues {
@@ -196,6 +277,9 @@ AfterAll {
 Describe 'Sentry QML E2E' {
     BeforeAll {
         Connect-Device -Platform $script:DevicePlatform
+        if ($script:IsAndroid) {
+            Install-DeviceApp -Path $script:AppPackagePath | Out-Null
+        }
     }
 
     AfterAll {
@@ -212,7 +296,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            $script:MessageResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:MessageResult
         }
 
         It 'captures a message event in Sentry' {
@@ -235,7 +319,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            $script:ConsentResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:ConsentResult
         }
 
         It 'captures the post-consent event in Sentry' {
@@ -262,7 +346,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            $script:FeedbackResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:FeedbackResult
         }
 
         It 'captures the associated message event in Sentry' {
@@ -294,7 +378,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            $script:ViewHierarchyResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:ViewHierarchyResult
         }
 
         It 'captures a message event in Sentry' {
@@ -339,7 +423,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            $script:AttributesResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:AttributesResult
         }
 
         It 'captures a log with the global attribute' {
@@ -362,13 +446,13 @@ Describe 'Sentry QML E2E' {
     Context 'Crash capture' {
         BeforeAll {
             $script:CrashId = [guid]::NewGuid().ToString()
-            $script:CrashResult = Invoke-E2EAction -Action 'crash-capture' -AdditionalArgs @($script:CrashId)
+            $script:CrashResult = Invoke-E2EAction -Action 'crash-capture' -AdditionalArgs @('--crash-id', $script:CrashId)
             $script:CrashSendResult = Invoke-E2EAction -Action 'crash-send'
             $script:CrashEvent = Get-SentryTestEvent -TagName 'test.crash_id' -TagValue $script:CrashId -TimeoutSeconds 300
         }
 
         It 'crashes the app process' {
-            $script:CrashResult.ExitCode | Should -Not -Be 0
+            Assert-CrashExit -Result $script:CrashResult
         }
 
         It 'prints the crash correlation id' {
@@ -376,7 +460,7 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'can relaunch to flush pending crash data' {
-            $script:CrashSendResult.ExitCode | Should -Be 0
+            Assert-CleanExit -Result $script:CrashSendResult
         }
 
         It 'captures a crash event in Sentry' {

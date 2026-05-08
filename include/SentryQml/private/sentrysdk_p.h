@@ -113,6 +113,7 @@ private:
     std::unique_ptr<SentrySdkEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentrySdkEventHookState> m_onCrashState;
     std::unique_ptr<SentrySdkCrashHookState> m_crashHookState;
+    QString m_dsn;
     QString m_release;
     QString m_environment;
     QString m_dist;
@@ -124,7 +125,9 @@ private:
     QList<SentryAttachment *> m_attachments;
     QMetaObject::Connection m_applicationShutdownConnection;
     int m_maxBreadcrumbs = 100;
+    int m_userConsent = -1;
     bool m_attachViewHierarchy = false;
     bool m_applyHooksLocally = false;
+    bool m_requireUserConsent = false;
     bool m_initialized = false;
 };

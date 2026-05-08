@@ -43,6 +43,13 @@ function(add_sentry_qml_test target)
 
     add_dependencies(${target} SentryQmlplugin)
 
+    if(ANDROID AND COMMAND sentry_qml_configure_android_target)
+        target_compile_definitions(${target} PRIVATE
+            SENTRY_QML_TEST_SDK_ANDROID
+        )
+        sentry_qml_configure_android_target(${target})
+    endif()
+
     if(TARGET sentry-crash)
         add_dependencies(${target} sentry-crash)
         add_custom_command(TARGET ${target} POST_BUILD
@@ -128,7 +135,7 @@ if(TARGET sentry-crash)
 endif()
 
 if(SENTRY_QML_BUILD_E2E_TESTS)
-    add_executable(sentry_qml_e2e_app
+    qt_add_executable(sentry_qml_e2e_app
         e2e/e2e_app.cpp
     )
 
@@ -148,6 +155,14 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
     )
 
     add_dependencies(sentry_qml_e2e_app SentryQmlplugin)
+
+    if(ANDROID AND COMMAND sentry_qml_configure_android_target)
+        set_target_properties(sentry_qml_e2e_app PROPERTIES
+            QT_ANDROID_PACKAGE_NAME "io.sentry.qml.e2e"
+            QT_ANDROID_TARGET_SDK_VERSION 27
+        )
+        sentry_qml_configure_android_target(sentry_qml_e2e_app)
+    endif()
 
     if(TARGET sentry-crash)
         add_dependencies(sentry_qml_e2e_app sentry-crash)

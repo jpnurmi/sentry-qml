@@ -26,19 +26,18 @@ concurrency:
 
 jobs:
   e2e:
-    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt_version }}, ${{ matrix.runner }})
+    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt_version: "6.8.0"}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt_version: "6.8.0"}
-          - {sentry_backend: Native, runner: ubuntu-24.04, qt_version: "6.11.0"}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS}
+          - {sentry_backend: Native, runner: ubuntu-24.04, qt: stable}
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
-      SENTRY_QT_VERSION: ${{ matrix.qt_version }}
       SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
       SENTRY_TEST_URL: http://127.0.0.1:9000
       SENTRY_TEST_EMAIL: test@example.com
@@ -52,10 +51,21 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: ${{ env.SENTRY_QT_VERSION }}
+          version: ${{ steps.qt.outputs.version }}
           host: linux
           target: desktop
           arch: linux_gcc_64

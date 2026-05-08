@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   ci:
-    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.runner }})
+    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -30,27 +30,27 @@ jobs:
         #   pipx run aqtinstall aqt list-qt windows desktop
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
         include:
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04, qt_version: "6.8.0", qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04, qt_version: "6.8.0", qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04, qt_version: "6.11.0", qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04, qt: stable, qt_host: linux, qt_arch: linux_gcc_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt_version: "6.8.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04-arm, qt_version: "6.11.0", qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04-arm, qt: stable, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
 
-          - {sentry_sdk: Cocoa, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Cocoa, runner: macos-26, qt_version: "6.11.0", qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: macos-15, qt_version: "6.8.0", qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: macos-26, qt_version: "6.11.0", qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Cocoa, runner: macos-26, qt: stable, qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: macos-26, qt: stable, qt_host: mac, qt_arch: clang_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-2022, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-2022, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-2025, qt_version: "6.11.0", qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-2025, qt: stable, qt_host: windows, qt_arch: win64_msvc2022_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-11-arm, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-11-arm, qt_version: "6.8.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-11-arm, qt_version: "6.11.0", qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-11-arm, qt: stable, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
 
     steps:
       - name: Check out sources
@@ -59,10 +59,21 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
-          version: ${{ matrix.qt_version }}
+          version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt_host }}
           target: desktop
           arch: ${{ matrix.qt_arch }}
@@ -119,6 +130,6 @@ jobs:
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt_version }}, ${{ matrix.label }})
+          name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
           path: build/tests/test-results/*.xml
           reporter: java-junit

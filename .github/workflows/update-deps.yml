@@ -67,7 +67,6 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}
           pattern: ${{ matrix.pattern }}
-          post-update-script: scripts/update-qt.sh
           changelog-entry: false
           api-token: ${{ secrets.CI_GITHUB_TOKEN }}
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}

@@ -239,7 +239,7 @@ jobs:
           target: google_apis
           arch: x86_64
           script: |
-            ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure --output-junit build/tests/test-results/ctest-android.xml
+            ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-android.xml"
 
       - name: Publish test results
         if: always()

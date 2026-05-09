@@ -58,8 +58,8 @@ jobs:
           - name: Qt LTS
             path: modules/qt-lts.properties
             pattern: '^v?6\.8\.\d+$'
-          - name: Qt stable
-            path: modules/qt-stable.properties
+          - name: Qt latest
+            path: modules/qt-latest.properties
             pattern: '^v?6\.\d+\.\d+$'
     steps:
       - uses: getsentry/github-workflows/updater@jpnurmi/fix/updater-pr-ci # 26f565c05d0dd49f703d238706b775883037d76b # v3

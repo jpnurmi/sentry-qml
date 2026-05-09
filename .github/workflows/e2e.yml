@@ -45,10 +45,10 @@ jobs:
             qt: LTS
             qt_host: linux
             qt_arch: linux_gcc_64
-          - name: Native (Qt stable, ubuntu-24.04)
+          - name: Native (Qt latest, ubuntu-24.04)
             sentry_backend: Native
             runner: ubuntu-24.04
-            qt: stable
+            qt: latest
             qt_host: linux
             qt_arch: linux_gcc_64
           - name: Android (Qt LTS, API 35)

@@ -517,3 +517,114 @@ jobs:
           name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
+
+  ios:
+    name: iOS (Qt ${{ matrix.qt }})
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {qt: LTS}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Install iOS Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: mac
+          target: ios
+          arch: ios
+          dir: ${{ runner.temp }}/qt-ios
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          dir: ${{ runner.temp }}/qt-host
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Find Qt paths
+        id: qt-paths
+        shell: pwsh
+        run: |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter clang_64 |
+            Select-Object -First 1
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
+
+          $iosPath = Get-ChildItem "${{ runner.temp }}/qt-ios" -Directory -Recurse -Filter ios |
+            Select-Object -First 1
+          if (-not $iosPath) { throw "Could not find iOS Qt installation" }
+
+          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
+          "ios_path=$($iosPath.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Build SentryObjC iOS XCFramework
+        run: |
+          cd modules/sentry-cocoa
+          ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
+          mkdir -p "$RUNNER_TEMP/sentry-cocoa"
+          ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+
+      - name: Configure iOS
+        run: >
+          cmake -S . -B build -G Xcode
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_TOOLCHAIN_FILE="${{ steps.qt-paths.outputs.ios_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DQT_HOST_PATH="${{ steps.qt-paths.outputs.host_path }}"
+          -DCMAKE_SYSTEM_NAME=iOS
+          -DCMAKE_OSX_SYSROOT=iphonesimulator
+          -DCMAKE_OSX_ARCHITECTURES=x86_64
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          -DSENTRY_QML_SDK=ios
+          -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"
+          -DSENTRY_QML_TEST_JUNIT=ON
+
+      - name: Build iOS tests
+        run: >
+          cmake --build build
+          --target tst_unit tst_integration
+          --config RelWithDebInfo
+          --parallel
+
+      - name: Test iOS
+        run: >
+          ctest --test-dir build
+          --build-config RelWithDebInfo
+          --verbose
+          --output-on-failure
+          --output-junit build/tests/test-results/ctest-ios.xml
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        with:
+          name: iOS (Qt ${{ matrix.qt }})
+          path: build/tests/test-results/*.xml
+          reporter: java-junit

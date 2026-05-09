@@ -6,6 +6,7 @@
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
 #include <QtCore/qobject.h>
+#include <QtCore/qstandardpaths.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qtextstream.h>
@@ -140,6 +141,13 @@ int main(int argc, char *argv[])
             return 66;
         }
         databasePath = QDir(fallbackDatabaseDir.path()).filePath(QStringLiteral("sentry"));
+    } else if (QDir::isRelativePath(databasePath)) {
+        const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        if (cachePath.isEmpty()) {
+            qCritical("Could not resolve a writable cache directory.");
+            return 67;
+        }
+        databasePath = QDir(cachePath).filePath(databasePath);
     }
 
     QString crashId = argumentValue(arguments, QStringLiteral("--crash-id"));

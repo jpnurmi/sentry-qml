@@ -38,10 +38,29 @@ set(SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR "${SENTRY_COCOA_FRAMEWORK_DIR}/Depende
 set(SENTRY_COCOA_REQUIRED_FILES
     "${SENTRY_COCOA_FRAMEWORK}/Headers/SentryObjC.h"
     "${SENTRY_COCOA_FRAMEWORK}/SentryObjC"
-    "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}/Sentry.framework/Sentry"
-    "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}/SentryObjCBridge.framework/SentryObjCBridge"
-    "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}/SentryObjCTypes.framework/SentryObjCTypes"
 )
+
+set(SENTRY_COCOA_EXPECT_DEPENDENCY_FRAMEWORKS FALSE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin"
+        AND SENTRY_COCOA_XCFRAMEWORK STREQUAL SENTRY_COCOA_DEFAULT_XCFRAMEWORK)
+    set(SENTRY_COCOA_EXPECT_DEPENDENCY_FRAMEWORKS TRUE)
+elseif(EXISTS "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}")
+    set(SENTRY_COCOA_EXPECT_DEPENDENCY_FRAMEWORKS TRUE)
+endif()
+
+set(SENTRY_COCOA_DEPENDENCY_FRAMEWORKS)
+foreach(SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME IN ITEMS Sentry SentryObjCBridge SentryObjCTypes)
+    set(SENTRY_COCOA_DEPENDENCY_FRAMEWORK
+        "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}/${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME}.framework"
+    )
+    if(SENTRY_COCOA_EXPECT_DEPENDENCY_FRAMEWORKS)
+        list(APPEND SENTRY_COCOA_DEPENDENCY_FRAMEWORKS "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK}")
+        list(APPEND SENTRY_COCOA_REQUIRED_FILES
+            "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK}/${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME}"
+        )
+    endif()
+endforeach()
+set(SENTRY_COCOA_EMBED_FRAMEWORKS "${SENTRY_COCOA_FRAMEWORK}" ${SENTRY_COCOA_DEPENDENCY_FRAMEWORKS})
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin"
         AND SENTRY_COCOA_XCFRAMEWORK STREQUAL SENTRY_COCOA_DEFAULT_XCFRAMEWORK)
@@ -93,7 +112,8 @@ else()
             "SentryObjC was not found or is incomplete at "
             "SENTRY_COCOA_XCFRAMEWORK='${SENTRY_COCOA_XCFRAMEWORK}'. "
             "Missing files:\n  ${SENTRY_COCOA_MISSING_FILES_TEXT}\n"
-            "Build or unpack SentryObjC-Dynamic.xcframework, or configure with "
+            "Build or unpack SentryObjC-Dynamic.xcframework from sentry-cocoa, "
+            "or configure with "
             "-DSENTRY_COCOA_XCFRAMEWORK=/path/to/SentryObjC-Dynamic.xcframework."
         )
     endif()
@@ -105,17 +125,25 @@ target_compile_options(SentryObjC::SentryObjC INTERFACE
 )
 target_link_options(SentryObjC::SentryObjC INTERFACE
     "-F${SENTRY_COCOA_FRAMEWORK_DIR}"
-    "-F${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}"
     "-Wl,-rpath,${SENTRY_COCOA_FRAMEWORK_DIR}"
-    "-Wl,-rpath,${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}"
 )
+if(SENTRY_COCOA_DEPENDENCY_FRAMEWORKS)
+    target_link_options(SentryObjC::SentryObjC INTERFACE
+        "-F${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}"
+        "-Wl,-rpath,${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}"
+    )
+endif()
 target_link_libraries(SentryObjC::SentryObjC INTERFACE
     "-framework SentryObjC"
-    "-framework Sentry"
-    "-framework SentryObjCBridge"
-    "-framework SentryObjCTypes"
     "-framework Foundation"
 )
+if(SENTRY_COCOA_DEPENDENCY_FRAMEWORKS)
+    target_link_libraries(SentryObjC::SentryObjC INTERFACE
+        "-framework Sentry"
+        "-framework SentryObjCBridge"
+        "-framework SentryObjCTypes"
+    )
+endif()
 
 if(NOT DEFINED SENTRY_SDK_NAME)
     set(SENTRY_SDK_NAME "sentry.cocoa.qml" CACHE STRING "SDK name reported by Sentry QML")
@@ -130,3 +158,39 @@ list(APPEND SENTRY_QML_SDK_LIBRARIES SentryObjC::SentryObjC)
 set_source_files_properties("${PROJECT_SOURCE_DIR}/src/cocoa/sentryobjcbridge.mm" PROPERTIES
     COMPILE_OPTIONS "-fobjc-arc"
 )
+
+function(sentry_qml_configure_ios_target target)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        return()
+    endif()
+
+    if(NOT TARGET ${target})
+        message(FATAL_ERROR "sentry_qml_configure_ios_target expected an existing target: ${target}")
+    endif()
+
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        message(FATAL_ERROR
+            "sentry_qml_configure_ios_target(${target}) requires the Xcode generator "
+            "so CMake can add Sentry Cocoa to the Embed Frameworks build phase."
+        )
+    endif()
+
+    get_target_property(existing_embed_frameworks ${target} XCODE_EMBED_FRAMEWORKS)
+    if(NOT existing_embed_frameworks)
+        set(existing_embed_frameworks)
+    endif()
+
+    set_property(TARGET ${target} PROPERTY XCODE_EMBED_FRAMEWORKS
+        ${existing_embed_frameworks}
+        ${SENTRY_COCOA_EMBED_FRAMEWORKS}
+    )
+    set_property(TARGET ${target} PROPERTY XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY YES)
+    set_property(TARGET ${target} PROPERTY XCODE_EMBED_FRAMEWORKS_REMOVE_HEADERS_ON_COPY YES)
+
+    get_target_property(existing_deployment_target ${target} XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET)
+    if(NOT existing_deployment_target AND DEFINED SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET)
+        set_property(TARGET ${target} PROPERTY
+            XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET}"
+        )
+    endif()
+endfunction()

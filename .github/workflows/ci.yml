@@ -641,12 +641,13 @@ jobs:
           --parallel
 
       - name: Test iOS
-        run: >
-          ctest --test-dir build
-          --build-config RelWithDebInfo
-          --verbose
-          --output-on-failure
-          --output-junit build/tests/test-results/ctest-ios.xml
+        run: |
+          mkdir -p build/tests/test-results
+          ctest --test-dir build \
+            --build-config RelWithDebInfo \
+            --verbose \
+            --output-on-failure \
+            --output-junit build/tests/test-results/ctest-ios.xml
 
       - name: Publish test results
         if: always()
@@ -655,3 +656,4 @@ jobs:
           name: iOS (Qt ${{ matrix.qt }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
+          fail-on-empty: false

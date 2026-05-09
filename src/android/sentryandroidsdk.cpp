@@ -167,17 +167,44 @@ bool isSupportedInteger(const QVariant &value)
     }
 }
 
+QVariant normalizedScriptValue(const QVariant &value)
+{
+    if (value.metaType() == QMetaType::fromType<QJSValue>()) {
+        return value.value<QJSValue>().toVariant();
+    }
+
+    if (value.metaType().id() == QMetaType::QVariantMap) {
+        QVariantMap map = value.toMap();
+        for (auto it = map.begin(); it != map.end(); ++it) {
+            it.value() = normalizedScriptValue(it.value());
+        }
+        return map;
+    }
+
+    if (value.metaType().id() == QMetaType::QVariantList) {
+        QVariantList list = value.toList();
+        for (QVariant &item : list) {
+            item = normalizedScriptValue(item);
+        }
+        return list;
+    }
+
+    return value;
+}
+
 bool isSupportedMetricAttribute(const QVariant &value)
 {
-    if (value.metaType().id() == QMetaType::QVariantMap) {
-        const QVariantMap map = value.toMap();
+    const QVariant attributeValue = normalizedScriptValue(value);
+
+    if (attributeValue.metaType().id() == QMetaType::QVariantMap) {
+        const QVariantMap map = attributeValue.toMap();
         if (map.contains(QStringLiteral("value"))) {
             return isSupportedMetricAttribute(map.value(QStringLiteral("value")));
         }
         return true;
     }
 
-    switch (value.metaType().id()) {
+    switch (attributeValue.metaType().id()) {
     case QMetaType::Bool:
     case QMetaType::Float:
     case QMetaType::Double:
@@ -186,28 +213,30 @@ bool isSupportedMetricAttribute(const QVariant &value)
     case QMetaType::QStringList:
         return true;
     default:
-        return isSupportedInteger(value);
+        return isSupportedInteger(attributeValue);
     }
 }
 
 QByteArray jsonFromVariant(const QVariant &value)
 {
-    if (value.metaType().id() == QMetaType::QVariantMap) {
-        return QJsonDocument::fromVariant(value.toMap()).toJson(QJsonDocument::Compact);
+    const QVariant normalizedValue = normalizedScriptValue(value);
+
+    if (normalizedValue.metaType().id() == QMetaType::QVariantMap) {
+        return QJsonDocument::fromVariant(normalizedValue.toMap()).toJson(QJsonDocument::Compact);
     }
-    if (value.metaType().id() == QMetaType::QVariantList) {
-        return QJsonDocument::fromVariant(value.toList()).toJson(QJsonDocument::Compact);
+    if (normalizedValue.metaType().id() == QMetaType::QVariantList) {
+        return QJsonDocument::fromVariant(normalizedValue.toList()).toJson(QJsonDocument::Compact);
     }
-    if (value.metaType().id() == QMetaType::QStringList) {
+    if (normalizedValue.metaType().id() == QMetaType::QStringList) {
         QJsonArray array;
-        for (const QString &item : value.toStringList()) {
+        for (const QString &item : normalizedValue.toStringList()) {
             array.append(item);
         }
         return QJsonDocument(array).toJson(QJsonDocument::Compact);
     }
 
     QJsonArray wrapper;
-    wrapper.append(QJsonValue::fromVariant(value));
+    wrapper.append(QJsonValue::fromVariant(normalizedValue));
     QByteArray json = QJsonDocument(wrapper).toJson(QJsonDocument::Compact);
     if (json.size() >= 2) {
         json = json.mid(1, json.size() - 2);

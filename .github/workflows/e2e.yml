@@ -139,9 +139,16 @@ jobs:
         if: matrix.android != true
         run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel
 
-      - name: Build Android E2E APK
+      - name: Build Android test APKs
         if: matrix.android == true
-        run: cmake --build build --target sentry_qml_e2e_app_make_apk --config RelWithDebInfo --parallel
+        run: >
+          cmake --build build
+          --target
+          tst_unit_make_apk
+          tst_integration_make_apk
+          sentry_qml_e2e_app_make_apk
+          --config RelWithDebInfo
+          --parallel
 
       - name: Find Android E2E APK
         if: matrix.android == true
@@ -286,14 +293,16 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run Sentry QML Android E2E tests
+      - name: Run Sentry QML Android tests
         if: matrix.android == true
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
-          script: pwsh -NoLogo -NoProfile -Command "Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI"
+          script: |
+            ctest --test-dir build --build-config RelWithDebInfo --output-on-failure -R 'tst_(unit|integration)'
+            pwsh -NoLogo -NoProfile -Command "Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI"
         env:
           SENTRY_APP_RUNNER_PATH: ${{ github.workspace }}/app-runner
           SENTRY_AUTH_TOKEN: ${{ steps.sentry.outputs.auth_token }}

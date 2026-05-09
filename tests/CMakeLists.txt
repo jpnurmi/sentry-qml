@@ -2,10 +2,56 @@ if(NOT TARGET ZLIB::ZLIB)
     find_package(ZLIB QUIET)
 endif()
 
-function(add_sentry_qml_test target)
-    add_executable(${target}
-        ${ARGN}
+function(add_sentry_qml_android_test target)
+    get_target_property(target_binary_dir ${target} BINARY_DIR)
+    if(QT_USE_TARGET_ANDROID_BUILD_DIR)
+        set(android_build_dir "${target_binary_dir}/android-build-${target}")
+    else()
+        set(android_build_dir "${target_binary_dir}/android-build")
+    endif()
+
+    set(android_test_runner "${QT_HOST_PATH}/${QT6_HOST_INFO_BINDIR}/androidtestrunner")
+    set(android_make_command "${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${target}_make_apk")
+    set(android_test_arguments
+        --path "${android_build_dir}"
+        --adb "${ANDROID_SDK_ROOT}/platform-tools/adb"
+        --skip-install-root
+        --make "${android_make_command}"
+        --apk "${android_build_dir}/${target}.apk"
+        --timeout 114
+        --verbose
     )
+    if(ANDROID_NDK_ROOT)
+        list(APPEND android_test_arguments
+            --ndk-stack "${ANDROID_NDK_ROOT}/ndk-stack"
+        )
+    endif()
+
+    add_test(NAME ${target}
+        COMMAND
+            "${android_test_runner}"
+            ${android_test_arguments}
+            --
+            -txt
+    )
+    set_tests_properties(${target} PROPERTIES
+        RUN_SERIAL TRUE
+        TIMEOUT 120
+        TIMEOUT_SIGNAL_NAME "SIGINT"
+        TIMEOUT_SIGNAL_GRACE_PERIOD 10.0
+    )
+endfunction()
+
+function(add_sentry_qml_test target)
+    if(ANDROID)
+        qt_add_executable(${target}
+            ${ARGN}
+        )
+    else()
+        add_executable(${target}
+            ${ARGN}
+        )
+    endif()
 
     target_compile_definitions(${target} PRIVATE
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
@@ -32,6 +78,10 @@ function(add_sentry_qml_test target)
             Qt6::Test
     )
 
+    if(ANDROID)
+        target_link_libraries(${target} PRIVATE Qt6::Gui)
+    endif()
+
     if(TARGET ZLIB::ZLIB)
         target_link_libraries(${target} PRIVATE
             ZLIB::ZLIB
@@ -46,6 +96,10 @@ function(add_sentry_qml_test target)
     if(ANDROID AND COMMAND sentry_qml_configure_android_target)
         target_compile_definitions(${target} PRIVATE
             SENTRY_QML_TEST_SDK_ANDROID
+        )
+        set_target_properties(${target} PROPERTIES
+            QT_ANDROID_PACKAGE_NAME "io.sentry.qml.${target}"
+            QT_ANDROID_TARGET_SDK_VERSION 27
         )
         sentry_qml_configure_android_target(${target})
     endif()
@@ -70,7 +124,9 @@ function(add_sentry_qml_test target)
         )
     endif()
 
-    if(SENTRY_QML_TEST_JUNIT)
+    if(ANDROID)
+        add_sentry_qml_android_test(${target})
+    elseif(SENTRY_QML_TEST_JUNIT)
         add_test(NAME ${target}
             COMMAND ${target}
                 -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/${target}.xml,junitxml"
@@ -111,16 +167,26 @@ target_compile_definitions(tst_integration PRIVATE
 
 target_link_libraries(tst_integration PRIVATE Qt6::Quick)
 
-target_sources(tst_integration PRIVATE
-    qml/IntegrationTest.qml
-    qml/ViewHierarchyTest.qml
+set_source_files_properties(qml/IntegrationTest.qml PROPERTIES
+    QT_RESOURCE_ALIAS IntegrationTest.qml
+)
+set_source_files_properties(qml/ViewHierarchyTest.qml PROPERTIES
+    QT_RESOURCE_ALIAS ViewHierarchyTest.qml
+)
+qt_add_resources(tst_integration sentry_qml_integration_test_qml
+    PREFIX "/sentry-qml-tests"
+    FILES
+        qml/IntegrationTest.qml
+        qml/ViewHierarchyTest.qml
 )
 
-set_tests_properties(tst_integration PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-)
+if(NOT ANDROID)
+    set_tests_properties(tst_integration PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+endif()
 
-if(TARGET sentry-crash)
+if(TARGET sentry-crash AND NOT ANDROID)
     add_sentry_qml_test(tst_crash
         tst_crash.cpp
     )

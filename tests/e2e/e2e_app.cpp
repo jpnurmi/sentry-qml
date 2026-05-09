@@ -1,6 +1,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qeventloop.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
@@ -8,6 +9,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qtextstream.h>
+#include <QtCore/qtimer.h>
 #include <QtCore/qurl.h>
 #include <QtCore/quuid.h>
 #include <QtGui/qguiapplication.h>
@@ -193,6 +195,17 @@ int main(int argc, char *argv[])
     }
 
     if (action == QLatin1String("crash-send")) {
+#if defined(Q_OS_ANDROID)
+        if (!object->property("success").toBool()) {
+            QEventLoop loop;
+            QTimer timeout;
+            timeout.setSingleShot(true);
+            QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+            QObject::connect(object.get(), SIGNAL(crashSendFinished()), &loop, SLOT(quit()));
+            timeout.start(40000);
+            loop.exec();
+        }
+#endif
         const bool success = object->property("success").toBool();
         printResult(action, success);
         return success ? 0 : 1;

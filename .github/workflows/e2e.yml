@@ -43,9 +43,7 @@ jobs:
             qt_target: android
             qt_arch: android_x86_64
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
-            cmake_target_args: >
-              -DANDROID_ABI=x86_64
-              -DANDROID_PLATFORM=android-28
+            cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
       SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}

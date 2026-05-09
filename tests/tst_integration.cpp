@@ -186,15 +186,6 @@ QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
     return server.combinedBody().left(16 * 1024);
 }
 
-QUrl testFixtureUrl(const QString &fileName)
-{
-#if defined(Q_OS_ANDROID)
-    return QUrl(QStringLiteral("qrc:/sentry-qml-tests/%1").arg(fileName));
-#else
-    return QUrl::fromLocalFile(QDir(QStringLiteral(SENTRY_QML_TEST_QML_DIR)).filePath(fileName));
-#endif
-}
-
 void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
 {
     IntegrationEnvelopeServer server;
@@ -210,7 +201,7 @@ void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
     engine.rootContext()->setContextProperty(
         QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
 
-    QQmlComponent component(&engine, testFixtureUrl(QStringLiteral("ViewHierarchyTest.qml")));
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-tests/ViewHierarchyTest.qml")));
 
     if (component.isLoading()) {
         QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
@@ -269,7 +260,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
         QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     engine.rootContext()->setContextProperty(QStringLiteral("testAttachmentPath"), attachmentPath);
 
-    QQmlComponent component(&engine, testFixtureUrl(QStringLiteral("IntegrationTest.qml")));
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-tests/IntegrationTest.qml")));
 
     if (component.isLoading()) {
         QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);

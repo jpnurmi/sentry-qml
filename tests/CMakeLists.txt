@@ -161,10 +161,6 @@ add_sentry_qml_test(tst_integration
     tst_integration.cpp
 )
 
-target_compile_definitions(tst_integration PRIVATE
-    SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
-)
-
 target_link_libraries(tst_integration PRIVATE Qt6::Quick)
 
 set_source_files_properties(qml/IntegrationTest.qml PROPERTIES

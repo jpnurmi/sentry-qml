@@ -264,6 +264,10 @@ jobs:
       - name: Build SentryObjC iOS XCFramework
         if: matrix.qt_target == 'ios'
         run: |
+          mkdir -p "$RUNNER_TEMP/no-xcbeautify"
+          printf '#!/bin/sh\ncat\n' > "$RUNNER_TEMP/no-xcbeautify/xcbeautify"
+          chmod +x "$RUNNER_TEMP/no-xcbeautify/xcbeautify"
+          export PATH="$RUNNER_TEMP/no-xcbeautify:$PATH"
           cd modules/sentry-cocoa
           ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
           mkdir -p "$RUNNER_TEMP/sentry-cocoa"

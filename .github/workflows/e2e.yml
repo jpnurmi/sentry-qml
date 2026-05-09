@@ -80,7 +80,7 @@ jobs:
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
           - name: iOS (Qt LTS, simulator)
             sentry_sdk: iOS
-            runner: macos-15-intel
+            runner: macos-15-large
             qt: LTS
             qt_host: mac
             qt_target: ios
@@ -405,7 +405,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4.7.0
         env:
-          LIMA_START_ARGS: --cpus 4 --memory 14
+          LIMA_START_ARGS: --cpus 4 --memory 16
 
       - name: Set up Docker Compose on macOS
         if: runner.os == 'macOS'

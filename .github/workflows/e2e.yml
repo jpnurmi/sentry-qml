@@ -448,7 +448,7 @@ jobs:
           EOF
 
       - name: Restore Sentry self-hosted volume cache
-        if: steps.restore-self-hosted.outputs.restored != 'true'
+        if: runner.os == 'Linux' && steps.restore-self-hosted.outputs.restored != 'true'
         id: restore-self-hosted-volumes
         uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
@@ -481,7 +481,7 @@ jobs:
           EOF
 
       - name: Save Sentry self-hosted volume cache
-        if: github.event_name != 'pull_request' && steps.restore-self-hosted.outputs.restored != 'true' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
+        if: runner.os == 'Linux' && github.event_name != 'pull_request' && steps.restore-self-hosted.outputs.restored != 'true' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
         uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}

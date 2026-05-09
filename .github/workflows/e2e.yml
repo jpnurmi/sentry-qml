@@ -404,6 +404,8 @@ jobs:
       - name: Set up Docker on macOS
         if: runner.os == 'macOS'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4.7.0
+        env:
+          LIMA_START_ARGS: --cpus 4 --memory 14
 
       - name: Set up Docker Compose on macOS
         if: runner.os == 'macOS'
@@ -491,6 +493,7 @@ jobs:
             sentry-kafka
 
       - name: Set up swap
+        if: runner.os == 'Linux'
         run: |
           sudo swapoff -a || true
           sudo fallocate -l 16G /swapfile

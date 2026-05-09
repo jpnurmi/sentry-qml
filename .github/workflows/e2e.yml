@@ -399,11 +399,11 @@ jobs:
 
       - name: Set up Docker on macOS
         if: runner.os == 'macOS'
+        uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4.7.0
+
+      - name: Check Docker on macOS
+        if: runner.os == 'macOS'
         run: |
-          brew install colima docker docker-compose
-          mkdir -p "$HOME/.docker/cli-plugins"
-          ln -sf "$(brew --prefix)/opt/docker-compose/bin/docker-compose" "$HOME/.docker/cli-plugins/docker-compose"
-          colima start --cpu 4 --memory 12 --disk 80
           docker info
           docker compose version
 

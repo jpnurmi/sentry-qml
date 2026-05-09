@@ -7,7 +7,7 @@ on:
       self_hosted_ref:
         description: getsentry/self-hosted ref to test
         required: true
-        default: "26.4.0"
+        default: "26.4.2"
       compose_profiles:
         description: Sentry self-hosted Docker Compose profile
         required: true
@@ -63,7 +63,7 @@ jobs:
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
     env:
       SENTRY_COMPOSE_PROFILES: ${{ inputs.compose_profiles || 'feature-complete' }}
-      SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.0' }}
+      SENTRY_SELF_HOSTED_REF: ${{ inputs.self_hosted_ref || '26.4.2' }}
       SENTRY_TEST_URL: http://127.0.0.1:9000
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST

@@ -146,8 +146,23 @@ jobs:
         id: qt-target-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter "${{ matrix.host_qt_arch || 'gcc_64' }}" |
-            Select-Object -First 1
+          $hostPath = $null
+          $hostRoots = @(
+            "${{ runner.temp }}/qt-host",
+            $env:GITHUB_WORKSPACE,
+            (Split-Path $env:GITHUB_WORKSPACE -Parent),
+            $env:RUNNER_TEMP,
+            $env:RUNNER_TOOL_CACHE
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          foreach ($root in $hostRoots) {
+            $hostPath = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
+              Where-Object {
+                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+              } |
+              Select-Object -First 1
+            if ($hostPath) { break }
+          }
           if (-not $hostPath) { throw "Could not find host Qt installation" }
 
           $targetPath = $null

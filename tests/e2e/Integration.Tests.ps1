@@ -214,6 +214,57 @@ BeforeAll {
         return $result
     }
 
+    function script:Get-AndroidAppPackageName {
+        if (-not $script:IsAndroid) {
+            throw 'Android app package name is only available for Android tests.'
+        }
+
+        return ($script:AppPath -split '/', 2)[0]
+    }
+
+    function script:Invoke-AndroidRunAs {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string[]]$Arguments
+        )
+
+        $packageName = Get-AndroidAppPackageName
+        $output = & adb shell run-as $packageName @Arguments 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "adb run-as $packageName $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)"
+        }
+
+        return @($output)
+    }
+
+    function script:Get-AndroidNativeCrashEventId {
+        $envelopePaths = Invoke-AndroidRunAs -Arguments @(
+            'find',
+            $script:DatabasePath,
+            '-path',
+            '*/.sentry-native/*.run/*.envelope',
+            '-type',
+            'f'
+        )
+        $envelopePath = $envelopePaths |
+            ForEach-Object { "$_".Trim() } |
+            Where-Object { $_ -match '\.envelope$' } |
+            Sort-Object |
+            Select-Object -Last 1
+        if (-not $envelopePath) {
+            throw "Could not find a native crash envelope in $script:DatabasePath."
+        }
+
+        $header = Invoke-AndroidRunAs -Arguments @('head', '-n', '1', $envelopePath)
+        $eventId = (ConvertFrom-Json -InputObject ($header -join "`n")).event_id
+        if ($eventId -notmatch '^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$') {
+            throw "Native crash envelope does not contain a valid event_id: $eventId"
+        }
+
+        Write-Host "Found Android native crash event ID: $eventId" -ForegroundColor Green
+        return $eventId
+    }
+
     function script:Assert-CleanExit {
         param(
             [Parameter(Mandatory = $true)]
@@ -480,8 +531,13 @@ Describe 'Sentry QML E2E' {
         BeforeAll {
             $script:CrashId = [guid]::NewGuid().ToString()
             $script:CrashResult = Invoke-E2EAction -Action 'crash-capture' -AdditionalArgs @('--crash-id', $script:CrashId)
+            $script:CrashEventId = if ($script:IsAndroid) { Get-AndroidNativeCrashEventId } else { $null }
             $script:CrashSendResult = Invoke-E2EAction -Action 'crash-send'
-            $script:CrashEvent = Get-SentryTestEvent -TagName 'test.crash_id' -TagValue $script:CrashId -TimeoutSeconds 300
+            $script:CrashEvent = if ($script:IsAndroid) {
+                Get-SentryTestEvent -EventId $script:CrashEventId -TimeoutSeconds 300
+            } else {
+                Get-SentryTestEvent -TagName 'test.crash_id' -TagValue $script:CrashId -TimeoutSeconds 300
+            }
         }
 
         It 'crashes the app process' {
@@ -504,6 +560,11 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'keeps the QML crash context' {
+            if ($script:IsAndroid) {
+                Set-ItResult -Skipped -Because 'sentry-android NDK crash envelopes do not include QML scope tags.'
+                return
+            }
+
             Get-TagValue -SentryEvent $script:CrashEvent -Key 'e2e_run_id' | Should -Be $script:RunId
             Get-TagValue -SentryEvent $script:CrashEvent -Key 'test.action' | Should -Be 'crash-capture'
             Get-TagValue -SentryEvent $script:CrashEvent -Key 'test.crash_id' | Should -Be $script:CrashId

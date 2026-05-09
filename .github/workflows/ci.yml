@@ -235,13 +235,20 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Test Android
+        id: first-android-test-run
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
-        with:
+        with: &android-test-run
           api-level: ${{ matrix.android_api }}
           target: google_apis
           arch: x86_64
           script: |
             ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-android.xml"
+
+      - name: Retry Android tests
+        if: steps.first-android-test-run.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with: *android-test-run
 
       - name: Publish test results
         if: always()

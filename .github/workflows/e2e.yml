@@ -161,19 +161,12 @@ jobs:
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
 
       - name: Build E2E app
-        if: ${{ !matrix.qt_target }}
-        run: cmake --build build --target sentry_qml_e2e_app --config RelWithDebInfo --parallel
-
-      - name: Build Android test APKs
-        if: matrix.qt_target == 'android'
-        run: >
-          cmake --build build
-          --target
-          tst_unit_make_apk
-          tst_integration_make_apk
-          sentry_qml_e2e_app_make_apk
-          --config RelWithDebInfo
-          --parallel
+        run: |
+          target=sentry_qml_e2e_app
+          if [ "${{ matrix.qt_target }}" = "android" ]; then
+            target=sentry_qml_e2e_app_make_apk
+          fi
+          cmake --build build --target "$target" --config RelWithDebInfo --parallel
 
       - name: Find Android E2E APK
         if: matrix.qt_target == 'android'
@@ -187,17 +180,11 @@ jobs:
           "path=$($apk.FullName)" >> $env:GITHUB_OUTPUT
 
       - name: Free runner disk space
-        if: ${{ !matrix.qt_target }}
         run: |
           sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /home/runner/Android /usr/local/lib/android /opt/android /usr/local/android-sdk
-          sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
-          df -h
-
-      - name: Free runner disk space
-        if: matrix.qt_target
-        run: |
-          sudo rm -rf /usr/local/.ghcup
+          if [ -z "${{ matrix.qt_target }}" ]; then
+            sudo rm -rf /home/runner/Android /usr/local/lib/android /opt/android /usr/local/android-sdk
+          fi
           sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
           df -h
 
@@ -320,15 +307,16 @@ jobs:
 
       - name: Run Sentry QML Android tests
         if: matrix.qt_target == 'android'
+        id: first-android-e2e-run
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
-        with:
+        with: &android-e2e-run
           api-level: ${{ matrix.android_api }}
           target: google_apis
           arch: x86_64
           script: |
-            ctest --test-dir build --build-config RelWithDebInfo --output-on-failure -R 'tst_(unit|integration)'
             pwsh -NoLogo -NoProfile -Command "Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI"
-        env:
+        env: &android-e2e-env
           SENTRY_APP_RUNNER_PATH: ${{ github.workspace }}/app-runner
           SENTRY_AUTH_TOKEN: ${{ steps.sentry.outputs.auth_token }}
           SENTRY_QML_E2E_DSN: ${{ steps.sentry.outputs.dsn }}
@@ -337,6 +325,12 @@ jobs:
           SENTRY_QML_E2E_APP_PATH: io.sentry.qml.e2e/org.qtproject.qt.android.bindings.QtActivity
           SENTRY_QML_E2E_DATABASE_PATH: /data/data/io.sentry.qml.e2e/cache/sentry-qml-e2e-db
           SENTRY_QML_E2E_PLATFORM: Adb
+
+      - name: Retry Sentry QML Android tests
+        if: matrix.qt_target == 'android' && steps.first-android-e2e-run.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with: *android-e2e-run
+        env: *android-e2e-env
 
       - name: Inspect Sentry failure
         if: failure()

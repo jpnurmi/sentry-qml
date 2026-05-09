@@ -135,26 +135,13 @@ jobs:
           reporter: java-junit
 
   android:
-    name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
+    name: Android (Qt ${{ matrix.qt }}, ubuntu-24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - sentry_sdk: Android
-            runner: ubuntu-24.04
-            qt: LTS
-            qt_host: linux
-            qt_target: android
-            qt_arch: android_x86_64
-            qt_host_target: desktop
-            qt_host_arch: linux_gcc_64
-            cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
-            cmake_target_args: >
-              -DANDROID_ABI=x86_64
-              -DANDROID_PLATFORM=android-28
-              -DSENTRY_QML_SDK=android
+        qt: [LTS, stable]
 
     steps:
       - name: Check out sources
@@ -174,13 +161,14 @@ jobs:
           if (-not $qtVersion) { throw "Could not read Qt version" }
           "version=$qtVersion" >> $env:GITHUB_OUTPUT
 
-      - name: Install Qt
+      - name: Install Android Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: ${{ matrix.qt_host }}
-          target: ${{ matrix.qt_target }}
-          arch: ${{ matrix.qt_arch }}
+          host: linux
+          target: android
+          arch: android_x86_64
+          dir: ${{ runner.temp }}/qt-android
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -190,45 +178,37 @@ jobs:
         with:
           version: ${{ steps.qt.outputs.version }}
           host: linux
-          target: ${{ matrix.qt_host_target || 'desktop' }}
-          arch: ${{ matrix.qt_host_arch }}
+          target: desktop
+          arch: linux_gcc_64
           dir: ${{ runner.temp }}/qt-host
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Find Qt paths
-        id: qt-paths
+      - name: Find Android Qt paths
+        id: android-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter "${{ matrix.qt_host_arch }}" |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
             Select-Object -First 1
           if (-not $hostPath) { throw "Could not find host Qt installation" }
 
-          $targetPath = $null
-          $roots = @(
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $roots) {
-            $targetPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($targetPath) { break }
-          }
-          if (-not $targetPath) { throw "Could not find target Qt installation" }
+          $androidPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter android_x86_64 |
+            Select-Object -First 1
+          if (-not $androidPath) { throw "Could not find Android Qt installation" }
 
           "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
-          "target_path=$($targetPath.FullName)" >> $env:GITHUB_OUTPUT
+          "android_path=$($androidPath.FullName)" >> $env:GITHUB_OUTPUT
 
       - name: Configure
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DCMAKE_TOOLCHAIN_FILE="${{ steps.qt-paths.outputs.target_path }}/${{ matrix.cmake_toolchain_file }}"
-          -DQT_HOST_PATH="${{ steps.qt-paths.outputs.host_path }}"
-          ${{ matrix.cmake_target_args }}
+          -DCMAKE_TOOLCHAIN_FILE="${{ steps.android-qt-paths.outputs.android_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DQT_HOST_PATH="${{ steps.android-qt-paths.outputs.host_path }}"
+          -DANDROID_ABI=x86_64
+          -DANDROID_PLATFORM=android-28
+          -DSENTRY_QML_SDK=android
           -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build Android test APKs
@@ -265,6 +245,6 @@ jobs:
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: ${{ matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+          name: Android (Qt ${{ matrix.qt }}, ubuntu-24.04)
           path: build/tests/test-results/*.xml
           reporter: java-junit

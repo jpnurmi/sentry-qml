@@ -1,4 +1,9 @@
-if(EMSCRIPTEN)
+set(SENTRY_QML_STATIC_LIBRARY OFF)
+if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(SENTRY_QML_STATIC_LIBRARY ON)
+endif()
+
+if(SENTRY_QML_STATIC_LIBRARY)
     qt_add_library(SentryQml STATIC)
 else()
     qt_add_library(SentryQml SHARED)
@@ -74,7 +79,7 @@ if(SENTRY_QML_SDK_LINK_OPTIONS)
     )
 endif()
 
-if(EMSCRIPTEN)
+if(SENTRY_QML_STATIC_LIBRARY)
     target_compile_definitions(SentryQml
         PUBLIC
             SENTRYQML_STATIC
@@ -115,7 +120,7 @@ set_target_properties(SentryQml PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-if(NOT EMSCRIPTEN)
+if(NOT SENTRY_QML_STATIC_LIBRARY)
     install(TARGETS SentryQml
         EXPORT SentryQmlTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

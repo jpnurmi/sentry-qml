@@ -48,6 +48,7 @@ BeforeAll {
     }
     $script:IsAndroid = $script:DevicePlatform -eq 'Adb'
     $script:IsWasmBrowser = $script:DevicePlatform -eq 'WasmBrowser'
+    $script:IsIOSSimulator = $script:DevicePlatform -eq 'iOSSimulator'
     if ($script:IsAndroid) {
         Add-AndroidBuildToolsToPath
     }
@@ -70,6 +71,8 @@ BeforeAll {
     if ($script:IsAndroid) {
         $script:AppDsn = $script:AppDsn -replace '127\.0\.0\.1', '10.0.2.2'
         $script:AppDsn = $script:AppDsn -replace 'localhost', '10.0.2.2'
+    } elseif ($script:IsIOSSimulator) {
+        $script:AppDsn = $script:AppDsn -replace '127\.0\.0\.1', 'localhost'
     }
     $script:OutputDir = Join-Path $PSScriptRoot 'output'
 
@@ -100,12 +103,19 @@ BeforeAll {
         if ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
             throw "SENTRY_QML_E2E_APP_PATH does not point to a wasm HTML file or directory: $script:AppPath"
         }
+    } elseif ($script:IsIOSSimulator) {
+        if ([string]::IsNullOrEmpty($script:AppPackagePath) -or -not (Test-Path $script:AppPackagePath)) {
+            throw "SENTRY_QML_E2E_APP_PACKAGE_PATH does not point to an iOS .app bundle: $script:AppPackagePath"
+        }
+        if ([string]::IsNullOrEmpty($script:AppPath)) {
+            throw 'SENTRY_QML_E2E_APP_PATH must be set to the iOS bundle identifier.'
+        }
     } elseif ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
         throw "SENTRY_QML_E2E_APP_PATH does not point to an executable: $script:AppPath"
     }
 
     New-Item -ItemType Directory -Path $script:OutputDir -Force | Out-Null
-    if (-not $script:IsAndroid -and -not $script:IsWasmBrowser) {
+    if (-not $script:IsAndroid -and -not $script:IsWasmBrowser -and -not $script:IsIOSSimulator) {
         New-Item -ItemType Directory -Path $script:DatabasePath -Force | Out-Null
     }
     Set-OutputDir -Path $script:OutputDir
@@ -400,6 +410,9 @@ Describe 'Sentry QML E2E' {
         if (-not $script:IsWasmBrowser) {
             Connect-Device -Platform $script:DevicePlatform
             if ($script:IsAndroid) {
+                Install-DeviceApp -Path $script:AppPackagePath | Out-Null
+            }
+            if ($script:IsIOSSimulator) {
                 Install-DeviceApp -Path $script:AppPackagePath | Out-Null
             }
         }

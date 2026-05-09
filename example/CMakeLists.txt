@@ -38,3 +38,7 @@ endif()
 if(ANDROID AND COMMAND sentry_qml_configure_android_target)
     sentry_qml_configure_android_target(sentry_qml_example)
 endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND COMMAND sentry_qml_configure_ios_target)
+    sentry_qml_configure_ios_target(sentry_qml_example)
+endif()

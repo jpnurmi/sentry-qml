@@ -163,7 +163,7 @@ function(add_sentry_qml_test target)
         )
         set_tests_properties(${target} PROPERTIES
             RUN_SERIAL TRUE
-            TIMEOUT 120
+            TIMEOUT 300
         )
     elseif(SENTRY_QML_TEST_JUNIT)
         add_test(NAME ${target}

@@ -612,16 +612,34 @@ jobs:
           "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
           "ios_path=$($iosPath.FullName)" >> $env:GITHUB_OUTPUT
 
-      - name: Build SentryObjC iOS XCFramework
+      - name: Read SentryObjC cache key
+        id: sentryobjc-cache-key
         run: |
-          mkdir -p "$RUNNER_TEMP/no-xcbeautify"
-          printf '#!/bin/sh\ncat\n' > "$RUNNER_TEMP/no-xcbeautify/xcbeautify"
-          chmod +x "$RUNNER_TEMP/no-xcbeautify/xcbeautify"
-          export PATH="$RUNNER_TEMP/no-xcbeautify:$PATH"
+          sentry_cocoa_sha=$(git -C modules/sentry-cocoa rev-parse HEAD)
+          xcode_hash=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f1)
+          echo "key=sentryobjc-ios-${{ runner.os }}-${{ runner.arch }}-$xcode_hash-$sentry_cocoa_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SentryObjC iOS XCFramework
+        id: sentryobjc-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/sentry-cocoa
+          key: ${{ steps.sentryobjc-cache-key.outputs.key }}
+
+      - name: Build SentryObjC iOS XCFramework
+        if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        run: |
           cd modules/sentry-cocoa
           ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
           mkdir -p "$RUNNER_TEMP/sentry-cocoa"
           ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+
+      - name: Save SentryObjC iOS XCFramework
+        if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/sentry-cocoa
+          key: ${{ steps.sentryobjc-cache-key.outputs.key }}
 
       - name: Configure iOS
         run: >

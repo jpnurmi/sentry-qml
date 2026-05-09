@@ -62,7 +62,11 @@ QString positionalArgument(const QStringList &arguments, qsizetype start)
 
 void printMarker(const QString &name, const QString &value)
 {
+#if defined(Q_OS_ANDROID)
+    qInfo().noquote() << name + QLatin1String(": ") + value;
+#else
     QTextStream(stdout) << name << ": " << value << Qt::endl;
+#endif
 }
 
 void printResult(const QString &action, bool success, const QString &eventId = {})
@@ -159,9 +163,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("testDsn"), dsn);
     engine.rootContext()->setContextProperty(QStringLiteral("testRunId"), runId);
 
-    const QUrl fixtureUrl =
-        QUrl::fromLocalFile(QDir(QStringLiteral(SENTRY_QML_E2E_QML_DIR)).filePath(QStringLiteral("E2EApp.qml")));
-    QQmlComponent component(&engine, fixtureUrl);
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-e2e/E2EApp.qml")));
     if (component.isError()) {
         qCritical().noquote() << component.errorString();
         return 67;

@@ -145,7 +145,6 @@ endif()
 option(SENTRY_QML_BUILD_E2E_TESTS "Build the opt-in E2E app that sends events to a real Sentry instance" OFF)
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/e2e" SENTRY_QML_E2E_QML_DIR)
 
 add_sentry_qml_test(tst_unit
     tst_unit.cpp
@@ -203,7 +202,6 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
 
     target_compile_definitions(sentry_qml_e2e_app PRIVATE
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
-        SENTRY_QML_E2E_QML_DIR="${SENTRY_QML_E2E_QML_DIR}"
     )
 
     target_link_libraries(sentry_qml_e2e_app
@@ -246,7 +244,12 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
         )
     endif()
 
-    target_sources(sentry_qml_e2e_app PRIVATE
-        e2e/E2EApp.qml
+    set_source_files_properties(e2e/E2EApp.qml PROPERTIES
+        QT_RESOURCE_ALIAS E2EApp.qml
+    )
+    qt_add_resources(sentry_qml_e2e_app sentry_qml_e2e_qml
+        PREFIX "/sentry-qml-e2e"
+        FILES
+            e2e/E2EApp.qml
     )
 endif()

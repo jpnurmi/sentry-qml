@@ -192,7 +192,7 @@ BeforeAll {
         )
 
         $applicationArgumentsString = $ApplicationArguments -join ' '
-        return @('-S', '--es', 'applicationArguments', "`"$applicationArgumentsString`"")
+        return @('-S', '--es', 'applicationArguments', "'''$applicationArgumentsString'''")
     }
 
     function script:Invoke-E2EAction {
@@ -489,7 +489,9 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'prints the crash correlation id' {
-            $script:CrashResult.Output | Where-Object { $_ -eq "CRASH_ID: $script:CrashId" } | Should -Not -BeNullOrEmpty
+            $script:CrashResult.Output |
+                Where-Object { $_ -match [regex]::Escape("CRASH_ID: $script:CrashId") } |
+                Should -Not -BeNullOrEmpty
         }
 
         It 'can relaunch to flush pending crash data' {

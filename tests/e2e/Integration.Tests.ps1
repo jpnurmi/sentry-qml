@@ -202,7 +202,8 @@ BeforeAll {
         )
 
         if ($script:IsAndroid) {
-            $Result.Output | Should -Not -BeNullOrEmpty
+            $crashLogs = @($Result.Output | Where-Object { $_ -match 'Fatal signal \d+ \(SIG[^)]+\)' })
+            $crashLogs | Should -Not -BeNullOrEmpty
         } else {
             $Result.ExitCode | Should -Not -Be 0
         }

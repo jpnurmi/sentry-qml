@@ -158,6 +158,7 @@ jobs:
           ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
           foreach ($root in $roots) {
             $targetPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
               Select-Object -First 1
             if ($targetPath) { break }
           }

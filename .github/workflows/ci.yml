@@ -578,8 +578,20 @@ jobs:
             Select-Object -First 1
           if (-not $hostPath) { throw "Could not find host Qt installation" }
 
-          $iosPath = Get-ChildItem "${{ runner.temp }}/qt-ios" -Directory -Recurse -Filter ios |
-            Select-Object -First 1
+          $iosPath = $null
+          $roots = @(
+            "${{ runner.temp }}/qt-ios",
+            $env:GITHUB_WORKSPACE,
+            (Split-Path $env:GITHUB_WORKSPACE -Parent),
+            $env:RUNNER_TEMP,
+            $env:RUNNER_TOOL_CACHE
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          foreach ($root in $roots) {
+            $iosPath = Get-ChildItem $root -Directory -Recurse -Filter ios -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
+              Select-Object -First 1
+            if ($iosPath) { break }
+          }
           if (-not $iosPath) { throw "Could not find iOS Qt installation" }
 
           "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT

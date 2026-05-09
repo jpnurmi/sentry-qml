@@ -135,13 +135,15 @@ jobs:
           reporter: java-junit
 
   android:
-    name: Android (Qt ${{ matrix.qt }}, ubuntu-24.04)
+    name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        qt: [LTS, stable]
+        include:
+          - {qt: LTS, android_api: 28}
+          - {qt: stable, android_api: 36}
 
     steps:
       - name: Check out sources
@@ -235,7 +237,7 @@ jobs:
       - name: Test Android
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
         with:
-          api-level: 35
+          api-level: ${{ matrix.android_api }}
           target: google_apis
           arch: x86_64
           script: |
@@ -245,6 +247,6 @@ jobs:
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: Android (Qt ${{ matrix.qt }}, ubuntu-24.04)
+          name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
           path: build/tests/test-results/*.xml
           reporter: java-junit

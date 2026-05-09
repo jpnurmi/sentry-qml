@@ -26,19 +26,36 @@ concurrency:
 
 jobs:
   e2e:
-    name: ${{ matrix.sentry_backend || matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Native, runner: ubuntu-24.04, qt: stable, qt_host: linux, qt_arch: linux_gcc_64}
-          - sentry_sdk: Android
+          - name: Inproc (Qt LTS, ubuntu-24.04)
+            sentry_backend: Inproc
             runner: ubuntu-24.04
             qt: LTS
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - name: Crashpad (Qt LTS, ubuntu-24.04)
+            sentry_backend: Crashpad
+            runner: ubuntu-24.04
+            qt: LTS
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - name: Native (Qt stable, ubuntu-24.04)
+            sentry_backend: Native
+            runner: ubuntu-24.04
+            qt: stable
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - name: Android (Qt LTS, API 35)
+            sentry_sdk: Android
+            runner: ubuntu-24.04
+            qt: LTS
+            android_api: 35
             qt_host: linux
             qt_target: android
             qt_arch: android_x86_64
@@ -305,7 +322,7 @@ jobs:
         if: matrix.qt_target == 'android'
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
         with:
-          api-level: 35
+          api-level: ${{ matrix.android_api }}
           target: google_apis
           arch: x86_64
           script: |

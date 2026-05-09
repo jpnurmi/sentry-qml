@@ -38,6 +38,7 @@ Window {
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
     property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
     property SentryHint feedbackHint: SentryHint {}
+    signal crashSendFinished()
     property SentryOptions options: SentryOptions {
         dsn: testDsn
         databasePath: testDatabasePath
@@ -56,6 +57,13 @@ Window {
         }
     }
 
+    Timer {
+        id: crashSendTimer
+        interval: 5000
+        repeat: false
+        onTriggered: finishCrashSend()
+    }
+
     Rectangle {
         objectName: "e2eViewHierarchyChild"
         visible: testAction === "view-hierarchy-capture"
@@ -64,6 +72,13 @@ Window {
         width: 56
         height: 78
         opacity: 0.5
+    }
+
+    function finishCrashSend() {
+        flushed = Sentry.flush(30000)
+        closed = Sentry.close()
+        success = initialized && flushed && closed
+        crashSendFinished()
     }
 
     Component.onCompleted: {
@@ -140,9 +155,11 @@ Window {
             closed = Sentry.close()
             success = initialized && attributeSet && logCaptured && metricCaptured && flushed && closed
         } else if (testAction === "crash-send") {
-            flushed = Sentry.flush(10000)
-            closed = Sentry.close()
-            success = initialized && flushed && closed
+            if (Qt.platform.os === "android") {
+                crashSendTimer.start()
+            } else {
+                finishCrashSend()
+            }
         } else if (testAction === "crash-capture") {
             Sentry.setTag("test.crash_id", testCrashId)
             Sentry.setTag("crash_type", "segfault")

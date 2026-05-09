@@ -133,3 +133,127 @@ jobs:
           name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
+
+  android:
+    name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {qt: LTS, android_api: 28}
+          - {qt: stable, android_api: 36}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Install Android Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: linux
+          target: android
+          arch: android_x86_64
+          dir: ${{ runner.temp }}/qt-android
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ runner.temp }}/qt-host
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Find Android Qt paths
+        id: android-qt-paths
+        shell: pwsh
+        run: |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
+            Select-Object -First 1
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
+
+          $androidPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter android_x86_64 |
+            Select-Object -First 1
+          if (-not $androidPath) { throw "Could not find Android Qt installation" }
+
+          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
+          "android_path=$($androidPath.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_TOOLCHAIN_FILE="${{ steps.android-qt-paths.outputs.android_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DQT_HOST_PATH="${{ steps.android-qt-paths.outputs.host_path }}"
+          -DANDROID_ABI=x86_64
+          -DANDROID_PLATFORM=android-28
+          -DSENTRY_QML_SDK=android
+          -DSENTRY_QML_TEST_JUNIT=ON
+
+      - name: Build Android test APKs
+        run: >
+          cmake --build build
+          --target
+          tst_unit_make_apk
+          tst_integration_make_apk
+          --config RelWithDebInfo
+          --parallel
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
+          df -h
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Test Android
+        id: first-android-test-run
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with: &android-test-run
+          api-level: ${{ matrix.android_api }}
+          target: google_apis
+          arch: x86_64
+          script: |
+            ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-android.xml"
+
+      - name: Retry Android tests
+        if: steps.first-android-test-run.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with: *android-test-run
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        with:
+          name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
+          path: build/tests/test-results/*.xml
+          reporter: java-junit

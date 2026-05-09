@@ -1,6 +1,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qeventloop.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
@@ -8,6 +9,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qtextstream.h>
+#include <QtCore/qtimer.h>
 #include <QtCore/qurl.h>
 #include <QtCore/quuid.h>
 #include <QtGui/qguiapplication.h>
@@ -32,9 +34,41 @@ QString environmentVariable(const char *name)
     return QString::fromLocal8Bit(qgetenv(name));
 }
 
+QString argumentValue(const QStringList &arguments, const QString &name, const QString &fallback = {})
+{
+    const QString prefix = name + QLatin1Char('=');
+    for (qsizetype i = 0; i < arguments.size(); ++i) {
+        const QString &argument = arguments.at(i);
+        if (argument == name && i + 1 < arguments.size()) {
+            return arguments.at(i + 1);
+        }
+        if (argument.startsWith(prefix)) {
+            return argument.mid(prefix.size());
+        }
+    }
+    return fallback;
+}
+
+QString positionalArgument(const QStringList &arguments, qsizetype start)
+{
+    for (qsizetype i = start; i < arguments.size(); ++i) {
+        const QString &argument = arguments.at(i);
+        if (argument.startsWith(QLatin1String("--"))) {
+            ++i;
+            continue;
+        }
+        return argument;
+    }
+    return {};
+}
+
 void printMarker(const QString &name, const QString &value)
 {
+#if defined(Q_OS_ANDROID)
+    qInfo().noquote() << name + QLatin1String(": ") + value;
+#else
     QTextStream(stdout) << name << ": " << value << Qt::endl;
+#endif
 }
 
 void printResult(const QString &action, bool success, const QString &eventId = {})
@@ -80,23 +114,26 @@ int main(int argc, char *argv[])
         qCritical("usage: sentry_qml_e2e_app "
                   "<message-capture|consent-capture|feedback-capture|view-hierarchy-capture|attributes-capture|"
                   "crash-capture|crash-send> "
-                  "[crash-id]");
+                  "[--dsn <dsn>] [--run-id <id>] [--database-path <path>] [--crash-id <id>]");
         return 64;
     }
 
-    const QString dsn = environmentVariable("SENTRY_QML_E2E_DSN");
+    const QString dsn = argumentValue(arguments, QStringLiteral("--dsn"), environmentVariable("SENTRY_QML_E2E_DSN"));
     if (dsn.isEmpty()) {
         qCritical("SENTRY_QML_E2E_DSN is not set.");
         return 65;
     }
 
-    QString runId = environmentVariable("SENTRY_QML_E2E_RUN_ID");
+    QString runId =
+        argumentValue(arguments, QStringLiteral("--run-id"), environmentVariable("SENTRY_QML_E2E_RUN_ID"));
     if (runId.isEmpty()) {
         runId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
 
     QTemporaryDir fallbackDatabaseDir;
-    QString databasePath = environmentVariable("SENTRY_QML_E2E_DATABASE_PATH");
+    QString databasePath = argumentValue(arguments,
+                                         QStringLiteral("--database-path"),
+                                         environmentVariable("SENTRY_QML_E2E_DATABASE_PATH"));
     if (databasePath.isEmpty()) {
         if (!fallbackDatabaseDir.isValid()) {
             qCritical("Could not create a temporary Sentry database directory.");
@@ -105,7 +142,10 @@ int main(int argc, char *argv[])
         databasePath = QDir(fallbackDatabaseDir.path()).filePath(QStringLiteral("sentry"));
     }
 
-    QString crashId = arguments.value(2);
+    QString crashId = argumentValue(arguments, QStringLiteral("--crash-id"));
+    if (crashId.isEmpty()) {
+        crashId = positionalArgument(arguments, 2);
+    }
     if (crashId.isEmpty()) {
         crashId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
@@ -125,9 +165,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("testDsn"), dsn);
     engine.rootContext()->setContextProperty(QStringLiteral("testRunId"), runId);
 
-    const QUrl fixtureUrl =
-        QUrl::fromLocalFile(QDir(QStringLiteral(SENTRY_QML_E2E_QML_DIR)).filePath(QStringLiteral("E2EApp.qml")));
-    QQmlComponent component(&engine, fixtureUrl);
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-e2e/E2EApp.qml")));
     if (component.isError()) {
         qCritical().noquote() << component.errorString();
         return 67;
@@ -157,6 +195,17 @@ int main(int argc, char *argv[])
     }
 
     if (action == QLatin1String("crash-send")) {
+#if defined(Q_OS_ANDROID)
+        if (!object->property("success").toBool()) {
+            QEventLoop loop;
+            QTimer timeout;
+            timeout.setSingleShot(true);
+            QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+            QObject::connect(object.get(), SIGNAL(crashSendFinished()), &loop, SLOT(quit()));
+            timeout.start(40000);
+            loop.exec();
+        }
+#endif
         const bool success = object->property("success").toBool();
         printResult(action, success);
         return success ? 0 : 1;

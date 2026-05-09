@@ -2,6 +2,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qelapsedtimer.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qjsonobject.h>
@@ -167,6 +168,24 @@ EnvelopeItem findItem(const QList<EnvelopeItem> &items, const QString &type, con
     return item != items.cend() ? *item : EnvelopeItem {};
 }
 
+bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray &needle, int timeoutMs)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < timeoutMs) {
+        if (server.contains(needle)) {
+            return true;
+        }
+        QTest::qWait(50);
+    }
+    return server.contains(needle);
+}
+
+QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
+{
+    return server.combinedBody().left(16 * 1024);
+}
+
 void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
 {
     IntegrationEnvelopeServer server;
@@ -182,9 +201,7 @@ void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
     engine.rootContext()->setContextProperty(
         QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
 
-    const QUrl fixtureUrl = QUrl::fromLocalFile(
-        QDir(QStringLiteral(SENTRY_QML_TEST_QML_DIR)).filePath(QStringLiteral("ViewHierarchyTest.qml")));
-    QQmlComponent component(&engine, fixtureUrl);
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-tests/ViewHierarchyTest.qml")));
 
     if (component.isLoading()) {
         QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
@@ -243,9 +260,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
         QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     engine.rootContext()->setContextProperty(QStringLiteral("testAttachmentPath"), attachmentPath);
 
-    const QUrl fixtureUrl = QUrl::fromLocalFile(
-        QDir(QStringLiteral(SENTRY_QML_TEST_QML_DIR)).filePath(QStringLiteral("IntegrationTest.qml")));
-    QQmlComponent component(&engine, fixtureUrl);
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-tests/IntegrationTest.qml")));
 
     if (component.isLoading()) {
         QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
@@ -300,22 +315,16 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QMetaObject::invokeMethod(object.get(), "triggerUncaughtQmlError");
     QCOMPARE(object->property("uncaughtTriggered").toBool(), true);
 
-    QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
-    QCOMPARE(object->property("flushed").toBool(), true);
-    QCOMPARE(object->property("consentRevoked").toBool(), true);
-    QCOMPARE(object->property("consentAfterRevoke").toBool(), true);
-    QCOMPARE(object->property("consentReset").toBool(), true);
-    QCOMPARE(object->property("consentAfterReset").toBool(), true);
-    QCOMPARE(object->property("closed").toBool(), true);
-    QCOMPARE(object->property("fileInvalidated").toBool(), true);
-    QCOMPARE(object->property("bytesInvalidated").toBool(), true);
     QCOMPARE(object->property("beforeBreadcrumbCalled").toBool(), true);
     QCOMPARE(object->property("beforeSendCalled").toBool(), true);
     QCOMPARE(object->property("beforeSendLogCalled").toBool(), true);
     QCOMPARE(object->property("beforeSendMetricCalled").toBool(), true);
 
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Declarative options integration message"), 5000);
-    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration message"), 5000);
+    if (!waitUntilContains(server, QByteArrayLiteral("Integration message"), 5000)) {
+        const QByteArray body = serverBodyExcerpt(server);
+        QVERIFY2(false, body.constData());
+    }
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration exception"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration bare feedback"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration feedback"), 5000);
@@ -434,6 +443,16 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(feedbackByteAttachment.headers.value(QStringLiteral("content_type")).toString(),
              QStringLiteral("text/plain"));
     QCOMPARE(feedbackByteAttachment.payload, QByteArrayLiteral("integration feedback bytes payload"));
+
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
+    QCOMPARE(object->property("flushed").toBool(), true);
+    QCOMPARE(object->property("consentRevoked").toBool(), true);
+    QCOMPARE(object->property("consentAfterRevoke").toBool(), true);
+    QCOMPARE(object->property("consentReset").toBool(), true);
+    QCOMPARE(object->property("consentAfterReset").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
+    QCOMPARE(object->property("fileInvalidated").toBool(), true);
+    QCOMPARE(object->property("bytesInvalidated").toBool(), true);
 }
 
 QTEST_MAIN(SentryQmlIntegrationTest)

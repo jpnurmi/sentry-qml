@@ -314,15 +314,7 @@ jobs:
           api-level: ${{ matrix.android_api }}
           target: google_apis
           arch: x86_64
-          script: |
-            android_sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-            build_tools_dir="$(find "$android_sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-            if [ -z "$build_tools_dir" ]; then
-              echo "::error::Could not find Android SDK Build Tools in $android_sdk/build-tools"
-              exit 1
-            fi
-            export PATH="$build_tools_dir:$PATH"
-            pwsh -NoLogo -NoProfile -Command "Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI"
+          script: pwsh -NoLogo -NoProfile -Command "Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI"
         env: &android-e2e-env
           SENTRY_APP_RUNNER_PATH: ${{ github.workspace }}/app-runner
           SENTRY_AUTH_TOKEN: ${{ steps.sentry.outputs.auth_token }}

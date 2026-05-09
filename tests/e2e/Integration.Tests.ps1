@@ -3,6 +3,35 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Add-AndroidBuildToolsToPath {
+    if ((Get-Command aapt -ErrorAction SilentlyContinue) -or (Get-Command aapt2 -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $androidSdkCandidates = @(
+        $env:ANDROID_HOME,
+        $env:ANDROID_SDK_ROOT,
+        '/usr/local/lib/android/sdk'
+    ) | Where-Object { -not [string]::IsNullOrEmpty($_) } | Select-Object -Unique
+
+    foreach ($androidSdk in $androidSdkCandidates) {
+        $buildToolsRoot = Join-Path $androidSdk 'build-tools'
+        $buildToolsDir = Get-ChildItem $buildToolsRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object {
+                (Test-Path (Join-Path $_.FullName 'aapt')) -or
+                (Test-Path (Join-Path $_.FullName 'aapt2'))
+            } |
+            Select-Object -First 1
+
+        if ($buildToolsDir) {
+            $env:PATH = "$($buildToolsDir.FullName)$([System.IO.Path]::PathSeparator)$env:PATH"
+            return
+        }
+    }
+
+    throw 'aapt or aapt2 not found in PATH or Android SDK Build Tools.'
+}
+
 BeforeAll {
     if ([string]::IsNullOrEmpty($env:SENTRY_APP_RUNNER_PATH)) {
         throw 'SENTRY_APP_RUNNER_PATH must point to a checkout of getsentry/app-runner.'
@@ -18,6 +47,9 @@ BeforeAll {
         'Local'
     }
     $script:IsAndroid = $script:DevicePlatform -eq 'Adb'
+    if ($script:IsAndroid) {
+        Add-AndroidBuildToolsToPath
+    }
     $script:BaseUrl = if ($env:SENTRY_TEST_URL) { $env:SENTRY_TEST_URL } else { 'http://127.0.0.1:9000' }
     $script:RunId = if ($env:SENTRY_QML_E2E_RUN_ID) { $env:SENTRY_QML_E2E_RUN_ID } else { [guid]::NewGuid().ToString() }
     $script:DatabasePath = if ($env:SENTRY_QML_E2E_DATABASE_PATH) {

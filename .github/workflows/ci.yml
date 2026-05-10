@@ -134,6 +134,111 @@ jobs:
           path: build/tests/test-results/*.xml
           reporter: java-junit
 
+  wasm:
+    name: WebAssembly ${{ matrix.variant }} (Qt ${{ matrix.qt }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {variant: single-threaded, qt: LTS, qt_host: linux, qt_arch: wasm_singlethread}
+          - {variant: multi-threaded, qt: latest, qt_host: linux, qt_arch: wasm_multithread}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: ${{ matrix.qt_host }}
+          target: desktop
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Find wasm Qt paths
+        id: wasm-qt-paths
+        shell: pwsh
+        run: |
+          $roots = @(
+            $env:GITHUB_WORKSPACE,
+            (Split-Path $env:GITHUB_WORKSPACE -Parent),
+            $env:RUNNER_TEMP,
+            $env:RUNNER_TOOL_CACHE
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+          $wasmPath = $null
+          foreach ($root in $roots) {
+            $wasmPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
+              Select-Object -First 1
+            if ($wasmPath) { break }
+          }
+          if (-not $wasmPath) { throw "Could not find wasm Qt installation" }
+
+          $helperPath = Join-Path $wasmPath.FullName 'lib/cmake/Qt6/QtPublicWasmToolchainHelpers.cmake'
+          $helperText = Get-Content $helperPath -Raw
+          if ($helperText -notmatch 'QT_EMCC_RECOMMENDED_VERSION\s+"([^"]+)"') {
+            throw "Could not read recommended Emscripten version from $helperPath"
+          }
+
+          "wasm_path=$($wasmPath.FullName)" >> $env:GITHUB_OUTPUT
+          "emscripten_version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Check out emsdk
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: emscripten-core/emsdk
+          path: emsdk
+          persist-credentials: false
+
+      - name: Install Emscripten
+        run: |
+          "$GITHUB_WORKSPACE/emsdk/emsdk" install "${{ steps.wasm-qt-paths.outputs.emscripten_version }}"
+          "$GITHUB_WORKSPACE/emsdk/emsdk" activate "${{ steps.wasm-qt-paths.outputs.emscripten_version }}"
+          echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_TOOLCHAIN_FILE="${{ steps.wasm-qt-paths.outputs.wasm_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DSENTRY_QML_SDK=wasm
+          -DSENTRY_QML_BUILD_E2E_TESTS=ON
+          -DSENTRY_QML_TEST_JUNIT=ON
+
+      - name: Build wasm artifacts
+        run: >
+          cmake --build build
+          --target
+          SentryQml
+          sentry_qml_example
+          tst_unit
+          tst_integration
+          sentry_qml_e2e_app
+          --config RelWithDebInfo
+          --parallel
+
   android:
     name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
     runs-on: ubuntu-24.04

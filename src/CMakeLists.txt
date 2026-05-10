@@ -1,4 +1,8 @@
-qt_add_library(SentryQml SHARED)
+if(EMSCRIPTEN)
+    qt_add_library(SentryQml STATIC)
+else()
+    qt_add_library(SentryQml SHARED)
+endif()
 
 qt_add_qml_module(SentryQml
     URI ${SENTRY_QML_IMPORT_URI}
@@ -63,6 +67,20 @@ target_compile_definitions(SentryQml
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
 )
 
+if(SENTRY_QML_SDK_LINK_OPTIONS)
+    target_link_options(SentryQml
+        INTERFACE
+            ${SENTRY_QML_SDK_LINK_OPTIONS}
+    )
+endif()
+
+if(EMSCRIPTEN)
+    target_compile_definitions(SentryQml
+        PUBLIC
+            SENTRYQML_STATIC
+    )
+endif()
+
 if(TARGET Qt6::QmlPrivate)
     target_compile_definitions(SentryQml
         PRIVATE
@@ -97,18 +115,20 @@ set_target_properties(SentryQml PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-install(TARGETS SentryQml
-    EXPORT SentryQmlTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(NOT EMSCRIPTEN)
+    install(TARGETS SentryQml
+        EXPORT SentryQmlTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
 
-install(EXPORT SentryQmlTargets
-    NAMESPACE SentryQml::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
-)
+    install(EXPORT SentryQmlTargets
+        NAMESPACE SentryQml::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
+    )
+endif()

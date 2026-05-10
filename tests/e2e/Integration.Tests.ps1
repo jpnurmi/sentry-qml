@@ -47,6 +47,7 @@ BeforeAll {
         'Local'
     }
     $script:IsAndroid = $script:DevicePlatform -eq 'Adb'
+    $script:IsWasmBrowser = $script:DevicePlatform -eq 'WasmBrowser'
     if ($script:IsAndroid) {
         Add-AndroidBuildToolsToPath
     }
@@ -83,12 +84,16 @@ BeforeAll {
         if ([string]::IsNullOrEmpty($script:AppPath)) {
             throw 'SENTRY_QML_E2E_APP_PATH must be set to the Android package/activity path.'
         }
+    } elseif ($script:IsWasmBrowser) {
+        if ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
+            throw "SENTRY_QML_E2E_APP_PATH does not point to a wasm HTML file or directory: $script:AppPath"
+        }
     } elseif ([string]::IsNullOrEmpty($script:AppPath) -or -not (Test-Path $script:AppPath)) {
         throw "SENTRY_QML_E2E_APP_PATH does not point to an executable: $script:AppPath"
     }
 
     New-Item -ItemType Directory -Path $script:OutputDir -Force | Out-Null
-    if (-not $script:IsAndroid) {
+    if (-not $script:IsAndroid -and -not $script:IsWasmBrowser) {
         New-Item -ItemType Directory -Path $script:DatabasePath -Force | Out-Null
     }
     Set-OutputDir -Path $script:OutputDir
@@ -204,6 +209,18 @@ BeforeAll {
         )
 
         $applicationArguments = Get-E2EActionArguments -Action $Action -AdditionalArgs $AdditionalArgs
+        if ($script:IsWasmBrowser) {
+            $runner = Join-Path $PSScriptRoot 'wasm/run-action.mjs'
+            $nodeArguments = @($runner, $script:AppPath, '--') + $applicationArguments
+            $output = & node @nodeArguments 2>&1
+            $result = [pscustomobject]@{
+                ExitCode = $LASTEXITCODE
+                Output = @($output)
+            }
+            $result | ConvertTo-Json -Depth 8 | Out-File -FilePath (Get-OutputFilePath "$Action-result.json")
+            return $result
+        }
+
         $launchArguments = if ($script:IsAndroid) {
             Get-AndroidLaunchArguments -ApplicationArguments $applicationArguments
         } else {
@@ -292,6 +309,14 @@ BeforeAll {
         }
     }
 
+    function script:Skip-WasmCrashCapture {
+        if ($script:IsWasmBrowser) {
+            Set-ItResult -Skipped -Because 'Sentry JavaScript does not support the native crash flow used by this E2E app.'
+            return $true
+        }
+        return $false
+    }
+
     function script:Invoke-SentryProjectIssues {
         param(
             [Parameter(Mandatory = $true)]
@@ -360,14 +385,16 @@ AfterAll {
 
 Describe 'Sentry QML E2E' {
     BeforeAll {
-        Connect-Device -Platform $script:DevicePlatform
-        if ($script:IsAndroid) {
-            Install-DeviceApp -Path $script:AppPackagePath | Out-Null
+        if (-not $script:IsWasmBrowser) {
+            Connect-Device -Platform $script:DevicePlatform
+            if ($script:IsAndroid) {
+                Install-DeviceApp -Path $script:AppPackagePath | Out-Null
+            }
         }
     }
 
     AfterAll {
-        if (Get-Command Disconnect-Device -ErrorAction SilentlyContinue) {
+        if (-not $script:IsWasmBrowser -and (Get-Command Disconnect-Device -ErrorAction SilentlyContinue)) {
             Disconnect-Device
         }
     }
@@ -529,6 +556,10 @@ Describe 'Sentry QML E2E' {
 
     Context 'Crash capture' {
         BeforeAll {
+            if ($script:IsWasmBrowser) {
+                return
+            }
+
             $script:CrashId = [guid]::NewGuid().ToString()
             $script:CrashResult = Invoke-E2EAction -Action 'crash-capture' -AdditionalArgs @('--crash-id', $script:CrashId)
             $script:CrashEventId = if ($script:IsAndroid) { Get-AndroidNativeCrashEventId } else { $null }
@@ -541,25 +572,41 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'crashes the app process' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
             Assert-CrashExit -Result $script:CrashResult
         }
 
         It 'prints the crash correlation id' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
             $script:CrashResult.Output |
                 Where-Object { $_ -match [regex]::Escape("CRASH_ID: $script:CrashId") } |
                 Should -Not -BeNullOrEmpty
         }
 
         It 'can relaunch to flush pending crash data' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
             Assert-CleanExit -Result $script:CrashSendResult
         }
 
         It 'captures a crash event in Sentry' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
             $script:CrashEvent | Should -Not -BeNullOrEmpty
             Get-ObjectValue -InputObject $script:CrashEvent -Name 'type' | Should -Be 'error'
         }
 
         It 'keeps the QML crash context' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
+
             if ($script:IsAndroid) {
                 Set-ItResult -Skipped -Because 'sentry-android NDK crash envelopes do not include QML scope tags.'
                 return
@@ -571,6 +618,10 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'contains exception information' {
+            if (Skip-WasmCrashCapture) {
+                return
+            }
+
             $exception = Get-ObjectValue -InputObject $script:CrashEvent -Name 'exception'
             $exception | Should -Not -BeNullOrEmpty
             (Get-ObjectValue -InputObject $exception -Name 'values') | Should -Not -BeNullOrEmpty

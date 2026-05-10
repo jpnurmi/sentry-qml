@@ -51,13 +51,13 @@ jobs:
             qt: latest
             qt_host: linux
             qt_arch: linux_gcc_64
-          - name: WebAssembly (Qt latest, multi-threaded)
+          - name: WebAssembly (Qt LTS, single-threaded)
             sentry_sdk: Wasm
             runner: ubuntu-24.04
-            qt: latest
+            qt: LTS
             qt_host: all_os
             qt_target: wasm
-            qt_arch: wasm_multithread
+            qt_arch: wasm_singlethread
             host_qt_host: linux
             host_qt_arch: linux_gcc_64
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake

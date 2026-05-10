@@ -156,6 +156,29 @@ jobs:
             "emscripten_version=$($Matches[1])" >> $env:GITHUB_OUTPUT
           }
 
+      - name: Restore Sentry Native cache
+        if: ${{ !matrix.qt_target }}
+        id: sentry-native-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: build/sentry-native
+          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
+          restore-keys: |
+            sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-
+
+      - name: Restore Gradle cache
+        if: matrix.sentry_sdk == 'Android'
+        id: gradle-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-${{ hashFiles('modules/qt-*.properties', 'cmake/android.cmake') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-
+            gradle-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Check out emsdk
         if: matrix.sentry_sdk == 'Wasm'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -163,6 +186,21 @@ jobs:
           repository: emscripten-core/emsdk
           path: emsdk
           persist-credentials: false
+
+      - name: Restore Emscripten cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: emsdk-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            emsdk/.emscripten
+            emsdk/.emscripten_cache
+            emsdk/.emscripten_sanity
+            emsdk/downloads
+            emsdk/node
+            emsdk/python
+            emsdk/upstream
+          key: emsdk-${{ runner.os }}-${{ steps.qt-target-paths.outputs.emscripten_version }}
 
       - name: Install Emscripten
         if: matrix.sentry_sdk == 'Wasm'
@@ -172,6 +210,20 @@ jobs:
           echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
           echo "$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Save Emscripten cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.emsdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            emsdk/.emscripten
+            emsdk/.emscripten_cache
+            emsdk/.emscripten_sanity
+            emsdk/downloads
+            emsdk/node
+            emsdk/python
+            emsdk/upstream
+          key: ${{ steps.emsdk-cache.outputs.cache-primary-key }}
 
       - name: Install Crashpad dependencies
         if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'
@@ -204,20 +256,66 @@ jobs:
           fi
           cmake --build build --target "$target" --config RelWithDebInfo --parallel
 
+      - name: Save Sentry Native cache
+        if: ${{ !matrix.qt_target && steps.sentry-native-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: build/sentry-native
+          key: ${{ steps.sentry-native-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle cache
+        if: matrix.sentry_sdk == 'Android' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+      - name: Restore WebAssembly npm cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: wasm-npm-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: wasm-npm-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
+
       - name: Install WebAssembly E2E dependencies
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm ci
+
+      - name: Save WebAssembly npm cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-npm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ steps.wasm-npm-cache.outputs.cache-primary-key }}
 
       - name: Build WebAssembly Sentry browser bundle
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm run build:sentry
 
+      - name: Restore WebAssembly browser cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: wasm-browser-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: wasm-playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
+
       - name: Install WebAssembly browser
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npx playwright install --with-deps chromium
+
+      - name: Save WebAssembly browser cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-browser-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.wasm-browser-cache.outputs.cache-primary-key }}
 
       - name: Find Android E2E APK
         if: matrix.qt_target == 'android'

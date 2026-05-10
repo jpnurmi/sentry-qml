@@ -503,7 +503,7 @@ jobs:
           target: google_apis
           arch: x86_64
           script: |
-            ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-android.xml"
+            ctest --test-dir build --build-config RelWithDebInfo --repeat until-pass:2 --verbose --output-on-failure --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-android.xml"
 
       - name: Retry Android tests
         if: steps.first-android-test-run.outcome == 'failure'

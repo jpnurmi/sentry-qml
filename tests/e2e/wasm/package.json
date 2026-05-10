@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build:sentry": "esbuild sentry-browser.js --bundle --format=iife --outfile=dist/sentry-browser.js",
-    "run-action": "node run-action.mjs"
+    "run-action": "node run-action.mjs",
+    "run-qttest": "node run-qttest.mjs"
   },
   "dependencies": {
     "@playwright/test": "1.58.2",

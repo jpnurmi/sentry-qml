@@ -13,3 +13,9 @@ list(APPEND SENTRY_QML_SDK_SOURCES
 list(APPEND SENTRY_QML_SDK_LINK_OPTIONS
     -lembind
 )
+
+if(QT_FEATURE_thread)
+    list(APPEND SENTRY_QML_SDK_LINK_OPTIONS
+        -sPTHREAD_POOL_SIZE=4
+    )
+endif()

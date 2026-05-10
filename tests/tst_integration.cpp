@@ -188,6 +188,8 @@ QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
 
 void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
 {
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
     IntegrationEnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -239,6 +241,7 @@ void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
 void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa integration coverage still depends on skipped log and metric envelope paths.");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
     IntegrationEnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));

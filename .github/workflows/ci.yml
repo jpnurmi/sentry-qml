@@ -260,6 +260,29 @@ jobs:
           --config RelWithDebInfo
           --parallel
 
+      - name: Install WebAssembly test dependencies
+        working-directory: tests/e2e/wasm
+        run: npm ci
+
+      - name: Build WebAssembly Sentry browser bundle
+        working-directory: tests/e2e/wasm
+        run: npm run build:sentry
+
+      - name: Install WebAssembly browser
+        working-directory: tests/e2e/wasm
+        run: npx playwright install --with-deps chromium
+
+      - name: Test wasm artifacts
+        run: |
+          set -euo pipefail
+          for test in tst_unit tst_integration tst_crash; do
+            if [ -f "build/tests/${test}.js" ]; then
+              node tests/e2e/wasm/run-qttest.mjs "build/tests/${test}.js" -- -txt
+            else
+              echo "::notice::Skipping ${test}; no wasm artifact was built"
+            fi
+          done
+
   android:
     name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
     runs-on: ubuntu-24.04

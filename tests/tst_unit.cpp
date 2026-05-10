@@ -200,6 +200,7 @@ void SentryQmlUnitTest::initializesAndCapturesMessage()
 void SentryQmlUnitTest::sendsEnvelope()
 {
     SENTRY_QML_SKIP_CRASHPAD("crashpad uses /minidump endpoint, not /envelope");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -232,6 +233,7 @@ void SentryQmlUnitTest::handlesUserConsent()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa does not expose user consent.");
     SENTRY_QML_SKIP_CRASHPAD("crashpad transport does not use the HTTP envelope path this test inspects.");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -800,6 +802,8 @@ void SentryQmlUnitTest::setsFingerprint()
 
 void SentryQmlUnitTest::attachesFilesAndBytes()
 {
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -916,6 +920,8 @@ void SentryQmlUnitTest::attachesFilesAndBytes()
 
 void SentryQmlUnitTest::tracksSessions()
 {
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -1087,6 +1093,7 @@ void SentryQmlUnitTest::addsBreadcrumbs()
 void SentryQmlUnitTest::sendsLogs()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa log envelopes are not reliably captured by the mock server yet.");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -1190,6 +1197,7 @@ void SentryQmlUnitTest::sendsLogs()
 void SentryQmlUnitTest::sendsMetrics()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa metric envelopes are not reliably captured by the mock server yet.");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -1350,6 +1358,8 @@ void SentryQmlUnitTest::capturesManualException()
 
 void SentryQmlUnitTest::capturesFeedback()
 {
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
     EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 

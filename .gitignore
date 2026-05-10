@@ -6,3 +6,5 @@ CMakeUserPresets.json
 *.jsc
 __pycache__/
 tests/e2e/output/
+tests/e2e/wasm/dist/
+tests/e2e/wasm/node_modules/

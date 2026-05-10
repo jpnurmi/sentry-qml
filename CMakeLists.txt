@@ -28,13 +28,24 @@ set(QML_IMPORT_PATH "${SENTRY_QML_OUTPUT_DIRECTORY}" CACHE STRING
     "QML import paths for Qt Creator and other QML tooling"
 )
 
-set(SENTRY_QML_SDK_SUPPORTED native cocoa android)
+set(SENTRY_QML_SDK_SUPPORTED native cocoa android wasm)
 list(JOIN SENTRY_QML_SDK_SUPPORTED ", " SENTRY_QML_SDK_SUPPORTED_TEXT)
 
-set(SENTRY_QML_SDK "native" CACHE STRING "Sentry SDK implementation")
+set(SENTRY_QML_DEFAULT_SDK native)
+if(EMSCRIPTEN)
+    set(SENTRY_QML_DEFAULT_SDK wasm)
+endif()
+
+set(SENTRY_QML_SDK "${SENTRY_QML_DEFAULT_SDK}" CACHE STRING "Sentry SDK implementation")
 set_property(CACHE SENTRY_QML_SDK PROPERTY STRINGS ${SENTRY_QML_SDK_SUPPORTED})
 
 string(TOLOWER "${SENTRY_QML_SDK}" SENTRY_QML_SDK)
+if(EMSCRIPTEN AND SENTRY_QML_SDK STREQUAL "native")
+    message(STATUS "Switching Sentry QML SDK from native to wasm for Emscripten.")
+    set(SENTRY_QML_SDK wasm CACHE STRING "Sentry SDK implementation" FORCE)
+    set(SENTRY_QML_SDK wasm)
+    set_property(CACHE SENTRY_QML_SDK PROPERTY STRINGS ${SENTRY_QML_SDK_SUPPORTED})
+endif()
 if(NOT SENTRY_QML_SDK IN_LIST SENTRY_QML_SDK_SUPPORTED)
     message(FATAL_ERROR
         "Unsupported SENTRY_QML_SDK value '${SENTRY_QML_SDK}' "
@@ -47,6 +58,7 @@ set(SENTRY_QML_SDK_SOURCES)
 set(SENTRY_QML_SDK_LIBRARIES)
 set(SENTRY_QML_SDK_INCLUDE_DIRECTORIES)
 set(SENTRY_QML_SDK_DEPENDENCIES)
+set(SENTRY_QML_SDK_LINK_OPTIONS)
 
 include("${PROJECT_SOURCE_DIR}/cmake/${SENTRY_QML_SDK}.cmake")
 

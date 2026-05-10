@@ -3,7 +3,8 @@
 Experimental Sentry SDK for QML, backed by
 [sentry-native](https://github.com/getsentry/sentry-native),
 [Sentry Cocoa](https://github.com/getsentry/sentry-cocoa), or
-[Sentry Android](https://github.com/getsentry/sentry-java).
+[Sentry Android](https://github.com/getsentry/sentry-java), or the Sentry
+JavaScript SDK when built for WebAssembly.
 
 ## Build
 
@@ -40,3 +41,17 @@ With Qt versions before 6.10, the helper owns `QT_ANDROID_PACKAGE_SOURCE_DIR`.
 If your app already has a custom package source directory, copy
 `src/android/java` into it and add the Sentry Android dependency to your
 `build.gradle` manually, or build with Qt 6.10 or newer.
+
+## WebAssembly
+
+Configure WebAssembly builds with a Qt for WebAssembly toolchain. The
+WebAssembly backend is selected automatically for Emscripten builds. The
+generated page must load the Sentry JavaScript SDK before calling
+`Sentry.init(...)` from QML and expose it as `globalThis.Sentry`. If
+`globalThis.Sentry.wasmIntegration` is available, it is added during
+initialization.
+
+The wasm backend initializes the JavaScript SDK, applies QML event hooks for
+events captured through the QML API, and forwards scope data, breadcrumbs, logs,
+metrics, feedback, and attachments through the browser SDK. Native crash capture
+is not supported by the browser JavaScript backend.

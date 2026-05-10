@@ -69,6 +69,12 @@ function(add_sentry_qml_test target)
         )
     endif()
 
+    if(EMSCRIPTEN)
+        target_compile_definitions(${target} PRIVATE
+            SENTRY_QML_TEST_SDK_WASM
+        )
+    endif()
+
     target_link_libraries(${target}
         PRIVATE
             SentryQml
@@ -77,6 +83,20 @@ function(add_sentry_qml_test target)
             Qt6::Qml
             Qt6::Test
     )
+
+    if(EMSCRIPTEN)
+        foreach(plugin_target IN ITEMS
+            Qt6::qmlplugin
+            Qt6::qtqmlcoreplugin
+            Qt6::modelsplugin
+            Qt6::qtquick2plugin
+            SentryQmlplugin
+        )
+            if(TARGET ${plugin_target})
+                target_link_libraries(${target} PRIVATE ${plugin_target})
+            endif()
+        endforeach()
+    endif()
 
     if(ANDROID)
         target_link_libraries(${target} PRIVATE Qt6::Gui)

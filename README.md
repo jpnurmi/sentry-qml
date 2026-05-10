@@ -44,10 +44,11 @@ If your app already has a custom package source directory, copy
 
 ## WebAssembly
 
-Configure WebAssembly builds with a Qt for WebAssembly toolchain and
-`-DSENTRY_QML_SDK=wasm`. The generated page must load the Sentry JavaScript SDK
-before calling `Sentry.init(...)` from QML and expose it as `globalThis.Sentry`.
-If `globalThis.Sentry.wasmIntegration` is available, it is added during
+Configure WebAssembly builds with a Qt for WebAssembly toolchain. The
+WebAssembly backend is selected automatically for Emscripten builds. The
+generated page must load the Sentry JavaScript SDK before calling
+`Sentry.init(...)` from QML and expose it as `globalThis.Sentry`. If
+`globalThis.Sentry.wasmIntegration` is available, it is added during
 initialization.
 
 The wasm backend initializes the JavaScript SDK, applies QML event hooks for

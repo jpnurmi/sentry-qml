@@ -29,6 +29,7 @@ jobs:
         #   pipx run aqtinstall aqt list-qt mac desktop
         #   pipx run aqtinstall aqt list-qt windows desktop
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
+        #   pipx run aqtinstall aqt list-qt all_os wasm --arch 6.11.0
         include:
           - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
           - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
@@ -142,8 +143,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {variant: single-threaded, qt: LTS, qt_host: linux, qt_arch: wasm_singlethread}
-          - {variant: multi-threaded, qt: latest, qt_host: linux, qt_arch: wasm_multithread}
+          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread}
+          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread}
 
     steps:
       - name: Check out sources
@@ -168,8 +169,20 @@ jobs:
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt_host }}
-          target: desktop
+          target: ${{ matrix.qt_target }}
           arch: ${{ matrix.qt_arch }}
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ runner.temp }}/qt-host
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -178,6 +191,11 @@ jobs:
         id: wasm-qt-paths
         shell: pwsh
         run: |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
+            Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake') } |
+            Select-Object -First 1
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
+
           $roots = @(
             $env:GITHUB_WORKSPACE,
             (Split-Path $env:GITHUB_WORKSPACE -Parent),
@@ -194,13 +212,15 @@ jobs:
           }
           if (-not $wasmPath) { throw "Could not find wasm Qt installation" }
 
+          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
+          "wasm_path=$($wasmPath.FullName)" >> $env:GITHUB_OUTPUT
+
           $helperPath = Join-Path $wasmPath.FullName 'lib/cmake/Qt6/QtPublicWasmToolchainHelpers.cmake'
           $helperText = Get-Content $helperPath -Raw
           if ($helperText -notmatch 'QT_EMCC_RECOMMENDED_VERSION\s+"([^"]+)"') {
             throw "Could not read recommended Emscripten version from $helperPath"
           }
 
-          "wasm_path=$($wasmPath.FullName)" >> $env:GITHUB_OUTPUT
           "emscripten_version=$($Matches[1])" >> $env:GITHUB_OUTPUT
 
       - name: Check out emsdk
@@ -223,6 +243,7 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DCMAKE_TOOLCHAIN_FILE="${{ steps.wasm-qt-paths.outputs.wasm_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DQT_HOST_PATH="${{ steps.wasm-qt-paths.outputs.host_path }}"
           -DSENTRY_QML_SDK=wasm
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
           -DSENTRY_QML_TEST_JUNIT=ON

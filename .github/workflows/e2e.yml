@@ -55,8 +55,8 @@ jobs:
             sentry_sdk: Wasm
             runner: ubuntu-24.04
             qt: latest
-            qt_host: linux
-            qt_target: desktop
+            qt_host: all_os
+            qt_target: wasm
             qt_arch: wasm_multithread
             host_qt_host: linux
             host_qt_arch: linux_gcc_64

@@ -1,6 +1,9 @@
 name: E2E
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
     inputs:
@@ -16,9 +19,13 @@ on:
         options:
           - feature-complete
           - errors-only
+      self_hosted_bundle_image:
+        description: Preinstalled Sentry self-hosted bundle image
+        required: false
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -78,6 +85,7 @@ jobs:
       SENTRY_TEST_EMAIL: test@example.com
       SENTRY_TEST_PASSWORD: test123TEST
       SENTRY_APP_RUNNER_REF: d6f83b1ba5bfeb24a86ef5dd8d6cffa2ef4f56ab
+      SENTRY_SELF_HOSTED_BUNDLE_IMAGE: ${{ inputs.self_hosted_bundle_image }}
 
     steps:
       - name: Check out sources
@@ -156,6 +164,29 @@ jobs:
             "emscripten_version=$($Matches[1])" >> $env:GITHUB_OUTPUT
           }
 
+      - name: Restore Sentry Native cache
+        if: ${{ !matrix.qt_target }}
+        id: sentry-native-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: build/sentry-native
+          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
+          restore-keys: |
+            sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-
+
+      - name: Restore Gradle cache
+        if: matrix.sentry_sdk == 'Android'
+        id: gradle-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-${{ hashFiles('modules/qt-*.properties', 'cmake/android.cmake') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-
+            gradle-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Check out emsdk
         if: matrix.sentry_sdk == 'Wasm'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -163,6 +194,21 @@ jobs:
           repository: emscripten-core/emsdk
           path: emsdk
           persist-credentials: false
+
+      - name: Restore Emscripten cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: emsdk-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            emsdk/.emscripten
+            emsdk/.emscripten_cache
+            emsdk/.emscripten_sanity
+            emsdk/downloads
+            emsdk/node
+            emsdk/python
+            emsdk/upstream
+          key: emsdk-${{ runner.os }}-${{ steps.qt-target-paths.outputs.emscripten_version }}
 
       - name: Install Emscripten
         if: matrix.sentry_sdk == 'Wasm'
@@ -172,6 +218,20 @@ jobs:
           echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
           echo "$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Save Emscripten cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.emsdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            emsdk/.emscripten
+            emsdk/.emscripten_cache
+            emsdk/.emscripten_sanity
+            emsdk/downloads
+            emsdk/node
+            emsdk/python
+            emsdk/upstream
+          key: ${{ steps.emsdk-cache.outputs.cache-primary-key }}
 
       - name: Install Crashpad dependencies
         if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'
@@ -204,20 +264,66 @@ jobs:
           fi
           cmake --build build --target "$target" --config RelWithDebInfo --parallel
 
+      - name: Save Sentry Native cache
+        if: ${{ !matrix.qt_target && steps.sentry-native-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: build/sentry-native
+          key: ${{ steps.sentry-native-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle cache
+        if: matrix.sentry_sdk == 'Android' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+      - name: Restore WebAssembly npm cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: wasm-npm-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: wasm-npm-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
+
       - name: Install WebAssembly E2E dependencies
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm ci
+
+      - name: Save WebAssembly npm cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-npm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ steps.wasm-npm-cache.outputs.cache-primary-key }}
 
       - name: Build WebAssembly Sentry browser bundle
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm run build:sentry
 
+      - name: Restore WebAssembly browser cache
+        if: matrix.sentry_sdk == 'Wasm'
+        id: wasm-browser-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: wasm-playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
+
       - name: Install WebAssembly browser
         if: matrix.sentry_sdk == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npx playwright install --with-deps chromium
+
+      - name: Save WebAssembly browser cache
+        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-browser-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.wasm-browser-cache.outputs.cache-primary-key }}
 
       - name: Find Android E2E APK
         if: matrix.qt_target == 'android'
@@ -239,7 +345,14 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/share/doc/dotnet-*
           df -h
 
+      - name: Restore preinstalled Sentry self-hosted
+        id: restore-self-hosted
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/restore-sentry-self-hosted-bundle.sh
+
       - name: Check out Sentry self-hosted
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: getsentry/self-hosted
@@ -265,6 +378,7 @@ jobs:
           EOF
 
       - name: Restore Sentry self-hosted volume cache
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         id: restore-self-hosted-volumes
         uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
@@ -275,6 +389,7 @@ jobs:
             sentry-kafka
 
       - name: Install Sentry self-hosted
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         working-directory: self-hosted
         env:
           REPORT_SELF_HOSTED_ISSUES: 0
@@ -283,6 +398,7 @@ jobs:
         run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
 
       - name: Enable Sentry E2E feature flags
+        if: steps.restore-self-hosted.outputs.restored != 'true'
         working-directory: self-hosted
         run: |
           cat >> sentry/sentry.conf.py <<'EOF'
@@ -295,7 +411,7 @@ jobs:
           EOF
 
       - name: Save Sentry self-hosted volume cache
-        if: github.event_name != 'pull_request' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.restore-self-hosted.outputs.restored != 'true' && steps.restore-self-hosted-volumes.outputs.cache-hit != 'true'
         uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: sentry-qml-e2e-volumes-v1-${{ runner.arch }}-${{ env.SENTRY_SELF_HOSTED_REF }}-${{ env.SENTRY_COMPOSE_PROFILES }}
@@ -410,10 +526,3 @@ jobs:
           name: sentry-qml-e2e-output
           path: tests/e2e/output/
           if-no-files-found: ignore
-
-      - name: Stop Sentry self-hosted
-        if: always()
-        run: |
-          test -d self-hosted || exit 0
-          cd self-hosted
-          docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans || true

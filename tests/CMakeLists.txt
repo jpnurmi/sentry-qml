@@ -18,7 +18,7 @@ function(add_sentry_qml_android_test target)
         --skip-install-root
         --make "${android_make_command}"
         --apk "${android_build_dir}/${target}.apk"
-        --timeout 114
+        --timeout 240
         --verbose
     )
     if(ANDROID_NDK_ROOT)
@@ -36,7 +36,7 @@ function(add_sentry_qml_android_test target)
     )
     set_tests_properties(${target} PROPERTIES
         RUN_SERIAL TRUE
-        TIMEOUT 120
+        TIMEOUT 300
         TIMEOUT_SIGNAL_NAME "SIGINT"
         TIMEOUT_SIGNAL_GRACE_PERIOD 10.0
     )

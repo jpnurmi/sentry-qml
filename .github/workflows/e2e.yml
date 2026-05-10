@@ -508,10 +508,3 @@ jobs:
           name: sentry-qml-e2e-output
           path: tests/e2e/output/
           if-no-files-found: ignore
-
-      - name: Stop Sentry self-hosted
-        if: always()
-        run: |
-          test -d self-hosted || exit 0
-          cd self-hosted
-          docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans || true

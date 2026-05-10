@@ -479,6 +479,10 @@ jobs:
             sentry-clickhouse
             sentry-kafka
 
+      - name: Install Bash on macOS
+        if: runner.os == 'macOS' && steps.restore-self-hosted.outputs.restored != 'true'
+        run: brew install bash
+
       - name: Install Sentry self-hosted
         if: steps.restore-self-hosted.outputs.restored != 'true'
         working-directory: self-hosted
@@ -486,7 +490,12 @@ jobs:
           REPORT_SELF_HOSTED_ISSUES: 0
           SKIP_SENTRY_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
           SKIP_SNUBA_MIGRATIONS: ${{ steps.restore-self-hosted-volumes.outputs.cache-hit == 'true' && '1' || '' }}
-        run: ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            "$(brew --prefix bash)/bin/bash" ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
+          else
+            ./install.sh --no-report-self-hosted-issues --skip-user-creation --skip-commit-check
+          fi
 
       - name: Enable Sentry E2E feature flags
         if: steps.restore-self-hosted.outputs.restored != 'true'

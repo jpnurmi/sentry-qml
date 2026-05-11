@@ -655,6 +655,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: sentry-qml-e2e-output
+          name: sentry-qml-e2e-output-${{ matrix.sentry_backend || matrix.sentry_sdk }}-${{ matrix.qt }}-${{ matrix.runner }}-${{ matrix.qt_target || 'desktop' }}
           path: tests/e2e/output/
           if-no-files-found: ignore

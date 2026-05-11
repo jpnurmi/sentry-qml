@@ -9,3 +9,7 @@ updates:
     directory: /tests/e2e/wasm
     schedule:
       interval: weekly
+    groups:
+      wasm-e2e:
+        patterns:
+          - "*"

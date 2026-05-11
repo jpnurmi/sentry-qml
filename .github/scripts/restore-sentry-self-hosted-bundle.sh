@@ -11,6 +11,7 @@ image="${SENTRY_SELF_HOSTED_BUNDLE_IMAGE:-}"
 if [ -z "$image" ]; then
   image="$(bash .github/scripts/sentry-self-hosted-bundle-image.sh)"
 fi
+set_output image "$image"
 
 printf 'Restoring preinstalled Sentry self-hosted bundle from %s\n' "$image"
 

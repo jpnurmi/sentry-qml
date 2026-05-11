@@ -442,6 +442,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash .github/scripts/restore-sentry-self-hosted-bundle.sh
 
+      - name: Require preinstalled Sentry self-hosted on macOS
+        if: runner.os == 'macOS' && steps.restore-self-hosted.outputs.restored != 'true'
+        env:
+          BUNDLE_IMAGE: ${{ steps.restore-self-hosted.outputs.image }}
+        run: |
+          echo "::error::Preinstalled Sentry self-hosted bundle was not found: $BUNDLE_IMAGE"
+          echo "Run the Self-Hosted workflow with self_hosted_ref=$SENTRY_SELF_HOSTED_REF and compose_profiles=$SENTRY_COMPOSE_PROFILES before rerunning macOS E2E."
+          exit 1
+
       - name: Check out Sentry self-hosted
         if: steps.restore-self-hosted.outputs.restored != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

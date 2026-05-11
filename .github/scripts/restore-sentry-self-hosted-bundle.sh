@@ -19,6 +19,7 @@ if [[ "$image" == ghcr.io/* && -n "${GITHUB_TOKEN:-}" ]]; then
   printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-github-actions}" --password-stdin >/dev/null 2>&1 || true
 fi
 
+printf 'Pulling bundle image...\n'
 if ! docker pull "$image"; then
   set_output restored false
   exit 0
@@ -28,24 +29,41 @@ bundle_dir=".sentry-self-hosted-bundle"
 rm -rf "$bundle_dir" self-hosted
 mkdir -p "$bundle_dir"
 
+printf 'Creating bundle container...\n'
 container_id="$(docker create "$image")"
 cleanup() {
   docker rm -f "$container_id" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
+printf 'Copying bundle files...\n'
 docker cp "$container_id:/self-hosted.tar.gz" "$bundle_dir/self-hosted.tar.gz"
-docker cp "$container_id:/docker-images.tar" "$bundle_dir/docker-images.tar"
+if docker cp "$container_id:/docker-images.tar.gz" "$bundle_dir/docker-images.tar.gz" 2>/dev/null; then
+  docker_images_archive="$bundle_dir/docker-images.tar.gz"
+else
+  printf 'Using legacy uncompressed Docker image archive...\n'
+  docker cp "$container_id:/docker-images.tar" "$bundle_dir/docker-images.tar"
+  docker_images_archive="$bundle_dir/docker-images.tar"
+fi
 docker cp "$container_id:/volumes.txt" "$bundle_dir/volumes.txt"
 docker cp "$container_id:/volumes" "$bundle_dir/volumes"
+du -h "$bundle_dir"/self-hosted.tar.gz "$docker_images_archive"
+volume_archives=("$bundle_dir"/volumes/*.tar.gz)
+if [ -e "${volume_archives[0]}" ]; then
+  du -h "${volume_archives[@]}"
+fi
 
 mkdir self-hosted
+printf 'Extracting self-hosted sources...\n'
 tar -xzf "$bundle_dir/self-hosted.tar.gz" -C self-hosted
-docker load -i "$bundle_dir/docker-images.tar"
+
+printf 'Loading Docker images from %s...\n' "$docker_images_archive"
+docker load -i "$docker_images_archive"
 
 while IFS= read -r volume; do
   [ -n "$volume" ] || continue
 
+  printf 'Restoring Docker volume %s...\n' "$volume"
   docker volume rm "$volume" >/dev/null 2>&1 || true
   docker volume create "$volume" >/dev/null
 
@@ -53,4 +71,5 @@ while IFS= read -r volume; do
   sudo tar -xzf "$bundle_dir/volumes/$volume.tar.gz" -C "$mountpoint"
 done < "$bundle_dir/volumes.txt"
 
+printf 'Restored preinstalled Sentry self-hosted bundle.\n'
 set_output restored true

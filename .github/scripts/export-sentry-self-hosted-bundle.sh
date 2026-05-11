@@ -17,7 +17,7 @@ tar --exclude=.git -czf "$bundle_dir/self-hosted.tar.gz" -C "$self_hosted_dir" .
 ) | sort -u > "$bundle_dir/docker-images.txt"
 
 mapfile -t images < "$bundle_dir/docker-images.txt"
-docker save -o "$bundle_dir/docker-images.tar" "${images[@]}"
+docker save "${images[@]}" | gzip -1 > "$bundle_dir/docker-images.tar.gz"
 
 docker volume ls --format '{{.Name}}' | awk '/^sentry-/ { print }' | sort > "$bundle_dir/volumes.txt"
 
@@ -32,7 +32,7 @@ done < "$bundle_dir/volumes.txt"
 cat > "$bundle_dir/Dockerfile" <<'EOF'
 FROM scratch
 COPY self-hosted.tar.gz /self-hosted.tar.gz
-COPY docker-images.tar /docker-images.tar
+COPY docker-images.tar.gz /docker-images.tar.gz
 COPY docker-images.txt /docker-images.txt
 COPY volumes.txt /volumes.txt
 COPY volumes/ /volumes/

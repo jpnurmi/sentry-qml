@@ -34,20 +34,6 @@ jobs:
           api-token: ${{ secrets.CI_GITHUB_TOKEN }}
           ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
 
-  self-hosted:
-    name: Sentry self-hosted
-    runs-on: ubuntu-latest
-    steps:
-      - uses: getsentry/github-workflows/updater@jpnurmi/fix/updater-pr-ci # 26f565c05d0dd49f703d238706b775883037d76b # v3
-        with:
-          name: Sentry self-hosted
-          path: modules/self-hosted.properties
-          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
-          post-update-script: scripts/update-self-hosted.sh
-          changelog-entry: false
-          api-token: ${{ secrets.CI_GITHUB_TOKEN }}
-          ssh-key: ${{ secrets.CI_DEPLOY_KEY }}
-
   qt:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest

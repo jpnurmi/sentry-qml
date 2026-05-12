@@ -73,7 +73,7 @@ jobs:
             host_qt_arch: clang_64
             cmake_generator: Xcode
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
-            cmake_target_args: -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+            cmake_target_args: -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
     env:
       SENTRY_APP_RUNNER_REF: d6f83b1ba5bfeb24a86ef5dd8d6cffa2ef4f56ab
       SENTRY_ORG: ${{ vars.SENTRY_ORG }}

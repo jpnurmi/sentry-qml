@@ -649,7 +649,7 @@ jobs:
           -DQT_HOST_PATH="${{ steps.qt-paths.outputs.host_path }}"
           -DCMAKE_SYSTEM_NAME=iOS
           -DCMAKE_OSX_SYSROOT=iphonesimulator
-          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_ARCHITECTURES=x86_64
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
           -DSENTRY_QML_SDK=ios
           -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"

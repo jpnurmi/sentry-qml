@@ -543,7 +543,22 @@ jobs:
 
       - name: Start Sentry self-hosted
         working-directory: self-hosted
-        run: docker compose --ansi never --env-file .env --env-file .env.custom up --wait
+        run: |
+          for attempt in 1 2; do
+            if docker compose --ansi never --env-file .env --env-file .env.custom \
+              up --wait; then
+              exit 0
+            fi
+            status=$?
+            if [ "$attempt" -eq 2 ]; then
+              exit "$status"
+            fi
+            echo "Sentry self-hosted did not become healthy; retrying..."
+            docker compose --ansi never --env-file .env --env-file .env.custom ps || true
+            docker compose --ansi never --env-file .env --env-file .env.custom \
+              up -d || true
+            sleep 30
+          done
 
       - name: Create Sentry test user
         working-directory: self-hosted

@@ -7,6 +7,36 @@ set_output() {
   fi
 }
 
+run_with_heartbeat() {
+  local message="$1"
+  shift
+
+  (
+    while true; do
+      sleep 30
+      printf '%s\n' "$message"
+    done
+  ) &
+  local heartbeat_pid=$!
+
+  local status=0
+  "$@" || status=$?
+
+  kill "$heartbeat_pid" >/dev/null 2>&1 || true
+  wait "$heartbeat_pid" >/dev/null 2>&1 || true
+  return "$status"
+}
+
+load_docker_images() {
+  local archive_path="$1"
+  local archive_name="$2"
+
+  set -o pipefail
+  docker cp "$container_id:$archive_path" - |
+    tar -xOf - "$archive_name" |
+    docker load
+}
+
 image="${SENTRY_SELF_HOSTED_BUNDLE_IMAGE:-}"
 if [ -z "$image" ]; then
   image="$(bash .github/scripts/sentry-self-hosted-bundle-image.sh)"
@@ -38,16 +68,9 @@ trap cleanup EXIT
 
 printf 'Copying bundle files...\n'
 docker cp "$container_id:/self-hosted.tar.gz" "$bundle_dir/self-hosted.tar.gz"
-if docker cp "$container_id:/docker-images.tar.gz" "$bundle_dir/docker-images.tar.gz" 2>/dev/null; then
-  docker_images_archive="$bundle_dir/docker-images.tar.gz"
-else
-  printf 'Using legacy uncompressed Docker image archive...\n'
-  docker cp "$container_id:/docker-images.tar" "$bundle_dir/docker-images.tar"
-  docker_images_archive="$bundle_dir/docker-images.tar"
-fi
 docker cp "$container_id:/volumes.txt" "$bundle_dir/volumes.txt"
 docker cp "$container_id:/volumes" "$bundle_dir/volumes"
-du -h "$bundle_dir"/self-hosted.tar.gz "$docker_images_archive"
+du -h "$bundle_dir"/self-hosted.tar.gz
 volume_archives=("$bundle_dir"/volumes/*.tar.gz)
 if [ -e "${volume_archives[0]}" ]; then
   du -h "${volume_archives[@]}"
@@ -57,8 +80,13 @@ mkdir self-hosted
 printf 'Extracting self-hosted sources...\n'
 tar -xzf "$bundle_dir/self-hosted.tar.gz" -C self-hosted
 
-printf 'Loading Docker images from %s...\n' "$docker_images_archive"
-docker load -i "$docker_images_archive"
+printf 'Streaming Docker images into Docker...\n'
+if ! run_with_heartbeat 'Still loading Docker images...' \
+  load_docker_images /docker-images.tar.gz docker-images.tar.gz; then
+  printf 'Compressed Docker image archive failed; trying legacy uncompressed archive...\n'
+  run_with_heartbeat 'Still loading Docker images...' \
+    load_docker_images /docker-images.tar docker-images.tar
+fi
 
 while IFS= read -r volume; do
   [ -n "$volume" ] || continue

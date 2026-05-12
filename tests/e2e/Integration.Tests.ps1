@@ -2,6 +2,7 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$IsCocoa = $env:SENTRY_QML_E2E_SDK -eq 'Cocoa'
 
 BeforeAll {
     function Add-AndroidBuildToolsToPath {
@@ -433,7 +434,7 @@ Describe 'Sentry QML E2E' {
         }
     }
 
-    Context 'User consent' {
+    Context 'User consent' -Skip:$IsCocoa {
         BeforeAll {
             $script:ConsentMessage = "Sentry QML E2E consent $script:RunId"
             $script:ConsentResult = Invoke-E2EAction -Action 'consent-capture'

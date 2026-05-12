@@ -396,6 +396,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
           SENTRY_QML_E2E_APP_PATH: ${{ github.workspace }}/build/tests/sentry_qml_e2e_app
           SENTRY_QML_E2E_DATABASE_PATH: ${{ runner.temp }}/sentry-qml-e2e-db
 
@@ -408,6 +409,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
           SENTRY_QML_E2E_APP_PATH: ${{ github.workspace }}/build/tests/sentry_qml_e2e_app.html
           SENTRY_QML_E2E_DATABASE_PATH: sentry-qml-e2e-db
           SENTRY_QML_E2E_PLATFORM: WasmBrowser
@@ -434,6 +436,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
           SENTRY_QML_E2E_APP_PACKAGE_PATH: ${{ steps.android-apk.outputs.path }}
           SENTRY_QML_E2E_APP_PATH: io.sentry.qml.e2e/org.qtproject.qt.android.bindings.QtActivity
           SENTRY_QML_E2E_DATABASE_PATH: /data/data/io.sentry.qml.e2e/cache/sentry-qml-e2e-db

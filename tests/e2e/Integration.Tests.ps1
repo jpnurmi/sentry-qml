@@ -2,6 +2,7 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$IsCocoa = $env:SENTRY_QML_E2E_SDK -eq 'Cocoa'
 
 BeforeAll {
     function Add-AndroidBuildToolsToPath {
@@ -49,7 +50,6 @@ BeforeAll {
     $script:IsAndroid = $script:DevicePlatform -eq 'Adb'
     $script:IsWasmBrowser = $script:DevicePlatform -eq 'WasmBrowser'
     $script:IsIOSSimulator = $script:DevicePlatform -eq 'iOSSimulator'
-    $script:IsCocoa = $script:IsIOSSimulator -or $env:SENTRY_QML_E2E_SDK -eq 'Cocoa'
     if ($script:IsAndroid) {
         Add-AndroidBuildToolsToPath
     }
@@ -340,14 +340,6 @@ BeforeAll {
         return $false
     }
 
-    function script:Skip-CocoaUserConsent {
-        if ($script:IsCocoa) {
-            Set-ItResult -Skipped -Because 'Sentry Cocoa does not expose user consent.'
-            return $true
-        }
-        return $false
-    }
-
     function script:Skip-IOSSimulatorCrashExit {
         if ($script:IsIOSSimulator) {
             Set-ItResult -Skipped -Because 'simctl launch can return success after starting an app that then crashes.'
@@ -463,12 +455,8 @@ Describe 'Sentry QML E2E' {
         }
     }
 
-    Context 'User consent' {
+    Context 'User consent' -Skip:$IsCocoa {
         BeforeAll {
-            if ($script:IsCocoa) {
-                return
-            }
-
             $script:ConsentMessage = "Sentry QML E2E consent $script:RunId"
             $script:ConsentResult = Invoke-E2EAction -Action 'consent-capture'
             $script:ConsentEventIds = Get-EventIds -AppOutput $script:ConsentResult.Output -ExpectedCount 1
@@ -476,24 +464,15 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'exits cleanly' {
-            if (Skip-CocoaUserConsent) {
-                return
-            }
             Assert-CleanExit -Result $script:ConsentResult
         }
 
         It 'captures the post-consent event in Sentry' {
-            if (Skip-CocoaUserConsent) {
-                return
-            }
             $script:ConsentEvent | Should -Not -BeNullOrEmpty
             Get-ObjectValue -InputObject $script:ConsentEvent -Name 'title' | Should -Be $script:ConsentMessage
         }
 
         It 'keeps the QML correlation tags' {
-            if (Skip-CocoaUserConsent) {
-                return
-            }
             Get-TagValue -SentryEvent $script:ConsentEvent -Key 'e2e_run_id' | Should -Be $script:RunId
             Get-TagValue -SentryEvent $script:ConsentEvent -Key 'test.action' | Should -Be 'consent-capture'
         }

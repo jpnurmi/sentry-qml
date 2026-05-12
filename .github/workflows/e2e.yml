@@ -275,6 +275,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/sentry-cocoa
           key: ${{ steps.sentryobjc-cache-key.outputs.key }}
+          restore-keys: |
+            sentryobjc-ios-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build SentryObjC iOS XCFramework
         if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'

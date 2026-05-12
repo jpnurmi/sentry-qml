@@ -64,7 +64,7 @@ jobs:
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
           - name: iOS (Qt LTS, simulator)
             sentry_sdk: iOS
-            runner: macos-15
+            runner: macos-15-intel
             qt: LTS
             qt_host: mac
             qt_target: ios

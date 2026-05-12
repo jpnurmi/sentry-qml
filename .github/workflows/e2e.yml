@@ -79,6 +79,7 @@ jobs:
       SENTRY_ORG: ${{ vars.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
       SENTRY_TEST_URL: https://sentry.io
+      SENTRY_QML_E2E_SDK: ${{ matrix.qt_target == 'ios' && 'Cocoa' || matrix.sentry_sdk || 'Native' }}
 
     steps:
       - name: Check out sources

@@ -441,8 +441,10 @@ jobs:
 
       - name: Restore preinstalled Sentry self-hosted
         id: restore-self-hosted
+        timeout-minutes: 20
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          SENTRY_SELF_HOSTED_BUNDLE_VARIANT: ${{ runner.os == 'macOS' && 'macos' || '' }}
         run: bash .github/scripts/restore-sentry-self-hosted-bundle.sh
 
       - name: Require preinstalled Sentry self-hosted on macOS
@@ -479,6 +481,12 @@ jobs:
           SENTRY_BIND=127.0.0.1:9000
           SENTRY_EVENT_RETENTION_DAYS=1
           EOF
+
+      - name: Pull Sentry self-hosted images
+        if: steps.restore-self-hosted.outputs.restored == 'true' && steps.restore-self-hosted.outputs.images_restored != 'true'
+        working-directory: self-hosted
+        timeout-minutes: 30
+        run: docker compose --ansi never --env-file .env --env-file .env.custom pull
 
       - name: Restore Sentry self-hosted volume cache
         if: runner.os == 'Linux' && steps.restore-self-hosted.outputs.restored != 'true'

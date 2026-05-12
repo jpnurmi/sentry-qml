@@ -68,6 +68,7 @@ trap cleanup EXIT
 
 printf 'Copying bundle files...\n'
 docker cp "$container_id:/self-hosted.tar.gz" "$bundle_dir/self-hosted.tar.gz"
+docker cp "$container_id:/docker-images.txt" "$bundle_dir/docker-images.txt" 2>/dev/null || : > "$bundle_dir/docker-images.txt"
 docker cp "$container_id:/volumes.txt" "$bundle_dir/volumes.txt"
 docker cp "$container_id:/volumes" "$bundle_dir/volumes"
 du -h "$bundle_dir"/self-hosted.tar.gz
@@ -80,12 +81,18 @@ mkdir self-hosted
 printf 'Extracting self-hosted sources...\n'
 tar -xzf "$bundle_dir/self-hosted.tar.gz" -C self-hosted
 
-printf 'Streaming Docker images into Docker...\n'
-if ! run_with_heartbeat 'Still loading Docker images...' \
-  load_docker_images /docker-images.tar.gz docker-images.tar.gz; then
-  printf 'Compressed Docker image archive failed; trying legacy uncompressed archive...\n'
-  run_with_heartbeat 'Still loading Docker images...' \
-    load_docker_images /docker-images.tar docker-images.tar
+if [ -s "$bundle_dir/docker-images.txt" ]; then
+  printf 'Streaming Docker images into Docker...\n'
+  if ! run_with_heartbeat 'Still loading Docker images...' \
+    load_docker_images /docker-images.tar.gz docker-images.tar.gz; then
+    printf 'Compressed Docker image archive failed; trying legacy uncompressed archive...\n'
+    run_with_heartbeat 'Still loading Docker images...' \
+      load_docker_images /docker-images.tar docker-images.tar
+  fi
+  set_output images_restored true
+else
+  printf 'Bundle does not include Docker images; compose images will be pulled later.\n'
+  set_output images_restored false
 fi
 
 while IFS= read -r volume; do

@@ -4,9 +4,14 @@ set -euo pipefail
 ref="${SENTRY_SELF_HOSTED_REF:?}"
 profile="${SENTRY_COMPOSE_PROFILES:?}"
 repository="${GITHUB_REPOSITORY:?}"
+variant="${SENTRY_SELF_HOSTED_BUNDLE_VARIANT:-}"
 
 repository="$(printf '%s' "$repository" | tr '[:upper:]' '[:lower:]')"
-tag_value="$(printf '%s-%s' "$ref" "$profile" | tr '[:upper:]' '[:lower:]')"
+tag_value="$(printf '%s-%s' "$ref" "$profile")"
+if [ -n "$variant" ]; then
+  tag_value="$(printf '%s-%s' "$tag_value" "$variant")"
+fi
+tag_value="$(printf '%s' "$tag_value" | tr '[:upper:]' '[:lower:]')"
 tag_value="$(printf '%s' "$tag_value" | sed -E 's/[^a-z0-9_.-]+/-/g; s/^-+//; s/-+$//')"
 tag_value="$(printf 'self-hosted-%s' "$tag_value" | cut -c1-128)"
 

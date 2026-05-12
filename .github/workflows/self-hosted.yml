@@ -36,7 +36,11 @@ jobs:
           persist-credentials: false
 
       - name: Select bundle image
-        run: echo "SENTRY_SELF_HOSTED_BUNDLE_IMAGE=$(bash .github/scripts/sentry-self-hosted-bundle-image.sh)" >> "$GITHUB_ENV"
+        run: |
+          {
+            echo "SENTRY_SELF_HOSTED_BUNDLE_IMAGE=$(bash .github/scripts/sentry-self-hosted-bundle-image.sh)"
+            echo "SENTRY_SELF_HOSTED_MACOS_BUNDLE_IMAGE=$(SENTRY_SELF_HOSTED_BUNDLE_VARIANT=macos bash .github/scripts/sentry-self-hosted-bundle-image.sh)"
+          } >> "$GITHUB_ENV"
 
       - name: Free runner disk space
         run: |
@@ -87,6 +91,12 @@ jobs:
       - name: Build Sentry self-hosted bundle
         run: bash .github/scripts/export-sentry-self-hosted-bundle.sh
 
+      - name: Build macOS Sentry self-hosted bundle
+        env:
+          SENTRY_SELF_HOSTED_BUNDLE_IMAGE: ${{ env.SENTRY_SELF_HOSTED_MACOS_BUNDLE_IMAGE }}
+          SENTRY_SELF_HOSTED_BUNDLE_INCLUDE_IMAGES: 0
+        run: bash .github/scripts/export-sentry-self-hosted-bundle.sh self-hosted .sentry-self-hosted-bundle-macos
+
       - name: Log in to GitHub Container Registry
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -94,6 +104,9 @@ jobs:
 
       - name: Push Sentry self-hosted bundle
         run: docker push "$SENTRY_SELF_HOSTED_BUNDLE_IMAGE"
+
+      - name: Push macOS Sentry self-hosted bundle
+        run: docker push "$SENTRY_SELF_HOSTED_MACOS_BUNDLE_IMAGE"
 
       - name: Clean up Sentry self-hosted
         if: always()

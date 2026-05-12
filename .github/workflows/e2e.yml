@@ -279,7 +279,7 @@ jobs:
             sentryobjc-ios-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build SentryObjC iOS XCFramework
-        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-matched-key == ''
         run: |
           cd modules/sentry-cocoa
           ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
@@ -287,7 +287,7 @@ jobs:
           ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
 
       - name: Save SentryObjC iOS XCFramework
-        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-matched-key == ''
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ runner.temp }}/sentry-cocoa

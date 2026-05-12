@@ -51,7 +51,11 @@ BeforeAll {
     if ($script:IsAndroid) {
         Add-AndroidBuildToolsToPath
     }
-    $script:BaseUrl = if ($env:SENTRY_TEST_URL) { $env:SENTRY_TEST_URL } else { 'http://127.0.0.1:9000' }
+    $script:BaseUrl = if ($env:SENTRY_TEST_URL) { $env:SENTRY_TEST_URL.TrimEnd([char]'/') } else { 'https://sentry.io' }
+    $script:SentryOrg = $env:SENTRY_ORG
+    $script:SentryProject = $env:SENTRY_PROJECT
+    $script:SentryOrgPath = if ($script:SentryOrg) { [System.Uri]::EscapeDataString($script:SentryOrg) } else { $null }
+    $script:SentryProjectPath = if ($script:SentryProject) { [System.Uri]::EscapeDataString($script:SentryProject) } else { $null }
     $script:RunId = if ($env:SENTRY_QML_E2E_RUN_ID) { $env:SENTRY_QML_E2E_RUN_ID } else { [guid]::NewGuid().ToString() }
     $script:DatabasePath = if ($env:SENTRY_QML_E2E_DATABASE_PATH) {
         $env:SENTRY_QML_E2E_DATABASE_PATH
@@ -75,6 +79,14 @@ BeforeAll {
 
     if ([string]::IsNullOrEmpty($env:SENTRY_AUTH_TOKEN)) {
         throw 'SENTRY_AUTH_TOKEN must be set.'
+    }
+
+    if ([string]::IsNullOrEmpty($script:SentryOrg)) {
+        throw 'SENTRY_ORG must be set.'
+    }
+
+    if ([string]::IsNullOrEmpty($script:SentryProject)) {
+        throw 'SENTRY_PROJECT must be set.'
     }
 
     if ($script:IsAndroid) {
@@ -104,8 +116,8 @@ BeforeAll {
 
     Connect-SentryApi `
         -ApiToken $env:SENTRY_AUTH_TOKEN `
-        -Organization 'sentry' `
-        -Project 'internal' `
+        -Organization $script:SentryOrg `
+        -Project $script:SentryProject `
         -BaseUrl "$($script:BaseUrl)/api/0"
 
     function script:Get-ObjectValue {
@@ -162,7 +174,7 @@ BeforeAll {
         $eventIdWithoutHyphens = $EventId -replace '-', ''
         $resource =
             "events/$eventIdWithoutHyphens/attachments/$attachmentId/?download=1"
-        $uri = "$($script:BaseUrl)/api/0/projects/sentry/internal/$resource"
+        $uri = "$($script:BaseUrl)/api/0/projects/$($script:SentryOrgPath)/$($script:SentryProjectPath)/$resource"
 
         Invoke-WebRequest `
             -Uri $uri `
@@ -333,7 +345,7 @@ BeforeAll {
         $queryString = ($queryParameters.GetEnumerator() | ForEach-Object {
             "$($_.Key)=$([System.Web.HttpUtility]::UrlEncode([string]$_.Value))"
         }) -join '&'
-        $uri = "$($script:BaseUrl)/api/0/projects/sentry/internal/issues/?$queryString"
+        $uri = "$($script:BaseUrl)/api/0/projects/$($script:SentryOrgPath)/$($script:SentryProjectPath)/issues/?$queryString"
 
         $response = Invoke-WebRequest `
             -Uri $uri `

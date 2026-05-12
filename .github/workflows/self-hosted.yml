@@ -88,9 +88,6 @@ jobs:
         working-directory: self-hosted
         run: docker compose --ansi never --env-file .env --env-file .env.custom down --remove-orphans
 
-      - name: Build Sentry self-hosted bundle
-        run: bash .github/scripts/export-sentry-self-hosted-bundle.sh
-
       - name: Build macOS Sentry self-hosted bundle
         env:
           SENTRY_SELF_HOSTED_BUNDLE_IMAGE: ${{ env.SENTRY_SELF_HOSTED_MACOS_BUNDLE_IMAGE }}
@@ -101,9 +98,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      - name: Push Sentry self-hosted bundle
-        run: docker push "$SENTRY_SELF_HOSTED_BUNDLE_IMAGE"
 
       - name: Push macOS Sentry self-hosted bundle
         run: docker push "$SENTRY_SELF_HOSTED_MACOS_BUNDLE_IMAGE"

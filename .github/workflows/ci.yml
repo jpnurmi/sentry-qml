@@ -517,3 +517,179 @@ jobs:
           name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
+
+  ios:
+    name: iOS (Qt ${{ matrix.qt }})
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {qt: LTS}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Read Qt version
+        id: qt
+        shell: pwsh
+        run: |
+          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
+          if (-not $versionProperty) { throw "Could not read Qt version" }
+          $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
+          if (-not $qtVersion) { throw "Could not read Qt version" }
+          "version=$qtVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Install iOS Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: mac
+          target: ios
+          arch: ios
+          dir: ${{ runner.temp }}/qt-ios
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          dir: ${{ runner.temp }}/qt-host
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Find Qt paths
+        id: qt-paths
+        shell: pwsh
+        run: |
+          $hostPath = $null
+          $hostRoots = @(
+            "${{ runner.temp }}/qt-host",
+            $env:GITHUB_WORKSPACE,
+            (Split-Path $env:GITHUB_WORKSPACE -Parent),
+            $env:RUNNER_TEMP,
+            $env:RUNNER_TOOL_CACHE
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          foreach ($root in $hostRoots) {
+            $hostPath = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
+              Where-Object {
+                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+              } |
+              Select-Object -First 1
+            if ($hostPath) { break }
+          }
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
+
+          $iosPath = $null
+          $roots = @(
+            "${{ runner.temp }}/qt-ios",
+            $env:GITHUB_WORKSPACE,
+            (Split-Path $env:GITHUB_WORKSPACE -Parent),
+            $env:RUNNER_TEMP,
+            $env:RUNNER_TOOL_CACHE
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          foreach ($root in $roots) {
+            $iosPath = Get-ChildItem $root -Directory -Recurse -Filter ios -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
+              Select-Object -First 1
+            if ($iosPath) { break }
+          }
+          if (-not $iosPath) { throw "Could not find iOS Qt installation" }
+
+          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
+          "ios_path=$($iosPath.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Read SentryObjC cache key
+        id: sentryobjc-cache-key
+        run: |
+          sentry_cocoa_sha=$(git -C modules/sentry-cocoa rev-parse HEAD)
+          xcode_hash=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f1)
+          echo "key=sentryobjc-ios-${{ runner.os }}-${{ runner.arch }}-$xcode_hash-$sentry_cocoa_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SentryObjC iOS XCFramework
+        id: sentryobjc-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/sentry-cocoa
+          key: ${{ steps.sentryobjc-cache-key.outputs.key }}
+
+      - name: Build SentryObjC iOS XCFramework
+        if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        run: |
+          cd modules/sentry-cocoa
+          ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
+          mkdir -p "$RUNNER_TEMP/sentry-cocoa"
+          ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+
+      - name: Save SentryObjC iOS XCFramework
+        if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/sentry-cocoa
+          key: ${{ steps.sentryobjc-cache-key.outputs.key }}
+
+      - name: Configure iOS
+        run: >
+          cmake -S . -B build -G Xcode
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_TOOLCHAIN_FILE="${{ steps.qt-paths.outputs.ios_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DQT_HOST_PATH="${{ steps.qt-paths.outputs.host_path }}"
+          -DCMAKE_SYSTEM_NAME=iOS
+          -DCMAKE_OSX_SYSROOT=iphonesimulator
+          -DCMAKE_OSX_ARCHITECTURES=x86_64
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          -DSENTRY_QML_SDK=ios
+          -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"
+          -DSENTRY_QML_TEST_JUNIT=ON
+
+      - name: Build iOS tests
+        run: >
+          cmake --build build
+          --target tst_unit tst_integration
+          --config RelWithDebInfo
+          --parallel
+
+      - name: Boot iOS simulator
+        run: |
+          device="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-Fa-f-]\{36\}\)) (Booted).*/\1/p' | head -n 1)"
+          if [ -z "$device" ]; then
+            device="$(xcrun simctl list devices available | sed -n 's/.*(\([0-9A-Fa-f-]\{36\}\)) (Shutdown).*/\1/p' | head -n 1)"
+            if [ -z "$device" ]; then
+              echo "No available iOS simulator found." >&2
+              exit 69
+            fi
+            xcrun simctl boot "$device"
+          fi
+          xcrun simctl bootstatus "$device" -b
+          echo "SENTRY_QML_IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
+
+      - name: Test iOS
+        run: |
+          mkdir -p build/tests/test-results
+          ctest --test-dir build \
+            --build-config RelWithDebInfo \
+            --verbose \
+            --output-on-failure \
+            --output-junit build/tests/test-results/ctest-ios.xml
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        with:
+          name: iOS (Qt ${{ matrix.qt }})
+          path: build/tests/test-results/*.xml
+          reporter: java-junit
+          fail-on-empty: false

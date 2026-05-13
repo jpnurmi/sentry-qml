@@ -55,3 +55,21 @@ The wasm backend initializes the JavaScript SDK, applies QML event hooks for
 events captured through the QML API, and forwards scope data, breadcrumbs, logs,
 metrics, feedback, and attachments through the browser SDK. Native crash capture
 is not supported by the browser JavaScript backend.
+
+## iOS
+
+Configure iOS builds with a Qt for iOS toolchain, the Xcode generator, and
+`-DSENTRY_QML_SDK=ios`. Sentry Cocoa requires an iOS deployment target of
+15.0 or higher. iOS app targets that link `SentryQml` must also call:
+
+```cmake
+sentry_qml_configure_ios_target(your_app_target)
+```
+
+This embeds and signs the selected `SentryObjC-Dynamic.xcframework` slice from
+Sentry Cocoa. Build or unpack `SentryObjC-Dynamic.xcframework` from sentry-cocoa,
+then pass it with:
+
+```sh
+-DSENTRY_COCOA_XCFRAMEWORK=/path/to/SentryObjC-Dynamic.xcframework
+```

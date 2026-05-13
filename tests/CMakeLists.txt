@@ -43,7 +43,7 @@ function(add_sentry_qml_android_test target)
 endfunction()
 
 function(add_sentry_qml_test target)
-    if(ANDROID)
+    if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
         qt_add_executable(${target}
             ${ARGN}
         )
@@ -57,7 +57,7 @@ function(add_sentry_qml_test target)
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
     )
 
-    if(SENTRY_QML_SDK STREQUAL "cocoa")
+    if(SENTRY_QML_SDK STREQUAL "cocoa" OR SENTRY_QML_SDK STREQUAL "ios")
         target_compile_definitions(${target} PRIVATE
             SENTRY_QML_TEST_SDK_COCOA
         )
@@ -124,6 +124,14 @@ function(add_sentry_qml_test target)
         sentry_qml_configure_android_target(${target})
     endif()
 
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND COMMAND sentry_qml_configure_ios_target)
+        string(REPLACE "_" "-" ios_bundle_name "${target}")
+        set_target_properties(${target} PROPERTIES
+            MACOSX_BUNDLE_GUI_IDENTIFIER "io.sentry.qml.${ios_bundle_name}"
+        )
+        sentry_qml_configure_ios_target(${target})
+    endif()
+
     if(TARGET sentry-crash)
         add_dependencies(${target} sentry-crash)
         add_custom_command(TARGET ${target} POST_BUILD
@@ -146,6 +154,17 @@ function(add_sentry_qml_test target)
 
     if(ANDROID)
         add_sentry_qml_android_test(${target})
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        add_test(NAME ${target}
+            COMMAND
+                "${CMAKE_CURRENT_SOURCE_DIR}/ios/run_simulator_test.sh"
+                "$<TARGET_BUNDLE_DIR:${target}>"
+                -txt
+        )
+        set_tests_properties(${target} PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 300
+        )
     elseif(SENTRY_QML_TEST_JUNIT)
         add_test(NAME ${target}
             COMMAND ${target}
@@ -242,6 +261,13 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
             QT_ANDROID_TARGET_SDK_VERSION 27
         )
         sentry_qml_configure_android_target(sentry_qml_e2e_app)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND COMMAND sentry_qml_configure_ios_target)
+        set_target_properties(sentry_qml_e2e_app PROPERTIES
+            MACOSX_BUNDLE_GUI_IDENTIFIER "io.sentry.qml.e2e"
+        )
+        sentry_qml_configure_ios_target(sentry_qml_e2e_app)
     endif()
 
     if(TARGET sentry-crash)

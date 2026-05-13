@@ -655,12 +655,28 @@ jobs:
           -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"
           -DSENTRY_QML_TEST_JUNIT=ON
 
+      - name: Start iOS simulator
+        run: |
+          device="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-Fa-f-]\{36\}\)) (Booted).*/\1/p' | head -n 1)"
+          if [ -z "$device" ]; then
+            device="$(xcrun simctl list devices available | sed -n 's/.*(\([0-9A-Fa-f-]\{36\}\)) (Shutdown).*/\1/p' | head -n 1)"
+            if [ -z "$device" ]; then
+              echo "No available iOS simulator found." >&2
+              exit 69
+            fi
+            xcrun simctl boot "$device"
+          fi
+          echo "SENTRY_QML_IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
+
       - name: Build iOS tests
         run: >
           cmake --build build
           --target tst_unit tst_integration
           --config RelWithDebInfo
           --parallel
+
+      - name: Wait for iOS simulator
+        run: xcrun simctl bootstatus "$SENTRY_QML_IOS_SIMULATOR_UDID" -b
 
       - name: Test iOS
         run: |

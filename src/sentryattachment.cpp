@@ -7,6 +7,7 @@ struct SentryAttachmentPrivate
     void *handle = nullptr;
     QString filename;
     QString contentType;
+    qint64 size = -1;
 };
 
 SentryAttachment::SentryAttachment(QObject *parent)
@@ -64,6 +65,11 @@ void SentryAttachment::setContentType(const QString &contentType)
     emit contentTypeChanged();
 }
 
+qint64 SentryAttachment::size() const
+{
+    return d->size;
+}
+
 void *SentryAttachment::handle() const
 {
     return d->handle;
@@ -77,4 +83,14 @@ void SentryAttachment::invalidate()
 
     d->handle = nullptr;
     emit validChanged();
+}
+
+void SentryAttachment::setSize(qint64 size)
+{
+    if (d->size == size) {
+        return;
+    }
+
+    d->size = size;
+    emit sizeChanged();
 }

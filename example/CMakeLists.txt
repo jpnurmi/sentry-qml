@@ -2,11 +2,19 @@ qt_add_executable(sentry_qml_example
     main.cpp
 )
 
+set_source_files_properties(ExampleState.qml
+    PROPERTIES
+        QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(sentry_qml_example
     URI SentryExample
     VERSION 1.0
     QML_FILES
+        ExampleState.qml
         Main.qml
+    RESOURCES
+        sentry-glyph.svg
 )
 
 target_compile_definitions(sentry_qml_example PRIVATE

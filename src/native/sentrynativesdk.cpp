@@ -19,6 +19,7 @@ extern "C" {
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qstringlist.h>
 #include <QtCore/qmetatype.h>
@@ -1086,6 +1087,8 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
     }
 
     auto *wrapper = new SentryAttachment(attachment, sentry);
+    const QFileInfo fileInfo(nativePath);
+    wrapper->setSize(fileInfo.exists() ? fileInfo.size() : -1);
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }
@@ -1138,6 +1141,7 @@ SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
 
     auto *wrapper = new SentryAttachment(attachment, sentry);
     wrapper->setFilename(filename);
+    wrapper->setSize(bytes.size());
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }

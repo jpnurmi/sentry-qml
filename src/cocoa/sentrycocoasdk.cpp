@@ -15,6 +15,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qfileinfo.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopedvaluerollback.h>
@@ -698,6 +699,8 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
     state->attachment.type = SentryObjCBridge::Attachment::File;
     state->attachment.path = path;
     auto *wrapper = new SentryAttachment(state, sentry);
+    const QFileInfo fileInfo(path);
+    wrapper->setSize(fileInfo.exists() ? fileInfo.size() : -1);
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }
@@ -730,6 +733,7 @@ SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
     state->attachment.filename = filename;
     auto *wrapper = new SentryAttachment(state, sentry);
     wrapper->setFilename(filename);
+    wrapper->setSize(bytes.size());
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }

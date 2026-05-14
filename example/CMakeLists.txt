@@ -9,7 +9,12 @@ qt_add_executable(sentry_qml_example
     main.cpp
 )
 
-set_source_files_properties(ExampleState.qml
+set_source_files_properties(AppState.qml
+    PROPERTIES
+        QT_QML_SINGLETON_TYPE TRUE
+)
+
+set_source_files_properties(AppTheme.qml
     PROPERTIES
         QT_QML_SINGLETON_TYPE TRUE
 )
@@ -28,7 +33,8 @@ qt_add_qml_module(sentry_qml_example
         controls/LabeledDoubleSpinBox.qml
         controls/LabeledSpinBox.qml
         controls/LabeledTextField.qml
-        ExampleState.qml
+        AppState.qml
+        AppTheme.qml
         Main.qml
     RESOURCES
         sentry-glyph.svg

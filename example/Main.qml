@@ -17,7 +17,7 @@ ApplicationWindow {
     minimumHeight: 480
     visible: true
     title: qsTr("Sentry QML")
-    color: theme.background
+    color: AppTheme.background
 
     readonly property bool compact: width < 900
     readonly property int pageMargin: compact ? 14 : 20
@@ -25,30 +25,6 @@ ApplicationWindow {
     readonly property int controlHeight: 42
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(initializeActionMetrics.width + 28, reinitializeActionMetrics.width + 28, sendActionMetrics.width + 28, addActionMetrics.width + 28, crashActionMetrics.width + 28)))
     property var attachmentHandles: []
-
-    QtObject {
-        id: theme
-
-        readonly property color background: "#101014"
-        readonly property color surface: "#1b1b20"
-        readonly property color surfaceRaised: "#27272d"
-        readonly property color input: "#2d2d33"
-        readonly property color inputFocus: "#343440"
-        readonly property color border: "#4a4a55"
-        readonly property color text: "#f7f4ff"
-        readonly property color muted: "#b8b2ca"
-        readonly property color subtle: "#8d879d"
-        readonly property color accent: "#7553ff"
-        readonly property color accentHover: "#8468ff"
-        readonly property color accentPressed: "#6442e8"
-        readonly property color success: "#2ecc71"
-        readonly property color warning: "#f2b84b"
-        readonly property color info: "#70b8ff"
-        readonly property color critical: "#e1567c"
-        readonly property color criticalHover: "#ee6b91"
-        readonly property color disabled: "#2b2c32"
-        readonly property color disabledText: "#777183"
-    }
 
     TextMetrics {
         id: initializeActionMetrics
@@ -94,7 +70,7 @@ ApplicationWindow {
         id: consentButton
 
         property bool giveConsent: true
-        readonly property color actionColor: giveConsent ? theme.success : theme.critical
+        readonly property color actionColor: giveConsent ? AppTheme.success : AppTheme.critical
 
         text: giveConsent ? qsTr("Give") : qsTr("Revoke")
         hoverEnabled: true
@@ -104,7 +80,7 @@ ApplicationWindow {
         implicitHeight: window.controlHeight
         contentItem: Text {
             text: consentButton.text
-            color: consentButton.enabled ? theme.text : theme.disabledText
+            color: consentButton.enabled ? AppTheme.text : AppTheme.disabledText
             font: consentButton.font
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -115,7 +91,7 @@ ApplicationWindow {
             border.width: 0
             color: {
                 if (!consentButton.enabled)
-                    return theme.disabled;
+                    return AppTheme.disabled;
                 if (consentButton.down)
                     return Qt.darker(consentButton.actionColor, 1.12);
                 if (consentButton.hovered)
@@ -131,7 +107,7 @@ ApplicationWindow {
         property int consent: Sentry.userConsent
         readonly property bool given: consent === Sentry.UserConsentGiven
         readonly property bool revoked: consent === Sentry.UserConsentRevoked
-        readonly property color statusColor: given ? theme.success : revoked ? theme.critical : theme.warning
+        readonly property color statusColor: given ? AppTheme.success : revoked ? AppTheme.critical : AppTheme.warning
 
         implicitWidth: 28
         implicitHeight: 28
@@ -236,7 +212,7 @@ ApplicationWindow {
 
         implicitHeight: consentPanelLayout.implicitHeight + window.panelMargin
         radius: 8
-        color: theme.surface
+        color: AppTheme.surface
 
         ColumnLayout {
             id: consentPanelLayout
@@ -248,7 +224,7 @@ ApplicationWindow {
 
             Label {
                 text: qsTr("CONSENT")
-                color: theme.text
+                color: AppTheme.text
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
                 verticalAlignment: Text.AlignVCenter
@@ -267,7 +243,7 @@ ApplicationWindow {
 
                 Text {
                     text: consentFooterText()
-                    color: consentPanel.consentActionable ? consentFooterColor() : theme.muted
+                    color: consentPanel.consentActionable ? consentFooterColor() : AppTheme.muted
                     font.pixelSize: 15
                     font.weight: Font.DemiBold
                     verticalAlignment: Text.AlignVCenter
@@ -342,7 +318,7 @@ ApplicationWindow {
 
                 Label {
                     text: qsTr("Sentry QML")
-                    color: theme.text
+                    color: AppTheme.text
                     font.pixelSize: 34
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true
@@ -403,7 +379,7 @@ ApplicationWindow {
 
                 Label {
                     text: qsTr("Sentry QML")
-                    color: theme.text
+                    color: AppTheme.text
                     font.pixelSize: 28
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true
@@ -443,7 +419,7 @@ ApplicationWindow {
             id: tabText
 
             text: tabButton.text.toUpperCase()
-            color: tabButton.selected ? theme.text : theme.subtle
+            color: tabButton.selected ? AppTheme.text : AppTheme.subtle
             font: tabButton.font
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -456,7 +432,7 @@ ApplicationWindow {
                 anchors.bottom: parent.bottom
                 height: 2
                 radius: 1
-                color: theme.accent
+                color: AppTheme.accent
                 opacity: tabButton.selected ? 1 : tabButton.hovered ? 0.28 : 0
             }
         }
@@ -469,10 +445,10 @@ ApplicationWindow {
 
         function levelColor(index) {
             if (index === 1)
-                return theme.warning;
+                return AppTheme.warning;
             if (index === 2)
-                return theme.critical;
-            return theme.info;
+                return AppTheme.critical;
+            return AppTheme.info;
         }
 
         model: [qsTr("Info"), qsTr("Warning"), qsTr("Error")]
@@ -494,7 +470,7 @@ ApplicationWindow {
 
             Text {
                 text: combo.displayText
-                color: theme.text
+                color: AppTheme.text
                 font: combo.font
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -504,7 +480,7 @@ ApplicationWindow {
         indicator: ComboChevron {
             x: combo.width - width - 12
             y: (combo.height - height) / 2
-            strokeColor: combo.hovered || combo.popup.visible ? theme.text : theme.muted
+            strokeColor: combo.hovered || combo.popup.visible ? AppTheme.text : AppTheme.muted
         }
         delegate: ItemDelegate {
             id: comboDelegate
@@ -529,7 +505,7 @@ ApplicationWindow {
 
                 Text {
                     text: comboDelegate.modelData
-                    color: comboDelegate.highlighted || combo.currentIndex === comboDelegate.index ? theme.text : theme.muted
+                    color: comboDelegate.highlighted || combo.currentIndex === comboDelegate.index ? AppTheme.text : AppTheme.muted
                     font: combo.font
                     verticalAlignment: Text.AlignVCenter
                     Layout.fillWidth: true
@@ -555,8 +531,8 @@ ApplicationWindow {
                 currentIndex: combo.highlightedIndex
             }
             background: Rectangle {
-                color: theme.input
-                border.color: theme.border
+                color: AppTheme.input
+                border.color: AppTheme.border
                 radius: 7
             }
         }
@@ -587,7 +563,7 @@ ApplicationWindow {
         Layout.fillWidth: false
         contentItem: Text {
             text: optionCombo.displayText
-            color: theme.text
+            color: AppTheme.text
             font: optionCombo.font
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -595,7 +571,7 @@ ApplicationWindow {
         indicator: ComboChevron {
             x: optionCombo.width - width - 12
             y: (optionCombo.height - height) / 2
-            strokeColor: optionCombo.hovered || optionCombo.popup.visible ? theme.text : theme.muted
+            strokeColor: optionCombo.hovered || optionCombo.popup.visible ? AppTheme.text : AppTheme.muted
         }
         delegate: ItemDelegate {
             id: optionDelegate
@@ -610,7 +586,7 @@ ApplicationWindow {
             highlighted: optionCombo.highlightedIndex === index
             contentItem: Text {
                 text: optionDelegate.modelData
-                color: !optionDelegate.enabled ? theme.disabledText : optionDelegate.highlighted || optionCombo.currentIndex === optionDelegate.index ? theme.text : theme.muted
+                color: !optionDelegate.enabled ? AppTheme.disabledText : optionDelegate.highlighted || optionCombo.currentIndex === optionDelegate.index ? AppTheme.text : AppTheme.muted
                 font: optionCombo.font
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -620,8 +596,8 @@ ApplicationWindow {
             }
         }
         background: Rectangle {
-            color: optionCombo.hovered ? theme.inputFocus : theme.input
-            border.color: theme.border
+            color: optionCombo.hovered ? AppTheme.inputFocus : AppTheme.input
+            border.color: AppTheme.border
             radius: 7
         }
         popup: Popup {
@@ -637,8 +613,8 @@ ApplicationWindow {
                 currentIndex: optionCombo.highlightedIndex
             }
             background: Rectangle {
-                color: theme.input
-                border.color: theme.border
+                color: AppTheme.input
+                border.color: AppTheme.border
                 radius: 7
             }
         }
@@ -698,7 +674,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Key")
-                        color: theme.text
+                        color: AppTheme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                         x: entriesView.tablePadding
@@ -711,7 +687,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Value")
-                        color: theme.text
+                        color: AppTheme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                         x: entriesView.valueColumnX
@@ -744,7 +720,7 @@ ApplicationWindow {
 
                         Label {
                             text: entryKey
-                            color: theme.text
+                            color: AppTheme.text
                             font.pixelSize: 15
                             x: entriesView.tablePadding
                             width: entriesView.keyColumnWidth - 8
@@ -756,7 +732,7 @@ ApplicationWindow {
 
                         Label {
                             text: entryValue
-                            color: theme.text
+                            color: AppTheme.text
                             font.pixelSize: 15
                             x: entriesView.valueColumnX
                             width: parent.width - x - entriesView.removeColumnWidth - entriesView.tablePadding
@@ -828,7 +804,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("File")
-                        color: theme.text
+                        color: AppTheme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                         x: attachmentsView.tablePadding
@@ -841,7 +817,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Size")
-                        color: theme.text
+                        color: AppTheme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                         x: attachmentsView.sizeColumnX
@@ -874,7 +850,7 @@ ApplicationWindow {
 
                         Label {
                             text: entryKey
-                            color: theme.text
+                            color: AppTheme.text
                             font.pixelSize: 15
                             x: attachmentsView.tablePadding
                             width: attachmentsView.fileColumnWidth - 8
@@ -886,7 +862,7 @@ ApplicationWindow {
 
                         Label {
                             text: entrySize
-                            color: theme.text
+                            color: AppTheme.text
                             font.pixelSize: 15
                             x: attachmentsView.sizeColumnX
                             width: attachmentsView.sizeColumnWidth
@@ -924,25 +900,25 @@ ApplicationWindow {
     SentryOptions {
         id: sentryOptions
 
-        dsn: ExampleState.dsn
-        databasePath: ExampleState.databasePath
-        release: ExampleState.release
-        environment: ExampleState.environment
-        dist: ExampleState.dist
-        debug: ExampleState.debugEnabled
-        enableLogs: ExampleState.logsEnabled
-        enableMetrics: ExampleState.metricsEnabled
-        autoSessionTracking: ExampleState.autoSessionTrackingEnabled
-        requireUserConsent: ExampleState.requireUserConsentEnabled
-        attachViewHierarchy: ExampleState.viewHierarchyEnabled
-        sampleRate: ExampleState.sampleRate
-        maxBreadcrumbs: ExampleState.maxBreadcrumbs
-        shutdownTimeout: ExampleState.shutdownTimeout
+        dsn: AppState.dsn
+        databasePath: AppState.databasePath
+        release: AppState.release
+        environment: AppState.environment
+        dist: AppState.dist
+        debug: AppState.debugEnabled
+        enableLogs: AppState.logsEnabled
+        enableMetrics: AppState.metricsEnabled
+        autoSessionTracking: AppState.autoSessionTrackingEnabled
+        requireUserConsent: AppState.requireUserConsentEnabled
+        attachViewHierarchy: AppState.viewHierarchyEnabled
+        sampleRate: AppState.sampleRate
+        maxBreadcrumbs: AppState.maxBreadcrumbs
+        shutdownTimeout: AppState.shutdownTimeout
         user: SentryUser {
-            userId: ExampleState.userId
-            username: ExampleState.username
-            email: ExampleState.email
-            ipAddress: ExampleState.ipAddress
+            userId: AppState.userId
+            username: AppState.username
+            email: AppState.email
+            ipAddress: AppState.ipAddress
         }
         beforeSend: function (event) {
             console.log("### beforeSend");
@@ -985,7 +961,7 @@ ApplicationWindow {
     }
 
     function setStatus(message, ok, severity) {
-        ExampleState.setStatus(message, ok, severity === undefined ? statusSeverity(message, ok) : severity);
+        AppState.setStatus(message, ok, severity === undefined ? statusSeverity(message, ok) : severity);
     }
 
     function isInitializeStatus(message) {
@@ -993,23 +969,23 @@ ApplicationWindow {
     }
 
     function resetRuntimeStatus() {
-        if (!isInitializeStatus(ExampleState.statusMessage))
+        if (!isInitializeStatus(AppState.statusMessage))
             setStatus(qsTr("Ready"), Sentry.initialized, Sentry.initialized ? 1 : 0);
     }
 
     function globalStatusText() {
-        if (isInitializeStatus(ExampleState.statusMessage))
-            return ExampleState.statusMessage;
-        if (ExampleState.statusMessage !== qsTr("Ready"))
-            return ExampleState.statusMessage;
+        if (isInitializeStatus(AppState.statusMessage))
+            return AppState.statusMessage;
+        if (AppState.statusMessage !== qsTr("Ready"))
+            return AppState.statusMessage;
         return Sentry.initialized ? qsTr("Ready") : qsTr("Not initialized");
     }
 
     function globalStatusSeverity() {
-        if (isInitializeStatus(ExampleState.statusMessage))
+        if (isInitializeStatus(AppState.statusMessage))
             return 2;
-        if (ExampleState.statusMessage !== qsTr("Ready"))
-            return ExampleState.statusSeverity;
+        if (AppState.statusMessage !== qsTr("Ready"))
+            return AppState.statusSeverity;
         return Sentry.initialized ? 1 : 0;
     }
 
@@ -1030,7 +1006,7 @@ ApplicationWindow {
     }
 
     function fileNameFromPath(path) {
-        const localPath = ExampleState.toLocalPath(path);
+        const localPath = AppState.toLocalPath(path);
         const normalized = localPath.replace(/\\/g, "/");
         const index = normalized.lastIndexOf("/");
         return index >= 0 ? normalized.substring(index + 1) : normalized;
@@ -1050,7 +1026,7 @@ ApplicationWindow {
         if (!ensureInitialized())
             return;
 
-        const localPath = ExampleState.toLocalPath(path);
+        const localPath = AppState.toLocalPath(path);
         const attachment = Sentry.attachFile(localPath);
         const ok = attachment && attachment.valid;
         if (ok) {
@@ -1089,7 +1065,7 @@ ApplicationWindow {
 
         const ok = Sentry.init(sentryOptions);
         if (ok) {
-            ExampleState.sessionActive = false;
+            AppState.sessionActive = false;
             clearAttachmentEntries();
             setStatus(qsTr("Ready"), true);
             if (pageStack.depth === 1)
@@ -1107,9 +1083,9 @@ ApplicationWindow {
     function capture() {
         if (!ensureInitialized())
             return;
-        if (ExampleState.captureMode === 1) {
+        if (AppState.captureMode === 1) {
             captureException();
-        } else if (ExampleState.captureMode === 2) {
+        } else if (AppState.captureMode === 2) {
             addBreadcrumb();
         } else {
             captureMessage();
@@ -1117,37 +1093,37 @@ ApplicationWindow {
     }
 
     function captureMessage() {
-        const eventId = Sentry.captureMessage(ExampleState.messageText, ExampleState.captureLevel());
+        const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
         setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
     }
 
     function applyScope() {
         if (!ensureInitialized())
             return;
-        if (ExampleState.scopeTab === 0) {
-            const tagKey = ExampleState.tagKey.trim();
+        if (AppState.scopeTab === 0) {
+            const tagKey = AppState.tagKey.trim();
             if (tagKey.length === 0) {
                 setStatus(qsTr("Tag key is required"), false);
                 return;
             }
 
-            const ok = Sentry.setTag(tagKey, ExampleState.tagValue);
+            const ok = Sentry.setTag(tagKey, AppState.tagValue);
             if (ok)
-                upsertEntry(tagEntries, tagKey, ExampleState.tagValue);
+                upsertEntry(tagEntries, tagKey, AppState.tagValue);
             setStatus(ok ? qsTr("Tag added") : qsTr("Tag was not added"), ok);
-        } else if (ExampleState.scopeTab === 1) {
-            const contextKey = ExampleState.contextKey.trim();
+        } else if (AppState.scopeTab === 1) {
+            const contextKey = AppState.contextKey.trim();
             if (contextKey.length === 0) {
                 setStatus(qsTr("Context key is required"), false);
                 return;
             }
 
             const ok = Sentry.setContext(contextKey, {
-                value: ExampleState.contextValue,
-                messageLength: ExampleState.messageText.length
+                value: AppState.contextValue,
+                messageLength: AppState.messageText.length
             });
             if (ok)
-                upsertEntry(contextEntries, contextKey, ExampleState.contextValue);
+                upsertEntry(contextEntries, contextKey, AppState.contextValue);
             setStatus(ok ? qsTr("Context added") : qsTr("Context was not added"), ok);
         }
     }
@@ -1156,10 +1132,10 @@ ApplicationWindow {
         if (!Sentry.initialized)
             return;
         const ok = Sentry.setUser({
-            id: ExampleState.userId,
-            username: ExampleState.username,
-            email: ExampleState.email,
-            ipAddress: ExampleState.ipAddress
+            id: AppState.userId,
+            username: AppState.username,
+            email: AppState.email,
+            ipAddress: AppState.ipAddress
         });
         if (!ok)
             setStatus(qsTr("User was not updated"), false);
@@ -1167,11 +1143,11 @@ ApplicationWindow {
 
     function consentFooterColor() {
         if (!Sentry.userConsentRequired)
-            return theme.surfaceRaised;
+            return AppTheme.surfaceRaised;
         if (Sentry.userConsent === Sentry.UserConsentGiven)
-            return theme.success;
+            return AppTheme.success;
         if (Sentry.userConsent === Sentry.UserConsentRevoked)
-            return theme.critical;
+            return AppTheme.critical;
         return "#9b6b17";
     }
 
@@ -1228,8 +1204,8 @@ ApplicationWindow {
         if (!ensureInitialized())
             return;
         let ok = true;
-        const release = ExampleState.sessionRelease.trim();
-        const environment = ExampleState.sessionEnvironment.trim();
+        const release = AppState.sessionRelease.trim();
+        const environment = AppState.sessionEnvironment.trim();
 
         if (release.length > 0)
             ok = Sentry.setRelease(release) && ok;
@@ -1238,7 +1214,7 @@ ApplicationWindow {
 
         ok = Sentry.startSession() && ok;
         if (ok)
-            ExampleState.sessionActive = true;
+            AppState.sessionActive = true;
         setStatus(ok ? qsTr("Session started") : qsTr("Session was not started"), ok);
     }
 
@@ -1247,12 +1223,12 @@ ApplicationWindow {
             return;
         const ok = Sentry.endSession(Sentry.SessionExited);
         if (ok)
-            ExampleState.sessionActive = false;
+            AppState.sessionActive = false;
         setStatus(ok ? qsTr("Session ended") : qsTr("Session was not ended"), ok);
     }
 
     function toggleSession() {
-        if (ExampleState.sessionActive)
+        if (AppState.sessionActive)
             endSession();
         else
             startSession();
@@ -1260,25 +1236,25 @@ ApplicationWindow {
 
     function addBreadcrumb() {
         const ok = Sentry.addBreadcrumb({
-            message: ExampleState.messageText,
-            category: ExampleState.breadcrumbCategory(),
+            message: AppState.messageText,
+            category: AppState.breadcrumbCategory(),
             type: "manual",
-            level: ExampleState.captureLevel(),
+            level: AppState.captureLevel(),
             data: {
-                message: ExampleState.messageText
+                message: AppState.messageText
             }
         });
         setStatus(ok ? qsTr("Breadcrumb added") : qsTr("Breadcrumb was not added"), ok);
     }
 
     function captureException() {
-        if (ExampleState.exceptionKind() === "native") {
+        if (AppState.exceptionKind() === "native") {
             setStatus(qsTr("Native exception capture is not available"), false);
             return;
         }
 
         try {
-            throw new Error(ExampleState.messageText);
+            throw new Error(AppState.messageText);
         } catch (exception) {
             const eventId = Sentry.captureException(exception);
             setStatus(eventId.length > 0 ? qsTr("Captured exception %1").arg(eventId) : qsTr("Exception was not captured"), eventId.length > 0);
@@ -1290,7 +1266,7 @@ ApplicationWindow {
     }
 
     function triggerCrash() {
-        if (ExampleState.crashKindIndex === 0) {
+        if (AppState.crashKindIndex === 0) {
             setStatus(qsTr("Crashing..."), false);
             exampleActions.crash();
         } else {
@@ -1336,7 +1312,7 @@ ApplicationWindow {
 
             Label {
                 text: scopeEditorPopup.scopeTab === 0 ? qsTr("Add tag") : qsTr("Add context")
-                color: theme.text
+                color: AppTheme.text
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
@@ -1378,13 +1354,13 @@ ApplicationWindow {
 
                     onClicked: {
                         if (scopeEditorPopup.scopeTab === 0) {
-                            ExampleState.tagKey = scopeKeyField.text;
-                            ExampleState.tagValue = scopeValueField.text;
+                            AppState.tagKey = scopeKeyField.text;
+                            AppState.tagValue = scopeValueField.text;
                         } else {
-                            ExampleState.contextKey = scopeKeyField.text;
-                            ExampleState.contextValue = scopeValueField.text;
+                            AppState.contextKey = scopeKeyField.text;
+                            AppState.contextValue = scopeValueField.text;
                         }
-                        ExampleState.scopeTab = scopeEditorPopup.scopeTab;
+                        AppState.scopeTab = scopeEditorPopup.scopeTab;
                         applyScope();
                         scopeEditorPopup.close();
                     }
@@ -1393,8 +1369,8 @@ ApplicationWindow {
         }
 
         background: Rectangle {
-            color: theme.surface
-            border.color: theme.border
+            color: AppTheme.surface
+            border.color: AppTheme.border
             radius: 8
         }
     }
@@ -1403,7 +1379,7 @@ ApplicationWindow {
         id: attachmentFileDialog
 
         title: qsTr("Attach file")
-        currentFolder: ExampleState.toFileUrl(ExampleState.databasePath)
+        currentFolder: AppState.toFileUrl(AppState.databasePath)
 
         onAccepted: {
             addAttachment(selectedFile);
@@ -1415,7 +1391,7 @@ ApplicationWindow {
 
         function openFeedback() {
             feedbackNameField.text = "";
-            feedbackEmailField.text = ExampleState.email;
+            feedbackEmailField.text = AppState.email;
             feedbackMessageArea.text = "";
             open();
         }
@@ -1433,7 +1409,7 @@ ApplicationWindow {
 
             Label {
                 text: qsTr("Feedback")
-                color: theme.text
+                color: AppTheme.text
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
@@ -1468,7 +1444,7 @@ ApplicationWindow {
 
                 Label {
                     text: qsTr("Message")
-                    color: theme.muted
+                    color: AppTheme.muted
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true
@@ -1478,10 +1454,10 @@ ApplicationWindow {
                     id: feedbackMessageArea
 
                     placeholderText: qsTr("What happened?")
-                    placeholderTextColor: theme.subtle
-                    color: theme.text
-                    selectedTextColor: theme.text
-                    selectionColor: theme.accent
+                    placeholderTextColor: AppTheme.subtle
+                    color: AppTheme.text
+                    selectedTextColor: AppTheme.text
+                    selectionColor: AppTheme.accent
                     font.pixelSize: 15
                     wrapMode: TextArea.Wrap
                     leftPadding: 12
@@ -1492,8 +1468,8 @@ ApplicationWindow {
                     Layout.preferredHeight: Math.min(220, Math.max(130, window.height * 0.24))
 
                     background: Rectangle {
-                        color: feedbackMessageArea.activeFocus ? theme.inputFocus : theme.input
-                        border.color: feedbackMessageArea.activeFocus ? theme.accent : theme.border
+                        color: feedbackMessageArea.activeFocus ? AppTheme.inputFocus : AppTheme.input
+                        border.color: feedbackMessageArea.activeFocus ? AppTheme.accent : AppTheme.border
                         border.width: feedbackMessageArea.activeFocus ? 2 : 1
                         radius: 7
                     }
@@ -1530,8 +1506,8 @@ ApplicationWindow {
         }
 
         background: Rectangle {
-            color: theme.surface
-            border.color: theme.border
+            color: AppTheme.surface
+            border.color: AppTheme.border
             radius: 8
         }
     }
@@ -1608,7 +1584,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.bottomMargin: window.pageMargin
                             implicitHeight: setupLayout.implicitHeight + window.panelMargin
-                            color: theme.surface
+                            color: AppTheme.surface
                             radius: 8
 
                             ColumnLayout {
@@ -1627,7 +1603,7 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 32
                                     text: qsTr("OPTIONS")
-                                    color: theme.text
+                                    color: AppTheme.text
                                     font.pixelSize: 16
                                     font.weight: Font.DemiBold
                                     verticalAlignment: Text.AlignVCenter
@@ -1637,9 +1613,9 @@ ApplicationWindow {
                                     id: dsnOptionField
 
                                     label: qsTr("DSN")
-                                    text: ExampleState.dsn
+                                    text: AppState.dsn
                                     placeholderText: qsTr("https://public@example.ingest.sentry.io/1")
-                                    onTextEdited: ExampleState.dsn = text
+                                    onTextEdited: AppState.dsn = text
                                 }
 
                                 GridLayout {
@@ -1652,9 +1628,9 @@ ApplicationWindow {
 
                                     LabeledTextField {
                                         label: qsTr("Database")
-                                        text: ExampleState.databasePath
+                                        text: AppState.databasePath
                                         placeholderText: qsTr("/path/to/sentry-db")
-                                        onTextEdited: ExampleState.databasePath = text
+                                        onTextEdited: AppState.databasePath = text
                                     }
 
                                     ActionButton {
@@ -1662,7 +1638,7 @@ ApplicationWindow {
                                         Layout.alignment: Qt.AlignBottom | Qt.AlignRight
 
                                         onClicked: {
-                                            databaseFolderDialog.currentFolder = ExampleState.toFileUrl(ExampleState.databasePath);
+                                            databaseFolderDialog.currentFolder = AppState.toFileUrl(AppState.databasePath);
                                             databaseFolderDialog.open();
                                         }
                                     }
@@ -1672,10 +1648,10 @@ ApplicationWindow {
                                     id: databaseFolderDialog
 
                                     title: qsTr("Choose database")
-                                    currentFolder: ExampleState.toFileUrl(ExampleState.databasePath)
+                                    currentFolder: AppState.toFileUrl(AppState.databasePath)
 
                                     onAccepted: {
-                                        ExampleState.databasePath = ExampleState.toLocalPath(selectedFolder);
+                                        AppState.databasePath = AppState.toLocalPath(selectedFolder);
                                     }
                                 }
 
@@ -1690,25 +1666,25 @@ ApplicationWindow {
 
                                     LabeledTextField {
                                         label: qsTr("Release")
-                                        text: ExampleState.release
+                                        text: AppState.release
                                         placeholderText: qsTr("my-app@1.0.0")
-                                        onTextEdited: ExampleState.release = text
+                                        onTextEdited: AppState.release = text
                                         Layout.fillWidth: true
                                     }
 
                                     LabeledTextField {
                                         label: qsTr("Environment")
-                                        text: ExampleState.environment
+                                        text: AppState.environment
                                         placeholderText: qsTr("production")
-                                        onTextEdited: ExampleState.environment = text
+                                        onTextEdited: AppState.environment = text
                                         Layout.fillWidth: true
                                     }
 
                                     LabeledTextField {
                                         label: qsTr("Distribution")
-                                        text: ExampleState.dist
+                                        text: AppState.dist
                                         placeholderText: qsTr("1")
-                                        onTextEdited: ExampleState.dist = text
+                                        onTextEdited: AppState.dist = text
                                         Layout.fillWidth: true
                                     }
                                 }
@@ -1726,10 +1702,10 @@ ApplicationWindow {
                                         label: qsTr("Sample rate")
                                         from: 0.0
                                         to: 1.0
-                                        value: ExampleState.sampleRate
+                                        value: AppState.sampleRate
                                         stepSize: 0.1
                                         decimals: 1
-                                        onValueModified: ExampleState.sampleRate = value
+                                        onValueModified: AppState.sampleRate = value
                                         locale: Qt.locale("en_US")
                                     }
 
@@ -1737,18 +1713,18 @@ ApplicationWindow {
                                         label: qsTr("Max breadcrumbs")
                                         from: 0
                                         to: 1000
-                                        value: ExampleState.maxBreadcrumbs
+                                        value: AppState.maxBreadcrumbs
                                         stepSize: 1
-                                        onValueModified: ExampleState.maxBreadcrumbs = value
+                                        onValueModified: AppState.maxBreadcrumbs = value
                                     }
 
                                     LabeledSpinBox {
                                         label: qsTr("Shutdown timeout (ms)")
                                         from: 0
                                         to: 60000
-                                        value: ExampleState.shutdownTimeout
+                                        value: AppState.shutdownTimeout
                                         stepSize: 100
-                                        onValueModified: ExampleState.shutdownTimeout = value
+                                        onValueModified: AppState.shutdownTimeout = value
                                     }
                                 }
 
@@ -1764,43 +1740,43 @@ ApplicationWindow {
 
                                     CheckBox {
                                         text: qsTr("Debug")
-                                        checked: ExampleState.debugEnabled
-                                        onToggled: ExampleState.debugEnabled = checked
+                                        checked: AppState.debugEnabled
+                                        onToggled: AppState.debugEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
                                     CheckBox {
                                         text: qsTr("Logs")
-                                        checked: ExampleState.logsEnabled
-                                        onToggled: ExampleState.logsEnabled = checked
+                                        checked: AppState.logsEnabled
+                                        onToggled: AppState.logsEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
                                     CheckBox {
                                         text: qsTr("Metrics")
-                                        checked: ExampleState.metricsEnabled
-                                        onToggled: ExampleState.metricsEnabled = checked
+                                        checked: AppState.metricsEnabled
+                                        onToggled: AppState.metricsEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
                                     CheckBox {
                                         text: qsTr("Auto sessions")
-                                        checked: ExampleState.autoSessionTrackingEnabled
-                                        onToggled: ExampleState.autoSessionTrackingEnabled = checked
+                                        checked: AppState.autoSessionTrackingEnabled
+                                        onToggled: AppState.autoSessionTrackingEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
                                     CheckBox {
                                         text: qsTr("Require consent")
-                                        checked: ExampleState.requireUserConsentEnabled
-                                        onToggled: ExampleState.requireUserConsentEnabled = checked
+                                        checked: AppState.requireUserConsentEnabled
+                                        onToggled: AppState.requireUserConsentEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
                                     CheckBox {
                                         text: qsTr("View hierarchy")
-                                        checked: ExampleState.viewHierarchyEnabled
-                                        onToggled: ExampleState.viewHierarchyEnabled = checked
+                                        checked: AppState.viewHierarchyEnabled
+                                        onToggled: AppState.viewHierarchyEnabled = checked
                                         Layout.fillWidth: true
                                     }
                                 }
@@ -1866,14 +1842,14 @@ ApplicationWindow {
                         }
 
                         ConsentPanel {
-                            visible: ExampleState.requireUserConsentEnabled && Sentry.initialized
+                            visible: AppState.requireUserConsentEnabled && Sentry.initialized
                             Layout.fillWidth: true
                         }
 
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: captureLayout.implicitHeight + window.panelMargin
-                            color: theme.surface
+                            color: AppTheme.surface
                             radius: 8
 
                             ColumnLayout {
@@ -1899,20 +1875,20 @@ ApplicationWindow {
 
                                         TabButton {
                                             text: qsTr("Message")
-                                            selected: ExampleState.captureMode === 0
-                                            onClicked: ExampleState.captureMode = 0
+                                            selected: AppState.captureMode === 0
+                                            onClicked: AppState.captureMode = 0
                                         }
 
                                         TabButton {
                                             text: qsTr("Exception")
-                                            selected: ExampleState.captureMode === 1
-                                            onClicked: ExampleState.captureMode = 1
+                                            selected: AppState.captureMode === 1
+                                            onClicked: AppState.captureMode = 1
                                         }
 
                                         TabButton {
                                             text: qsTr("Breadcrumb")
-                                            selected: ExampleState.captureMode === 2
-                                            onClicked: ExampleState.captureMode = 2
+                                            selected: AppState.captureMode === 2
+                                            onClicked: AppState.captureMode = 2
                                         }
                                     }
 
@@ -1923,8 +1899,8 @@ ApplicationWindow {
                                     LevelComboBox {
                                         id: captureLevelCombo
 
-                                        currentIndex: ExampleState.captureLevelIndex
-                                        onActivated: ExampleState.captureLevelIndex = currentIndex
+                                        currentIndex: AppState.captureLevelIndex
+                                        onActivated: AppState.captureLevelIndex = currentIndex
                                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                                         Layout.rightMargin: window.panelMargin
                                     }
@@ -1937,20 +1913,20 @@ ApplicationWindow {
                                     CaptureOptionComboBox {
                                         id: exceptionKindCombo
 
-                                        visible: ExampleState.captureMode === 1
+                                        visible: AppState.captureMode === 1
                                         model: [qsTr("C++"), qsTr("QML")]
                                         widthText: qsTr("QML")
                                         disabledIndexes: [0]
-                                        currentIndex: ExampleState.exceptionKindIndex
+                                        currentIndex: AppState.exceptionKindIndex
                                         Component.onCompleted: {
-                                            if (ExampleState.exceptionKindIndex === 0)
-                                                ExampleState.exceptionKindIndex = 1;
+                                            if (AppState.exceptionKindIndex === 0)
+                                                AppState.exceptionKindIndex = 1;
                                         }
                                         onActivated: {
                                             if (!indexEnabled(currentIndex)) {
-                                                currentIndex = ExampleState.exceptionKindIndex;
+                                                currentIndex = AppState.exceptionKindIndex;
                                             } else {
-                                                ExampleState.exceptionKindIndex = currentIndex;
+                                                AppState.exceptionKindIndex = currentIndex;
                                             }
                                         }
                                         Layout.preferredWidth: visible ? captureLayout.optionControlWidth : 0
@@ -1960,18 +1936,18 @@ ApplicationWindow {
                                     CaptureOptionComboBox {
                                         id: breadcrumbCategoryCombo
 
-                                        visible: ExampleState.captureMode === 2
+                                        visible: AppState.captureMode === 2
                                         model: ["default", "debug", "info", "navigation", "http", "query", "transaction", "ui", "user", "error"]
                                         widthText: qsTr("transaction")
-                                        currentIndex: ExampleState.breadcrumbCategoryIndex
-                                        onActivated: ExampleState.breadcrumbCategoryIndex = currentIndex
+                                        currentIndex: AppState.breadcrumbCategoryIndex
+                                        onActivated: AppState.breadcrumbCategoryIndex = currentIndex
                                         Layout.preferredWidth: visible ? captureLayout.optionControlWidth : 0
                                         Layout.minimumWidth: visible ? captureLayout.optionControlWidth : 0
                                     }
 
                                     TextField {
-                                        text: ExampleState.messageText
-                                        onTextEdited: ExampleState.messageText = text
+                                        text: AppState.messageText
+                                        onTextEdited: AppState.messageText = text
                                         placeholderText: qsTr("Message")
                                         Layout.fillWidth: true
                                         Layout.minimumWidth: 80
@@ -1980,7 +1956,7 @@ ApplicationWindow {
                                     ActionButton {
                                         id: captureButton
 
-                                        text: ExampleState.captureMode === 2 ? qsTr("Add") : qsTr("Capture")
+                                        text: AppState.captureMode === 2 ? qsTr("Add") : qsTr("Capture")
                                         primary: true
                                         Layout.alignment: Qt.AlignRight
                                         Layout.preferredWidth: captureLayout.sideControlWidth
@@ -2004,7 +1980,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 implicitHeight: scopeLayout.implicitHeight + window.panelMargin
-                                color: theme.surface
+                                color: AppTheme.surface
                                 radius: 8
 
                                 ColumnLayout {
@@ -2026,20 +2002,20 @@ ApplicationWindow {
 
                                             TabButton {
                                                 text: qsTr("Tags")
-                                                selected: ExampleState.scopeTab === 0
-                                                onClicked: ExampleState.scopeTab = 0
+                                                selected: AppState.scopeTab === 0
+                                                onClicked: AppState.scopeTab = 0
                                             }
 
                                             TabButton {
                                                 text: qsTr("Contexts")
-                                                selected: ExampleState.scopeTab === 1
-                                                onClicked: ExampleState.scopeTab = 1
+                                                selected: AppState.scopeTab === 1
+                                                onClicked: AppState.scopeTab = 1
                                             }
 
                                             TabButton {
                                                 text: qsTr("Attachments")
-                                                selected: ExampleState.scopeTab === 2
-                                                onClicked: ExampleState.scopeTab = 2
+                                                selected: AppState.scopeTab === 2
+                                                onClicked: AppState.scopeTab = 2
                                             }
                                         }
 
@@ -2049,16 +2025,16 @@ ApplicationWindow {
 
                                         IconToolButton {
                                             text: "+"
-                                            Accessible.name: ExampleState.scopeTab === 0 ? qsTr("Add tag") : ExampleState.scopeTab === 1 ? qsTr("Add context") : qsTr("Add attachment")
+                                            Accessible.name: AppState.scopeTab === 0 ? qsTr("Add tag") : AppState.scopeTab === 1 ? qsTr("Add context") : qsTr("Add attachment")
                                             enabled: Sentry.initialized
                                             Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                                             Layout.rightMargin: window.panelMargin
 
                                             onClicked: {
-                                                if (ExampleState.scopeTab === 2)
+                                                if (AppState.scopeTab === 2)
                                                     attachmentFileDialog.open();
                                                 else
-                                                    scopeEditorPopup.openFor(ExampleState.scopeTab);
+                                                    scopeEditorPopup.openFor(AppState.scopeTab);
                                             }
                                         }
                                     }
@@ -2066,7 +2042,7 @@ ApplicationWindow {
                                     StackLayout {
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
-                                        currentIndex: Math.min(ExampleState.scopeTab, 2)
+                                        currentIndex: Math.min(AppState.scopeTab, 2)
 
                                         ColumnLayout {
                                             Layout.fillWidth: true
@@ -2106,7 +2082,7 @@ ApplicationWindow {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: userLayout.implicitHeight + window.panelMargin
-                                color: theme.surface
+                                color: AppTheme.surface
                                 radius: 8
 
                                 ColumnLayout {
@@ -2119,7 +2095,7 @@ ApplicationWindow {
 
                                     Label {
                                         text: qsTr("USER")
-                                        color: theme.text
+                                        color: AppTheme.text
                                         font.pixelSize: 16
                                         font.weight: Font.DemiBold
                                         verticalAlignment: Text.AlignVCenter
@@ -2136,33 +2112,33 @@ ApplicationWindow {
 
                                         LabeledTextField {
                                             label: qsTr("ID")
-                                            text: ExampleState.userId
+                                            text: AppState.userId
                                             placeholderText: qsTr("12345")
-                                            onTextEdited: ExampleState.userId = text
+                                            onTextEdited: AppState.userId = text
                                             onEditingFinished: syncUser()
                                         }
 
                                         LabeledTextField {
                                             label: qsTr("Username")
-                                            text: ExampleState.username
+                                            text: AppState.username
                                             placeholderText: qsTr("jane")
-                                            onTextEdited: ExampleState.username = text
+                                            onTextEdited: AppState.username = text
                                             onEditingFinished: syncUser()
                                         }
 
                                         LabeledTextField {
                                             label: qsTr("Email")
-                                            text: ExampleState.email
+                                            text: AppState.email
                                             placeholderText: qsTr("jane@example.com")
-                                            onTextEdited: ExampleState.email = text
+                                            onTextEdited: AppState.email = text
                                             onEditingFinished: syncUser()
                                         }
 
                                         LabeledTextField {
                                             label: qsTr("IP address")
-                                            text: ExampleState.ipAddress
+                                            text: AppState.ipAddress
                                             placeholderText: qsTr("127.0.0.1")
-                                            onTextEdited: ExampleState.ipAddress = text
+                                            onTextEdited: AppState.ipAddress = text
                                             onEditingFinished: syncUser()
                                         }
                                     }
@@ -2181,7 +2157,7 @@ ApplicationWindow {
                                 Layout.row: window.compact ? 1 : 0
                                 Layout.column: window.compact ? 0 : 1
                                 implicitHeight: sessionLayout.implicitHeight + window.panelMargin
-                                color: theme.surface
+                                color: AppTheme.surface
                                 radius: 8
 
                                 ColumnLayout {
@@ -2199,7 +2175,7 @@ ApplicationWindow {
 
                                         Label {
                                             text: qsTr("SESSION")
-                                            color: theme.text
+                                            color: AppTheme.text
                                             font.pixelSize: 16
                                             font.weight: Font.DemiBold
                                             verticalAlignment: Text.AlignVCenter
@@ -2208,11 +2184,11 @@ ApplicationWindow {
                                         }
 
                                         IconToolButton {
-                                            text: ExampleState.sessionActive ? "\u25a0" : "\u25b6"
-                                            Accessible.name: ExampleState.sessionActive ? qsTr("End session") : qsTr("Start session")
-                                            destructive: ExampleState.sessionActive
-                                            quietDestructive: ExampleState.sessionActive
-                                            tooltip: ExampleState.sessionActive ? qsTr("End session") : qsTr("Start session")
+                                            text: AppState.sessionActive ? "\u25a0" : "\u25b6"
+                                            Accessible.name: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
+                                            destructive: AppState.sessionActive
+                                            quietDestructive: AppState.sessionActive
+                                            tooltip: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
                                             enabled: Sentry.initialized
 
                                             onClicked: {
@@ -2230,16 +2206,16 @@ ApplicationWindow {
 
                                         LabeledTextField {
                                             label: qsTr("Release")
-                                            text: ExampleState.sessionRelease
+                                            text: AppState.sessionRelease
                                             placeholderText: qsTr("my-app@1.0.0")
-                                            onTextEdited: ExampleState.sessionRelease = text
+                                            onTextEdited: AppState.sessionRelease = text
                                         }
 
                                         LabeledTextField {
                                             label: qsTr("Environment")
-                                            text: ExampleState.sessionEnvironment
+                                            text: AppState.sessionEnvironment
                                             placeholderText: qsTr("production")
-                                            onTextEdited: ExampleState.sessionEnvironment = text
+                                            onTextEdited: AppState.sessionEnvironment = text
                                         }
                                     }
 
@@ -2251,7 +2227,7 @@ ApplicationWindow {
                                 Layout.row: 0
                                 Layout.column: 0
                                 implicitHeight: crashLayout.implicitHeight + window.panelMargin
-                                color: theme.surface
+                                color: AppTheme.surface
                                 radius: 8
 
                                 ColumnLayout {
@@ -2268,7 +2244,7 @@ ApplicationWindow {
 
                                         Label {
                                             text: qsTr("CRASH")
-                                            color: theme.text
+                                            color: AppTheme.text
                                             font.pixelSize: 16
                                             font.weight: Font.DemiBold
                                             verticalAlignment: Text.AlignVCenter
@@ -2290,7 +2266,7 @@ ApplicationWindow {
 
                                             Label {
                                                 text: qsTr("Type")
-                                                color: theme.muted
+                                                color: AppTheme.muted
                                                 font.pixelSize: 12
                                                 font.weight: Font.DemiBold
                                                 Layout.fillWidth: true
@@ -2300,8 +2276,8 @@ ApplicationWindow {
                                                 id: crashKindCombo
 
                                                 model: [qsTr("Native"), qsTr("QML")]
-                                                currentIndex: ExampleState.crashKindIndex
-                                                onActivated: ExampleState.crashKindIndex = currentIndex
+                                                currentIndex: AppState.crashKindIndex
+                                                onActivated: AppState.crashKindIndex = currentIndex
                                                 font.pixelSize: 14
                                                 implicitHeight: window.controlHeight
                                                 leftPadding: 12
@@ -2309,7 +2285,7 @@ ApplicationWindow {
                                                 Layout.fillWidth: true
                                                 contentItem: Text {
                                                     text: crashKindCombo.displayText
-                                                    color: theme.text
+                                                    color: AppTheme.text
                                                     font: crashKindCombo.font
                                                     verticalAlignment: Text.AlignVCenter
                                                     elide: Text.ElideRight
@@ -2319,7 +2295,7 @@ ApplicationWindow {
                                                 indicator: ComboChevron {
                                                     x: crashKindCombo.width - width - 12
                                                     y: (crashKindCombo.height - height) / 2
-                                                    strokeColor: crashKindCombo.hovered || crashKindCombo.popup.visible ? theme.text : theme.muted
+                                                    strokeColor: crashKindCombo.hovered || crashKindCombo.popup.visible ? AppTheme.text : AppTheme.muted
                                                 }
                                                 delegate: ItemDelegate {
                                                     id: crashKindDelegate
@@ -2333,7 +2309,7 @@ ApplicationWindow {
                                                     highlighted: crashKindCombo.highlightedIndex === index
                                                     contentItem: Text {
                                                         text: crashKindDelegate.modelData
-                                                        color: crashKindDelegate.highlighted || crashKindCombo.currentIndex === crashKindDelegate.index ? theme.text : theme.muted
+                                                        color: crashKindDelegate.highlighted || crashKindCombo.currentIndex === crashKindDelegate.index ? AppTheme.text : AppTheme.muted
                                                         font: crashKindCombo.font
                                                         verticalAlignment: Text.AlignVCenter
                                                         elide: Text.ElideRight
@@ -2343,8 +2319,8 @@ ApplicationWindow {
                                                     }
                                                 }
                                                 background: Rectangle {
-                                                    color: crashKindCombo.hovered ? theme.inputFocus : theme.input
-                                                    border.color: theme.border
+                                                    color: crashKindCombo.hovered ? AppTheme.inputFocus : AppTheme.input
+                                                    border.color: AppTheme.border
                                                     radius: 7
                                                 }
                                                 popup: Popup {
@@ -2360,8 +2336,8 @@ ApplicationWindow {
                                                         currentIndex: crashKindCombo.highlightedIndex
                                                     }
                                                     background: Rectangle {
-                                                        color: theme.input
-                                                        border.color: theme.border
+                                                        color: AppTheme.input
+                                                        border.color: AppTheme.border
                                                         radius: 7
                                                     }
                                                 }
@@ -2397,7 +2373,7 @@ ApplicationWindow {
                     tooltip: qsTr("Feedback")
                     iconComponent: Component {
                         EnvelopeIcon {
-                            strokeColor: feedbackButton.enabled ? theme.text : theme.disabledText
+                            strokeColor: feedbackButton.enabled ? AppTheme.text : AppTheme.disabledText
                         }
                     }
 

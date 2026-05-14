@@ -1,0 +1,21 @@
+module Violet
+
+singleton Theme 6.0 Theme.qml
+
+ApplicationWindow 6.0 ApplicationWindow.qml
+Button 6.0 Button.qml
+CheckBox 6.0 CheckBox.qml
+ComboBox 6.0 ComboBox.qml
+DoubleSpinBox 6.11 DoubleSpinBox.qml
+ItemDelegate 6.0 ItemDelegate.qml
+Label 6.0 Label.qml
+Popup 6.0 Popup.qml
+ScrollBar 6.0 ScrollBar.qml
+ScrollView 6.0 ScrollView.qml
+SpinBox 6.0 SpinBox.qml
+StackView 6.0 StackView.qml
+TabButton 6.0 TabButton.qml
+TextArea 6.0 TextArea.qml
+TextField 6.0 TextField.qml
+ToolButton 6.0 ToolButton.qml
+ToolTip 6.0 ToolTip.qml

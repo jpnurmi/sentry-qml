@@ -1,6 +1,6 @@
 import QtCore
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Shapes
@@ -2157,46 +2157,10 @@ ApplicationWindow {
         StackView {
             id: pageStack
 
-            readonly property real transitionDistance: 0.3 * width
-            readonly property int moveDuration: 320
-            readonly property int fadeDuration: 180
-            readonly property int direction: mirrored ? -1 : 1
-
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
             initialItem: initializePageComponent
-
-            popEnter: Transition {
-                ParallelAnimation {
-                    NumberAnimation { property: "x"; from: -pageStack.direction * pageStack.transitionDistance; to: 0; duration: pageStack.moveDuration; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: pageStack.fadeDuration; easing.type: Easing.InQuint }
-                }
-            }
-
-            popExit: Transition {
-                ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: pageStack.direction * pageStack.transitionDistance; duration: pageStack.moveDuration; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: pageStack.fadeDuration; easing.type: Easing.OutQuint }
-                }
-            }
-
-            pushEnter: Transition {
-                ParallelAnimation {
-                    NumberAnimation { property: "x"; from: pageStack.direction * pageStack.transitionDistance; to: 0; duration: pageStack.moveDuration; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: pageStack.fadeDuration; easing.type: Easing.InQuint }
-                }
-            }
-
-            pushExit: Transition {
-                ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: -pageStack.direction * pageStack.transitionDistance; duration: pageStack.moveDuration; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: pageStack.fadeDuration; easing.type: Easing.OutQuint }
-                }
-            }
-
-            replaceEnter: pushEnter
-            replaceExit: pushExit
         }
     }
 

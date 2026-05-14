@@ -3,6 +3,7 @@
 #include <QtGui/qguiapplication.h>
 #include <QtQml/qqmlapplicationengine.h>
 #include <QtQml/qqmlcontext.h>
+#include <QtQuickControls2/qquickstyle.h>
 
 #include <csignal>
 #include <cstring>
@@ -45,10 +46,13 @@ public:
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+    QQuickStyle::setStyle(QStringLiteral("Violet"));
+
     QCoreApplication::setOrganizationName(QStringLiteral("Sentry"));
     QCoreApplication::setApplicationName(QStringLiteral("Sentry QML Example"));
 
     QQmlApplicationEngine engine;
+    engine.addImportPath(QStringLiteral(":/"));
     engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
 
     ExampleActions exampleActions;

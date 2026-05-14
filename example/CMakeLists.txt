@@ -18,6 +18,16 @@ qt_add_qml_module(sentry_qml_example
     URI SentryExample
     VERSION 1.0
     QML_FILES
+        controls/ActionButton.qml
+        controls/BackButton.qml
+        controls/Banner.qml
+        controls/ComboChevron.qml
+        controls/EnvelopeIcon.qml
+        controls/FloatingActionButton.qml
+        controls/IconToolButton.qml
+        controls/LabeledDoubleSpinBox.qml
+        controls/LabeledSpinBox.qml
+        controls/LabeledTextField.qml
         ExampleState.qml
         Main.qml
     RESOURCES

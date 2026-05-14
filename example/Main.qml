@@ -6,6 +6,8 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import Sentry 1.0
 
+import "controls"
+
 ApplicationWindow {
     id: window
 
@@ -86,367 +88,6 @@ ApplicationWindow {
         font.pixelSize: 14
         font.weight: Font.DemiBold
         text: qsTr("Crash")
-    }
-
-    component SentryTextField: TextField {
-        id: field
-
-        color: theme.text
-        placeholderTextColor: theme.subtle
-        selectedTextColor: theme.text
-        selectionColor: theme.accent
-        font.pixelSize: 15
-        leftPadding: 12
-        rightPadding: 12
-        topPadding: 9
-        bottomPadding: 9
-        implicitHeight: window.controlHeight
-        Layout.fillWidth: true
-        background: Rectangle {
-            color: field.activeFocus ? theme.inputFocus : theme.input
-            border.color: field.activeFocus ? theme.accent : theme.border
-            border.width: field.activeFocus ? 2 : 1
-            radius: 7
-        }
-    }
-
-    component LabeledTextField: ColumnLayout {
-        id: labeledField
-
-        property string label: ""
-        property alias text: field.text
-        property alias placeholderText: field.placeholderText
-        property alias inputMethodHints: field.inputMethodHints
-        property alias validator: field.validator
-
-        signal textEdited
-        signal editingFinished
-
-        spacing: 6
-        Layout.fillWidth: true
-
-        Label {
-            text: labeledField.label
-            color: theme.muted
-            font.pixelSize: 12
-            font.weight: Font.DemiBold
-            Layout.fillWidth: true
-        }
-
-        SentryTextField {
-            id: field
-
-            onTextEdited: labeledField.textEdited()
-            onEditingFinished: labeledField.editingFinished()
-        }
-    }
-
-    component ComboChevron: Item {
-        id: chevron
-
-        property color strokeColor: theme.muted
-
-        implicitWidth: 12
-        implicitHeight: 8
-
-        Rectangle {
-            x: 1
-            y: 3
-            width: 7
-            height: 2
-            radius: 1
-            rotation: 45
-            antialiasing: true
-            color: chevron.strokeColor
-        }
-
-        Rectangle {
-            x: 5
-            y: 3
-            width: 7
-            height: 2
-            radius: 1
-            rotation: -45
-            antialiasing: true
-            color: chevron.strokeColor
-        }
-    }
-
-    component SpinStepIndicator: Item {
-        id: stepIndicator
-
-        property bool increment: false
-        property bool pressed: false
-        property bool controlEnabled: true
-        readonly property real glyphOpacity: !controlEnabled ? 0.28 : pressed ? 1.0 : stepHover.hovered ? 0.82 : 0.55
-
-        implicitWidth: 30
-        implicitHeight: 18
-
-        HoverHandler {
-            id: stepHover
-
-            enabled: stepIndicator.controlEnabled
-        }
-
-        Rectangle {
-            width: 10
-            height: 2
-            x: Math.round((parent.width - width) / 2)
-            y: Math.round((parent.height - height) / 2) + (stepIndicator.increment ? 2 : -2)
-            color: theme.text
-            opacity: stepIndicator.glyphOpacity
-        }
-
-        Rectangle {
-            visible: stepIndicator.increment
-            width: 2
-            height: 4
-            x: Math.round((parent.width - width) / 2)
-            y: Math.round((parent.height - 10) / 2) + 2
-            color: theme.text
-            opacity: stepIndicator.glyphOpacity
-        }
-
-        Rectangle {
-            visible: stepIndicator.increment
-            width: 2
-            height: 4
-            x: Math.round((parent.width - width) / 2)
-            y: Math.round((parent.height + 2) / 2) + 2
-            color: theme.text
-            opacity: stepIndicator.glyphOpacity
-        }
-    }
-
-    component LabeledSpinBox: ColumnLayout {
-        id: labeledSpinBox
-
-        property string label: ""
-        property alias value: spin.value
-        property alias from: spin.from
-        property alias to: spin.to
-        property alias stepSize: spin.stepSize
-
-        signal valueModified
-
-        spacing: 6
-        Layout.fillWidth: true
-
-        Label {
-            text: labeledSpinBox.label
-            color: theme.muted
-            font.pixelSize: 12
-            font.weight: Font.DemiBold
-            Layout.fillWidth: true
-        }
-
-        SpinBox {
-            id: spin
-
-            editable: true
-            hoverEnabled: true
-            font.pixelSize: 15
-            implicitHeight: window.controlHeight
-            Layout.fillWidth: true
-            leftPadding: 12
-            rightPadding: 36
-            textFromValue: function (value) {
-                return String(value);
-            }
-            valueFromText: function (text) {
-                const value = Number(text);
-                if (!isFinite(value))
-                    return spin.value;
-                return Math.round(value);
-            }
-            onValueModified: labeledSpinBox.valueModified()
-            contentItem: TextInput {
-                text: spin.displayText
-                color: theme.text
-                selectionColor: theme.accent
-                selectedTextColor: theme.text
-                font: spin.font
-                readOnly: !spin.editable
-                horizontalAlignment: Text.AlignLeft
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: spin.leftPadding
-                rightPadding: spin.rightPadding
-                inputMethodHints: Qt.ImhDigitsOnly
-            }
-            up.indicator: SpinStepIndicator {
-                width: 30
-                height: Math.floor((spin.height - 4) / 2)
-                x: spin.width - width - 3
-                y: 2
-                increment: true
-                pressed: spin.up.pressed === true
-                controlEnabled: spin.enabled && spin.value < spin.to
-            }
-            down.indicator: SpinStepIndicator {
-                width: 30
-                height: Math.floor((spin.height - 4) / 2)
-                x: spin.width - width - 3
-                y: spin.height - height - 2
-                pressed: spin.down.pressed === true
-                controlEnabled: spin.enabled && spin.value > spin.from
-            }
-            background: Rectangle {
-                color: spin.activeFocus ? theme.inputFocus : theme.input
-                border.color: spin.activeFocus ? theme.accent : theme.border
-                border.width: spin.activeFocus ? 2 : 1
-                radius: 7
-            }
-        }
-    }
-
-    component LabeledDoubleSpinBox: ColumnLayout {
-        id: labeledDoubleSpinBox
-
-        property string label: ""
-        property alias value: spin.value
-        property alias from: spin.from
-        property alias to: spin.to
-        property alias stepSize: spin.stepSize
-        property alias decimals: spin.decimals
-        property alias locale: spin.locale
-
-        signal valueModified
-
-        spacing: 6
-        Layout.fillWidth: true
-
-        Label {
-            text: labeledDoubleSpinBox.label
-            color: theme.muted
-            font.pixelSize: 12
-            font.weight: Font.DemiBold
-            Layout.fillWidth: true
-        }
-
-        DoubleSpinBox {
-            id: spin
-
-            editable: true
-            hoverEnabled: true
-            font.pixelSize: 15
-            implicitHeight: window.controlHeight
-            Layout.fillWidth: true
-            leftPadding: 12
-            rightPadding: 36
-            inputMethodHints: Qt.ImhFormattedNumbersOnly
-            onValueModified: labeledDoubleSpinBox.valueModified()
-            contentItem: TextInput {
-                text: spin.displayText
-                color: theme.text
-                selectionColor: theme.accent
-                selectedTextColor: theme.text
-                font: spin.font
-                readOnly: !spin.editable
-                horizontalAlignment: Text.AlignLeft
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: spin.leftPadding
-                rightPadding: spin.rightPadding
-                validator: spin.validator
-                inputMethodHints: spin.inputMethodHints
-            }
-            up.indicator: SpinStepIndicator {
-                width: 30
-                height: Math.floor((spin.height - 4) / 2)
-                x: spin.width - width - 3
-                y: 2
-                increment: true
-                pressed: spin.up.pressed === true
-                controlEnabled: spin.enabled && spin.value < spin.to
-            }
-            down.indicator: SpinStepIndicator {
-                width: 30
-                height: Math.floor((spin.height - 4) / 2)
-                x: spin.width - width - 3
-                y: spin.height - height - 2
-                pressed: spin.down.pressed === true
-                controlEnabled: spin.enabled && spin.value > spin.from
-            }
-            background: Rectangle {
-                color: spin.activeFocus ? theme.inputFocus : theme.input
-                border.color: spin.activeFocus ? theme.accent : theme.border
-                border.width: spin.activeFocus ? 2 : 1
-                radius: 7
-            }
-        }
-    }
-
-    component SentryCheckBox: CheckBox {
-        id: box
-
-        spacing: 8
-        padding: 0
-        font.pixelSize: 14
-        contentItem: Text {
-            text: box.text
-            color: theme.text
-            font: box.font
-            verticalAlignment: Text.AlignVCenter
-            leftPadding: box.indicator.width + box.spacing
-        }
-        indicator: Rectangle {
-            x: box.leftPadding
-            y: box.topPadding + (box.availableHeight - height) / 2
-            implicitWidth: 20
-            implicitHeight: 20
-            radius: 5
-            color: box.checked ? theme.accent : theme.input
-            border.color: box.checked ? theme.accent : theme.border
-            border.width: 1
-
-            Rectangle {
-                width: 8
-                height: 8
-                radius: 2
-                anchors.centerIn: parent
-                visible: box.checked
-                color: theme.text
-            }
-        }
-    }
-
-    component ActionButton: Button {
-        id: actionButton
-
-        property bool primary: false
-        property bool destructive: false
-
-        hoverEnabled: true
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        implicitWidth: window.actionWidth
-        implicitHeight: window.controlHeight
-        leftPadding: 14
-        rightPadding: 14
-        contentItem: Text {
-            id: actionButtonLabel
-
-            text: actionButton.text
-            color: actionButton.enabled ? theme.text : theme.disabledText
-            font: actionButton.font
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            radius: 7
-            color: {
-                if (!actionButton.enabled)
-                    return theme.disabled;
-                if (actionButton.destructive)
-                    return actionButton.down ? Qt.darker(theme.critical, 1.12) : actionButton.hovered ? theme.criticalHover : theme.critical;
-                if (actionButton.primary)
-                    return actionButton.down ? theme.accentPressed : actionButton.hovered ? theme.accentHover : theme.accent;
-                return actionButton.down ? Qt.darker(theme.surfaceRaised, 1.15) : actionButton.hovered ? "#33333d" : theme.surfaceRaised;
-            }
-            border.color: actionButton.primary || actionButton.destructive || !actionButton.enabled ? "transparent" : theme.border
-            border.width: 1
-        }
     }
 
     component ConsentActionButton: Button {
@@ -643,261 +284,6 @@ ApplicationWindow {
                         toggleUserConsent();
                     }
                 }
-            }
-        }
-    }
-
-    component BackButton: ToolButton {
-        id: backButton
-
-        text: "\u2039"
-        Accessible.name: qsTr("Back")
-        hoverEnabled: true
-        implicitWidth: 40
-        implicitHeight: 40
-        padding: 0
-        contentItem: Item {
-            Text {
-                anchors.centerIn: parent
-                anchors.horizontalCenterOffset: 1
-                anchors.verticalCenterOffset: -1
-                text: backButton.text
-                color: backButton.enabled ? theme.text : theme.disabledText
-                font.pixelSize: 32
-                font.weight: Font.DemiBold
-            }
-        }
-        background: Rectangle {
-            radius: 8
-            color: backButton.down ? theme.surfaceRaised : backButton.hovered ? "#24242b" : "transparent"
-        }
-    }
-
-    component IconToolButton: ToolButton {
-        id: iconButton
-
-        property bool destructive: false
-        property bool quietDestructive: false
-        property string tooltip: ""
-        readonly property bool iconOnly: text.length <= 1
-
-        hoverEnabled: true
-        implicitWidth: iconOnly ? 28 : Math.max(36, iconText.implicitWidth + 24)
-        implicitHeight: iconOnly ? 28 : 36
-        padding: iconOnly ? 0 : 8
-        contentItem: Text {
-            id: iconText
-
-            text: iconButton.text
-            color: {
-                if (!iconButton.enabled)
-                    return theme.disabledText;
-                if (iconButton.quietDestructive)
-                    return iconButton.hovered || iconButton.down ? theme.critical : theme.muted;
-                return theme.text;
-            }
-            font.pixelSize: iconButton.text.length > 1 ? 14 : 15
-            font.weight: Font.DemiBold
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            radius: iconButton.iconOnly ? width / 2 : 7
-            color: {
-                if (!iconButton.enabled)
-                    return theme.disabled;
-                if (iconButton.quietDestructive)
-                    return iconButton.down ? theme.surfaceRaised : iconButton.hovered ? "#24242b" : "transparent";
-                if (iconButton.destructive)
-                    return iconButton.down ? Qt.darker(theme.critical, 1.12) : iconButton.hovered ? theme.criticalHover : "transparent";
-                return iconButton.down ? theme.surfaceRaised : iconButton.hovered ? "#24242b" : "transparent";
-            }
-        }
-        SentryToolTip {
-            text: iconButton.tooltip
-            visible: iconButton.tooltip.length > 0 && iconButton.hovered
-            x: Math.round((iconButton.width - width) / 2)
-            y: -height - 8
-        }
-    }
-
-    component EnvelopeIcon: Shape {
-        id: envelopeIcon
-
-        property color strokeColor: theme.text
-
-        implicitWidth: 22
-        implicitHeight: 16
-
-        ShapePath {
-            strokeColor: envelopeIcon.strokeColor
-            strokeWidth: 2
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            startX: 1
-            startY: 2
-
-            PathLine { x: 21; y: 2 }
-            PathLine { x: 21; y: 14 }
-            PathLine { x: 1; y: 14 }
-            PathLine { x: 1; y: 2 }
-        }
-
-        ShapePath {
-            strokeColor: envelopeIcon.strokeColor
-            strokeWidth: 2
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            startX: 2
-            startY: 3
-
-            PathLine { x: 11; y: 9 }
-            PathLine { x: 20; y: 3 }
-        }
-
-        ShapePath {
-            strokeColor: envelopeIcon.strokeColor
-            strokeWidth: 2
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            startX: 2
-            startY: 14
-
-            PathLine { x: 8; y: 9 }
-        }
-
-        ShapePath {
-            strokeColor: envelopeIcon.strokeColor
-            strokeWidth: 2
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            startX: 20
-            startY: 14
-
-            PathLine { x: 14; y: 9 }
-        }
-    }
-
-    component SentryToolTip: ToolTip {
-        id: toolTip
-
-        delay: 500
-        padding: 0
-        leftPadding: 10
-        rightPadding: 10
-        topPadding: 6
-        bottomPadding: 6
-
-        contentItem: Text {
-            text: toolTip.text
-            color: theme.text
-            font.pixelSize: 12
-            font.weight: Font.DemiBold
-        }
-
-        background: Rectangle {
-            color: theme.surfaceRaised
-            border.color: theme.border
-            radius: 6
-        }
-    }
-
-    component FeedbackFab: ToolButton {
-        id: feedbackButton
-
-        Accessible.name: qsTr("Feedback")
-        hoverEnabled: true
-        implicitWidth: 48
-        implicitHeight: 48
-        padding: 0
-        z: 10
-        contentItem: Item {
-            EnvelopeIcon {
-                anchors.centerIn: parent
-                strokeColor: feedbackButton.enabled ? theme.text : theme.disabledText
-            }
-        }
-        background: Rectangle {
-            radius: width / 2
-            color: feedbackButton.down ? theme.accentPressed : feedbackButton.hovered ? theme.accentHover : theme.accent
-        }
-
-        SentryToolTip {
-            text: qsTr("Feedback")
-            visible: feedbackButton.hovered
-            x: Math.round((feedbackButton.width - width) / 2)
-            y: -height - 8
-        }
-    }
-
-    component InitializeFab: ToolButton {
-        id: initializeButton
-
-        readonly property string actionText: Sentry.initialized ? qsTr("Re-initialize") : qsTr("Initialize")
-
-        Accessible.name: actionText
-        hoverEnabled: true
-        implicitWidth: 56
-        implicitHeight: 56
-        padding: 0
-        z: 10
-        contentItem: Text {
-            text: Sentry.initialized ? "\u21bb" : "\u2192"
-            color: initializeButton.enabled ? theme.text : theme.disabledText
-            font.pixelSize: Sentry.initialized ? 24 : 28
-            font.weight: Font.DemiBold
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-        background: Rectangle {
-            radius: width / 2
-            color: initializeButton.down ? theme.accentPressed : initializeButton.hovered ? theme.accentHover : theme.accent
-        }
-
-        SentryToolTip {
-            text: initializeButton.actionText
-            visible: initializeButton.hovered
-            x: Math.round((initializeButton.width - width) / 2)
-            y: -height - 8
-        }
-    }
-
-    component ActivityStatusPill: Rectangle {
-        id: statusPill
-
-        property int severity: 0
-        property string statusText: ""
-
-        implicitWidth: statusPillLayout.implicitWidth + 28
-        implicitHeight: 36
-        radius: 18
-        color: severity === 2 ? "#4a1d2d" : severity === 1 ? "#16372d" : theme.surface
-
-        RowLayout {
-            id: statusPillLayout
-
-            anchors.centerIn: parent
-            spacing: 8
-
-            Rectangle {
-                Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 8
-                implicitHeight: 8
-                radius: 4
-                color: statusPill.severity === 2 ? theme.critical : statusPill.severity === 1 ? theme.success : theme.subtle
-            }
-
-            Label {
-                text: statusPill.statusText
-                color: statusPill.severity === 2 ? theme.critical : statusPill.severity === 1 ? theme.success : theme.muted
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-                verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
             }
         }
     }
@@ -2179,11 +1565,11 @@ ApplicationWindow {
         x: parent ? Math.max(window.pageMargin, parent.width - width - window.pageMargin) : window.pageMargin
         y: window.pageMargin
         background: Item {}
-        contentItem: ActivityStatusPill {
+        contentItem: Banner {
             id: globalStatusPill
 
             severity: globalStatusSeverity()
-            statusText: globalStatusText()
+            text: globalStatusText()
         }
     }
 
@@ -2376,42 +1762,42 @@ ApplicationWindow {
                                     rowSpacing: 10
                                     columnSpacing: 16
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("Debug")
                                         checked: ExampleState.debugEnabled
                                         onToggled: ExampleState.debugEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("Logs")
                                         checked: ExampleState.logsEnabled
                                         onToggled: ExampleState.logsEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("Metrics")
                                         checked: ExampleState.metricsEnabled
                                         onToggled: ExampleState.metricsEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("Auto sessions")
                                         checked: ExampleState.autoSessionTrackingEnabled
                                         onToggled: ExampleState.autoSessionTrackingEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("Require consent")
                                         checked: ExampleState.requireUserConsentEnabled
                                         onToggled: ExampleState.requireUserConsentEnabled = checked
                                         Layout.fillWidth: true
                                     }
 
-                                    SentryCheckBox {
+                                    CheckBox {
                                         text: qsTr("View hierarchy")
                                         checked: ExampleState.viewHierarchyEnabled
                                         onToggled: ExampleState.viewHierarchyEnabled = checked
@@ -2425,10 +1811,20 @@ ApplicationWindow {
                     }
                 }
 
-                InitializeFab {
+                FloatingActionButton {
+                    id: initializeButton
+
+                    readonly property string actionText: Sentry.initialized ? qsTr("Re-initialize") : qsTr("Initialize")
+
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: window.pageMargin
+                    implicitWidth: 56
+                    implicitHeight: 56
+                    text: Sentry.initialized ? "\u21bb" : "\u2192"
+                    tooltip: actionText
+                    font.pixelSize: Sentry.initialized ? 24 : 28
+                    font.weight: Font.DemiBold
 
                     onClicked: {
                         initializeSentry();
@@ -2573,7 +1969,7 @@ ApplicationWindow {
                                         Layout.minimumWidth: visible ? captureLayout.optionControlWidth : 0
                                     }
 
-                                    SentryTextField {
+                                    TextField {
                                         text: ExampleState.messageText
                                         onTextEdited: ExampleState.messageText = text
                                         placeholderText: qsTr("Message")
@@ -2992,10 +2388,18 @@ ApplicationWindow {
                     }
                 }
 
-                FeedbackFab {
+                FloatingActionButton {
+                    id: feedbackButton
+
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: window.pageMargin
+                    tooltip: qsTr("Feedback")
+                    iconComponent: Component {
+                        EnvelopeIcon {
+                            strokeColor: feedbackButton.enabled ? theme.text : theme.disabledText
+                        }
+                    }
 
                     onClicked: {
                         feedbackPopup.openFeedback();

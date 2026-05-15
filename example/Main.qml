@@ -26,12 +26,12 @@ ApplicationWindow {
         return message === qsTr("Initialization failed") || message === qsTr("Re-initialization failed");
     }
 
-    function resetRuntimeStatus() {
+    function resetStatus() {
         if (!isInitializeStatus(AppState.statusMessage))
             AppState.setStatus(qsTr("Ready"), Sentry.initialized, Sentry.initialized ? 1 : 0);
     }
 
-    function globalStatusText() {
+    function getStatusText() {
         if (isInitializeStatus(AppState.statusMessage))
             return AppState.statusMessage;
         if (AppState.statusMessage !== qsTr("Ready"))
@@ -39,7 +39,7 @@ ApplicationWindow {
         return Sentry.initialized ? qsTr("Ready") : qsTr("Not initialized");
     }
 
-    function globalStatusSeverity() {
+    function getStatusSeverity() {
         if (isInitializeStatus(AppState.statusMessage))
             return 2;
         if (AppState.statusMessage !== qsTr("Ready"))
@@ -56,14 +56,14 @@ ApplicationWindow {
     }
 
     StackView {
-        id: pageStack
+        id: stackView
 
         anchors.fill: parent
         initialItem: InitPage {
             onInitialized: {
                 AppState.setStatus(qsTr("Ready"), true);
-                if (pageStack.depth === 1)
-                    pageStack.push(runtimePageComponent);
+                if (stackView.depth === 1)
+                    stackView.push(runtimePage);
                 AppState.sessionActive = false;
             }
             onFailed: {
@@ -73,7 +73,7 @@ ApplicationWindow {
     }
 
     Popup {
-        id: globalStatusPopup
+        id: statusPopup
 
         modal: false
         dim: false
@@ -81,21 +81,17 @@ ApplicationWindow {
         closePolicy: Popup.NoAutoClose
         padding: 0
         visible: true
-        width: globalStatusPill.implicitWidth
-        height: globalStatusPill.implicitHeight
         x: Math.max(AppTheme.pageMargin, window.width - width - AppTheme.pageMargin)
         y: AppTheme.pageMargin
         background: Item {}
         contentItem: Banner {
-            id: globalStatusPill
-
-            severity: globalStatusSeverity()
-            text: globalStatusText()
+            severity: getStatusSeverity()
+            text: getStatusText()
         }
     }
 
     Component {
-        id: runtimePageComponent
+        id: runtimePage
 
         RuntimePage {
             nativeCrashAction: function() {
@@ -103,8 +99,8 @@ ApplicationWindow {
             }
 
             onBackRequested: {
-                resetRuntimeStatus();
-                pageStack.pop();
+                resetStatus();
+                stackView.pop();
             }
         }
     }

@@ -10,8 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 Test)
-find_package(Qt6 6.8 QUIET COMPONENTS QmlPrivate)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Qml Quick)
+find_package(Qt6QuickControls2 6.8 QUIET)
+find_package(Qt6QmlPrivate 6.8 QUIET)
+find_package(Qt6Test 6.8 QUIET)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -63,8 +65,11 @@ set(SENTRY_QML_SDK_LINK_OPTIONS)
 include("${PROJECT_SOURCE_DIR}/cmake/${SENTRY_QML_SDK}.cmake")
 
 add_subdirectory(src)
-add_subdirectory(example)
 
-if(BUILD_TESTING)
+if(TARGET Qt6::QuickControls2)
+    add_subdirectory(example)
+endif()
+
+if(BUILD_TESTING AND TARGET Qt6::Test)
     add_subdirectory(tests)
 endif()

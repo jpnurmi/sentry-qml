@@ -31,6 +31,7 @@ qt_add_qml_module(sentry_qml_example
         controls/LabeledDoubleSpinBox.qml
         controls/LabeledSpinBox.qml
         controls/LabeledTextField.qml
+        controls/Panel.qml
         controls/Pill.qml
         AppState.qml
         AppTheme.qml

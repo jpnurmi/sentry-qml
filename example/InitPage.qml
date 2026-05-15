@@ -83,32 +83,17 @@ Item {
                 canGoBack: false
             }
 
-            Rectangle {
+            Panel {
                 Layout.fillWidth: true
                 Layout.bottomMargin: AppTheme.pageMargin
-                implicitHeight: setupLayout.implicitHeight + AppTheme.panelMargin
-                color: AppTheme.surface
-                radius: 8
+                title: qsTr("Options")
+                spacing: AppTheme.groupSpacing
 
                 ColumnLayout {
                     id: setupLayout
 
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: AppTheme.panelMargin
-                    anchors.topMargin: 0
+                    anchors.fill: parent
                     spacing: AppTheme.groupSpacing
-
-                    Label {
-                        text: qsTr("OPTIONS")
-                        color: AppTheme.text
-                        font.pixelSize: 16
-                        font.weight: Font.DemiBold
-                        verticalAlignment: Text.AlignVCenter
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 32
-                    }
 
                     LabeledTextField {
                         label: qsTr("DSN")

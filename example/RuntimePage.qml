@@ -367,32 +367,18 @@ Item {
         implicitHeight: 28
     }
 
-    component ConsentPanel: Rectangle {
+    component ConsentPanel: Panel {
         id: consentPanel
 
         readonly property bool consentActionable: Sentry.userConsentRequired
 
-        implicitHeight: consentPanelLayout.implicitHeight + AppTheme.panelMargin
-        radius: 8
-        color: AppTheme.surface
+        title: qsTr("Consent")
 
         ColumnLayout {
             id: consentPanelLayout
 
             anchors.fill: parent
-            anchors.margins: AppTheme.panelMargin
-            anchors.topMargin: 0
             spacing: AppTheme.panelSpacing
-
-            Label {
-                text: qsTr("CONSENT")
-                color: AppTheme.text
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-                verticalAlignment: Text.AlignVCenter
-                Layout.fillWidth: true
-                Layout.preferredHeight: 32
-            }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -990,11 +976,8 @@ Item {
                 Layout.fillWidth: true
             }
 
-            Rectangle {
+            Panel {
                 Layout.fillWidth: true
-                implicitHeight: captureLayout.implicitHeight + AppTheme.panelMargin
-                color: AppTheme.surface
-                radius: 8
 
                 ColumnLayout {
                     id: captureLayout
@@ -1002,8 +985,6 @@ Item {
                     readonly property real optionControlWidth: Math.max(exceptionKindCombo.implicitWidth, breadcrumbCategoryCombo.implicitWidth)
 
                     anchors.fill: parent
-                    anchors.margins: AppTheme.panelMargin
-                    anchors.topMargin: 0
                     spacing: AppTheme.panelSpacing
 
                     RowLayout {
@@ -1113,19 +1094,14 @@ Item {
                 rowSpacing: AppTheme.pageSpacing
                 columnSpacing: AppTheme.pageSpacing
 
-                Rectangle {
+                Panel {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    implicitHeight: scopeLayout.implicitHeight + AppTheme.panelMargin
-                    color: AppTheme.surface
-                    radius: 8
 
                     ColumnLayout {
                         id: scopeLayout
 
                         anchors.fill: parent
-                        anchors.margins: AppTheme.panelMargin
-                        anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
 
                         RowLayout {
@@ -1192,29 +1168,15 @@ Item {
                     }
                 }
 
-                Rectangle {
+                Panel {
                     Layout.fillWidth: true
-                    implicitHeight: userLayout.implicitHeight + AppTheme.panelMargin
-                    color: AppTheme.surface
-                    radius: 8
+                    title: qsTr("User")
 
                     ColumnLayout {
                         id: userLayout
 
                         anchors.fill: parent
-                        anchors.margins: AppTheme.panelMargin
-                        anchors.topMargin: 0
                         spacing: 12
-
-                        Label {
-                            text: qsTr("USER")
-                            color: AppTheme.text
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            verticalAlignment: Text.AlignVCenter
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                        }
 
                         GridLayout {
                             Layout.fillWidth: true
@@ -1265,50 +1227,31 @@ Item {
                 rowSpacing: AppTheme.pageSpacing
                 columnSpacing: AppTheme.pageSpacing
 
-                Rectangle {
+                Panel {
                     Layout.fillWidth: true
                     Layout.row: AppTheme.compact ? 1 : 0
                     Layout.column: AppTheme.compact ? 0 : 1
-                    implicitHeight: sessionLayout.implicitHeight + AppTheme.panelMargin
-                    color: AppTheme.surface
-                    radius: 8
+                    title: qsTr("Session")
+                    actions: [
+                        IconToolButton {
+                            text: AppState.sessionActive ? "\u25a0" : "\u25b6"
+                            Accessible.name: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
+                            destructive: AppState.sessionActive
+                            quietDestructive: AppState.sessionActive
+                            tooltip: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
+                            enabled: Sentry.initialized
+
+                            onClicked: {
+                                page.toggleSession();
+                            }
+                        }
+                    ]
 
                     ColumnLayout {
                         id: sessionLayout
 
                         anchors.fill: parent
-                        anchors.margins: AppTheme.panelMargin
-                        anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                            spacing: AppTheme.labelSpacing
-
-                            Label {
-                                text: qsTr("SESSION")
-                                color: AppTheme.text
-                                font.pixelSize: 16
-                                font.weight: Font.DemiBold
-                                verticalAlignment: Text.AlignVCenter
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 32
-                            }
-
-                            IconToolButton {
-                                text: AppState.sessionActive ? "\u25a0" : "\u25b6"
-                                Accessible.name: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
-                                destructive: AppState.sessionActive
-                                quietDestructive: AppState.sessionActive
-                                tooltip: AppState.sessionActive ? qsTr("End session") : qsTr("Start session")
-                                enabled: Sentry.initialized
-
-                                onClicked: {
-                                    page.toggleSession();
-                                }
-                            }
-                        }
 
                         GridLayout {
                             Layout.fillWidth: true
@@ -1335,31 +1278,17 @@ Item {
                     }
                 }
 
-                Rectangle {
+                Panel {
                     Layout.fillWidth: true
                     Layout.row: 0
                     Layout.column: 0
-                    implicitHeight: crashLayout.implicitHeight + AppTheme.panelMargin
-                    color: AppTheme.surface
-                    radius: 8
+                    title: qsTr("Crash")
 
                     ColumnLayout {
                         id: crashLayout
 
                         anchors.fill: parent
-                        anchors.margins: AppTheme.panelMargin
-                        anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
-
-                        Label {
-                            text: qsTr("CRASH")
-                            color: AppTheme.text
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                            verticalAlignment: Text.AlignVCenter
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                        }
 
                         GridLayout {
                             Layout.fillWidth: true

@@ -14,7 +14,6 @@ ApplicationWindow {
     minimumHeight: 480
     visible: true
     title: qsTr("Sentry QML")
-    color: AppTheme.background
 
     Binding {
         target: AppTheme

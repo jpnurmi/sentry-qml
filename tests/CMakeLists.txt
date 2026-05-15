@@ -2,6 +2,16 @@ if(NOT TARGET ZLIB::ZLIB)
     find_package(ZLIB QUIET)
 endif()
 
+if(APPLE AND TARGET ZLIB::ZLIB AND ZLIB_INCLUDE_DIR AND CMAKE_OSX_SYSROOT)
+    get_filename_component(sentry_qml_zlib_include_dir "${ZLIB_INCLUDE_DIR}" REALPATH)
+    get_filename_component(sentry_qml_apple_sdk_include_dir "${CMAKE_OSX_SYSROOT}/usr/include" REALPATH)
+    if(sentry_qml_zlib_include_dir STREQUAL sentry_qml_apple_sdk_include_dir)
+        # Apple SDK headers are already found through -isysroot. Adding the SDK
+        # C header directory explicitly can put it before libc++ wrapper headers.
+        set_target_properties(ZLIB::ZLIB PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+    endif()
+endif()
+
 function(add_sentry_qml_android_test target)
     get_target_property(target_binary_dir ${target} BINARY_DIR)
     if(QT_USE_TARGET_ANDROID_BUILD_DIR)

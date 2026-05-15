@@ -1532,6 +1532,8 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
     state->type = SentrySdkAttachmentState::File;
     state->path = path;
     auto *wrapper = new SentryAttachment(state, sentry);
+    const QFileInfo fileInfo(path);
+    wrapper->setSize(fileInfo.exists() ? fileInfo.size() : -1);
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }
@@ -1564,6 +1566,7 @@ SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
     state->filename = filename;
     auto *wrapper = new SentryAttachment(state, sentry);
     wrapper->setFilename(filename);
+    wrapper->setSize(bytes.size());
     if (!contentType.isEmpty()) {
         wrapper->setContentType(contentType);
     }

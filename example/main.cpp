@@ -4,7 +4,7 @@
 
 #include <csignal>
 
-static void triggerCrash()
+Q_NEVER_INLINE static void triggerCrash()
 {
     std::raise(SIGSEGV);
 }

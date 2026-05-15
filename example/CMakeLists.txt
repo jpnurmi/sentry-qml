@@ -35,7 +35,10 @@ qt_add_qml_module(sentry_qml_example
         controls/LabeledTextField.qml
         AppState.qml
         AppTheme.qml
+        InitPage.qml
         Main.qml
+        PageHeader.qml
+        RuntimePage.qml
     RESOURCES
         sentry-glyph.svg
 )

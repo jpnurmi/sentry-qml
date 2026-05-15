@@ -12,7 +12,6 @@
 
 extern "C" {
 #include <include/sentry.h>
-#include <src/sentry_attachment.h>
 }
 
 #include <QtCore/qbytearray.h>
@@ -486,8 +485,7 @@ void attachViewHierarchyToScope(sentry_scope_t *scope, const QByteArray &json)
         return;
     }
 
-    // ### TODO: sentry_attachment_set_type(SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY)
-    attachment->type = VIEW_HIERARCHY;
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
     setNativeAttachmentContentType(attachment, QStringLiteral("application/json"));
 }
 

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Shapes
 import Sentry 1.0
 
 import "controls"
@@ -67,108 +66,17 @@ Item {
         }
     }
 
-    component ConsentStatusIcon: Item {
+    component ConsentStatusIcon: Icon {
         id: consentIcon
 
         property int consent: Sentry.userConsent
         readonly property bool given: consent === Sentry.UserConsentGiven
         readonly property bool revoked: consent === Sentry.UserConsentRevoked
-        readonly property color statusColor: given ? AppTheme.success : revoked ? AppTheme.critical : AppTheme.warning
 
+        source: given ? "qrc:/images/consent-given.svg"
+            : revoked ? "qrc:/images/consent-revoked.svg" : "qrc:/images/consent-unknown.svg"
         implicitWidth: 28
         implicitHeight: 28
-
-        Rectangle {
-            visible: !consentIcon.given && !consentIcon.revoked
-            width: 22
-            height: 22
-            radius: width / 2
-            color: "transparent"
-            border.width: 3
-            border.color: consentIcon.statusColor
-            anchors.centerIn: parent
-        }
-
-        Shape {
-            id: unknownShape
-
-            anchors.fill: parent
-            visible: !consentIcon.given && !consentIcon.revoked
-            antialiasing: true
-
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: consentIcon.statusColor
-                strokeWidth: 3
-                capStyle: ShapePath.RoundCap
-                startX: 20
-                startY: 8
-
-                PathLine {
-                    x: 8
-                    y: 20
-                }
-            }
-        }
-
-        Shape {
-            anchors.fill: parent
-            visible: consentIcon.given
-            antialiasing: true
-
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: consentIcon.statusColor
-                strokeWidth: 4
-                capStyle: ShapePath.RoundCap
-                joinStyle: ShapePath.RoundJoin
-                startX: 5
-                startY: 15
-
-                PathLine {
-                    x: 11
-                    y: 21
-                }
-                PathLine {
-                    x: 23
-                    y: 7
-                }
-            }
-        }
-
-        Shape {
-            anchors.fill: parent
-            visible: consentIcon.revoked
-            antialiasing: true
-
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: consentIcon.statusColor
-                strokeWidth: 4
-                capStyle: ShapePath.RoundCap
-                startX: 7
-                startY: 7
-
-                PathLine {
-                    x: 21
-                    y: 21
-                }
-            }
-
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: consentIcon.statusColor
-                strokeWidth: 4
-                capStyle: ShapePath.RoundCap
-                startX: 21
-                startY: 7
-
-                PathLine {
-                    x: 7
-                    y: 21
-                }
-            }
-        }
     }
 
     component ConsentPanel: Rectangle {
@@ -310,7 +218,7 @@ Item {
         indicator: ComboChevron {
             x: combo.width - width - 12
             y: (combo.height - height) / 2
-            strokeColor: combo.hovered || combo.popup.visible ? AppTheme.text : AppTheme.muted
+            active: combo.hovered || combo.popup.visible
         }
         delegate: ItemDelegate {
             id: comboDelegate
@@ -401,7 +309,7 @@ Item {
         indicator: ComboChevron {
             x: optionCombo.width - width - 12
             y: (optionCombo.height - height) / 2
-            strokeColor: optionCombo.hovered || optionCombo.popup.visible ? AppTheme.text : AppTheme.muted
+            active: optionCombo.hovered || optionCombo.popup.visible
         }
         delegate: ItemDelegate {
             id: optionDelegate
@@ -1172,7 +1080,7 @@ Item {
                                     indicator: ComboChevron {
                                         x: crashKindCombo.width - width - 12
                                         y: (crashKindCombo.height - height) / 2
-                                        strokeColor: crashKindCombo.hovered || crashKindCombo.popup.visible ? AppTheme.text : AppTheme.muted
+                                        active: crashKindCombo.hovered || crashKindCombo.popup.visible
                                     }
                                     delegate: ItemDelegate {
                                         id: crashKindDelegate
@@ -1248,11 +1156,9 @@ Item {
         anchors.bottom: parent.bottom
         anchors.margins: root.pageMargin
         tooltip: qsTr("Feedback")
-        iconComponent: Component {
-            EnvelopeIcon {
-                strokeColor: feedbackButton.enabled ? AppTheme.text : AppTheme.disabledText
-            }
-        }
+        iconSource: "qrc:/images/feedback.svg"
+        icon.width: 22
+        icon.height: 16
 
         onClicked: {
             root.feedbackRequested();

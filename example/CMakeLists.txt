@@ -27,8 +27,8 @@ qt_add_qml_module(sentry_qml_example
         controls/BackButton.qml
         controls/Banner.qml
         controls/ComboChevron.qml
-        controls/EnvelopeIcon.qml
         controls/FloatingActionButton.qml
+        controls/Icon.qml
         controls/IconToolButton.qml
         controls/LabeledDoubleSpinBox.qml
         controls/LabeledSpinBox.qml
@@ -43,6 +43,19 @@ qt_add_qml_module(sentry_qml_example
         ScopeEditorPopup.qml
     RESOURCES
         sentry-glyph.svg
+)
+
+qt_add_resources(sentry_qml_example sentry_qml_example_images
+    PREFIX
+        "/"
+    BASE
+        "."
+    FILES
+        images/chevron-down.svg
+        images/consent-given.svg
+        images/consent-revoked.svg
+        images/consent-unknown.svg
+        images/feedback.svg
 )
 
 qt_add_resources(sentry_qml_example sentry_qml_example_violet_style

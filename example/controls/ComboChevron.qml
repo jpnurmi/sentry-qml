@@ -1,33 +1,12 @@
-import QtQuick
 import Violet as S
 
-Item {
+Icon {
     id: control
 
-    property color strokeColor: S.Theme.muted
+    property bool active: false
 
+    source: "qrc:/images/chevron-down.svg"
+    opacity: active ? 1 : 0.65
     implicitWidth: 12
     implicitHeight: 8
-
-    Rectangle {
-        x: 1
-        y: 3
-        width: 7
-        height: 2
-        radius: 1
-        rotation: 45
-        antialiasing: true
-        color: control.strokeColor
-    }
-
-    Rectangle {
-        x: 5
-        y: 3
-        width: 7
-        height: 2
-        radius: 1
-        rotation: -45
-        antialiasing: true
-        color: control.strokeColor
-    }
 }

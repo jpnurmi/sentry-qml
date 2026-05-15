@@ -6,11 +6,11 @@ ToolButton {
     id: control
 
     property string tooltip: ""
-    property Component iconComponent
+    property url iconSource
     property color backgroundColor: S.Theme.accent
     property color hoverColor: S.Theme.accentHover
     property color pressedColor: S.Theme.accentPressed
-    readonly property bool hasIcon: iconComponent !== undefined && iconComponent !== null
+    readonly property bool hasIcon: iconSource.toString().length > 0
 
     Accessible.name: tooltip.length > 0 ? tooltip : text
     hoverEnabled: true
@@ -20,10 +20,13 @@ ToolButton {
     z: 10
 
     contentItem: Item {
-        Loader {
+        Icon {
             anchors.centerIn: parent
-            sourceComponent: control.iconComponent
-            active: control.hasIcon
+            visible: control.hasIcon
+            source: control.iconSource
+            width: control.icon.width > 0 ? control.icon.width : 22
+            height: control.icon.height > 0 ? control.icon.height : 22
+            opacity: control.enabled ? 1 : 0.5
         }
 
         Text {

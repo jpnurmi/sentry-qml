@@ -35,10 +35,12 @@ qt_add_qml_module(sentry_qml_example
         controls/LabeledTextField.qml
         AppState.qml
         AppTheme.qml
+        FeedbackPopup.qml
         InitPage.qml
         Main.qml
         PageHeader.qml
         RuntimePage.qml
+        ScopeEditorPopup.qml
     RESOURCES
         sentry-glyph.svg
 )

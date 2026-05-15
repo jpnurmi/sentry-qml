@@ -2,7 +2,6 @@ import QtCore
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
-import QtQuick.Layouts
 import Sentry 1.0
 
 import "controls"
@@ -455,91 +454,13 @@ ApplicationWindow {
         }
     }
 
-    Popup {
+    ScopeEditorPopup {
         id: scopeEditorPopup
 
-        property int scopeTab: 0
-
-        function openFor(tab) {
-            scopeTab = tab;
-            scopeKeyField.text = "";
-            scopeValueField.text = "";
-            open();
-        }
-
-        x: (window.width - width) / 2
-        y: Math.max(window.pageMargin, (window.height - height) / 2)
-        width: Math.min(window.width - window.pageMargin * 2, 420)
-        modal: true
-        focus: true
-        padding: window.panelMargin
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-        contentItem: ColumnLayout {
-            spacing: 14
-
-            Label {
-                text: scopeEditorPopup.scopeTab === 0 ? qsTr("Add tag") : qsTr("Add context")
-                color: AppTheme.text
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
-            }
-
-            LabeledTextField {
-                id: scopeKeyField
-
-                label: scopeEditorPopup.scopeTab === 0 ? qsTr("Key") : qsTr("Context")
-                placeholderText: scopeEditorPopup.scopeTab === 0 ? qsTr("feature") : qsTr("device")
-            }
-
-            LabeledTextField {
-                id: scopeValueField
-
-                label: qsTr("Value")
-                placeholderText: scopeEditorPopup.scopeTab === 0 ? qsTr("checkout") : qsTr("mobile")
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                ActionButton {
-                    text: qsTr("Cancel")
-
-                    onClicked: {
-                        scopeEditorPopup.close();
-                    }
-                }
-
-                ActionButton {
-                    text: qsTr("Add")
-                    primary: true
-
-                    onClicked: {
-                        if (scopeEditorPopup.scopeTab === 0) {
-                            AppState.tagKey = scopeKeyField.text;
-                            AppState.tagValue = scopeValueField.text;
-                        } else {
-                            AppState.contextKey = scopeKeyField.text;
-                            AppState.contextValue = scopeValueField.text;
-                        }
-                        AppState.scopeTab = scopeEditorPopup.scopeTab;
-                        applyScope();
-                        scopeEditorPopup.close();
-                    }
-                }
-            }
-        }
-
-        background: Rectangle {
-            color: AppTheme.surface
-            border.color: AppTheme.border
-            radius: 8
+        pageMargin: window.pageMargin
+        panelMargin: window.panelMargin
+        applyScope: function() {
+            window.applyScope();
         }
     }
 
@@ -554,129 +475,14 @@ ApplicationWindow {
         }
     }
 
-    Popup {
+    FeedbackPopup {
         id: feedbackPopup
 
-        function openFeedback() {
-            feedbackNameField.text = "";
-            feedbackEmailField.text = AppState.email;
-            feedbackMessageArea.text = "";
-            open();
-        }
-
-        x: (window.width - width) / 2
-        y: Math.max(window.pageMargin, (window.height - height) / 2)
-        width: Math.min(window.width - window.pageMargin * 2, 520)
-        modal: true
-        focus: true
-        padding: window.panelMargin
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-        contentItem: ColumnLayout {
-            spacing: 14
-
-            Label {
-                text: qsTr("Feedback")
-                color: AppTheme.text
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
-            }
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: window.compact ? 1 : 2
-                uniformCellWidths: true
-                rowSpacing: 10
-                columnSpacing: 10
-
-                LabeledTextField {
-                    id: feedbackNameField
-
-                    label: qsTr("Name")
-                    placeholderText: qsTr("Jane")
-                }
-
-                LabeledTextField {
-                    id: feedbackEmailField
-
-                    label: qsTr("Email")
-                    placeholderText: qsTr("jane@example.com")
-                    inputMethodHints: Qt.ImhEmailCharactersOnly
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                Label {
-                    text: qsTr("Message")
-                    color: AppTheme.muted
-                    font.pixelSize: 12
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                }
-
-                TextArea {
-                    id: feedbackMessageArea
-
-                    placeholderText: qsTr("What happened?")
-                    placeholderTextColor: AppTheme.subtle
-                    color: AppTheme.text
-                    selectedTextColor: AppTheme.text
-                    selectionColor: AppTheme.accent
-                    font.pixelSize: 15
-                    wrapMode: TextArea.Wrap
-                    leftPadding: 12
-                    rightPadding: 12
-                    topPadding: 10
-                    bottomPadding: 10
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(220, Math.max(130, window.height * 0.24))
-
-                    background: Rectangle {
-                        color: feedbackMessageArea.activeFocus ? AppTheme.inputFocus : AppTheme.input
-                        border.color: feedbackMessageArea.activeFocus ? AppTheme.accent : AppTheme.border
-                        border.width: feedbackMessageArea.activeFocus ? 2 : 1
-                        radius: 7
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                ActionButton {
-                    text: qsTr("Cancel")
-
-                    onClicked: {
-                        feedbackPopup.close();
-                    }
-                }
-
-                ActionButton {
-                    text: qsTr("Send")
-                    primary: true
-                    enabled: feedbackMessageArea.text.trim().length > 0
-
-                    onClicked: {
-                        if (sendFeedback(feedbackNameField.text, feedbackEmailField.text, feedbackMessageArea.text))
-                            feedbackPopup.close();
-                    }
-                }
-            }
-        }
-
-        background: Rectangle {
-            color: AppTheme.surface
-            border.color: AppTheme.border
-            radius: 8
+        compact: window.compact
+        pageMargin: window.pageMargin
+        panelMargin: window.panelMargin
+        sendFeedback: function(name, email, message) {
+            return window.sendFeedback(name, email, message);
         }
     }
 

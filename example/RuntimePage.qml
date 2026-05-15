@@ -457,7 +457,7 @@ Item {
         }
     }
 
-    component ScopeEntriesView: ColumnLayout {
+    component ScopeEntriesView: Item {
         id: entriesView
 
         property var model
@@ -475,13 +475,12 @@ Item {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 0
+        implicitHeight: tableFrame.implicitHeight
 
         Rectangle {
             id: tableFrame
 
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            anchors.fill: parent
             implicitHeight: root.compact ? 148 : 124
             color: "#151518"
             border.color: "#24242b"
@@ -591,7 +590,7 @@ Item {
         }
     }
 
-    component AttachmentEntriesView: ColumnLayout {
+    component AttachmentEntriesView: Item {
         id: attachmentsView
 
         property var model
@@ -605,13 +604,12 @@ Item {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 0
+        implicitHeight: tableFrame.implicitHeight
 
         Rectangle {
             id: tableFrame
 
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            anchors.fill: parent
             implicitHeight: root.compact ? 148 : 124
             color: "#151518"
             border.color: "#24242b"
@@ -947,36 +945,18 @@ Item {
                             Layout.fillHeight: true
                             currentIndex: Math.min(AppState.scopeTab, 2)
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                spacing: 10
-
-                                ScopeEntriesView {
-                                    model: root.tagModel
-                                    scopeTab: 0
-                                }
+                            ScopeEntriesView {
+                                model: root.tagModel
+                                scopeTab: 0
                             }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                spacing: 10
-
-                                ScopeEntriesView {
-                                    model: root.contextModel
-                                    scopeTab: 1
-                                }
+                            ScopeEntriesView {
+                                model: root.contextModel
+                                scopeTab: 1
                             }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                spacing: 10
-
-                                AttachmentEntriesView {
-                                    model: root.attachmentModel
-                                }
+                            AttachmentEntriesView {
+                                model: root.attachmentModel
                             }
                         }
                     }
@@ -1141,19 +1121,14 @@ Item {
                         anchors.topMargin: 0
                         spacing: 12
 
-                        RowLayout {
+                        Label {
+                            text: qsTr("CRASH")
+                            color: AppTheme.text
+                            font.pixelSize: 16
+                            font.weight: Font.DemiBold
+                            verticalAlignment: Text.AlignVCenter
                             Layout.fillWidth: true
                             Layout.preferredHeight: 32
-
-                            Label {
-                                text: qsTr("CRASH")
-                                color: AppTheme.text
-                                font.pixelSize: 16
-                                font.weight: Font.DemiBold
-                                verticalAlignment: Text.AlignVCenter
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 32
-                            }
                         }
 
                         GridLayout {

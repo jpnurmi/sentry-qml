@@ -680,18 +680,11 @@ ApplicationWindow {
         }
     }
 
-    ColumnLayout {
+    StackView {
+        id: pageStack
+
         anchors.fill: parent
-        spacing: 0
-
-        StackView {
-            id: pageStack
-
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            initialItem: initializePageComponent
-        }
+        initialItem: initializePageComponent
     }
 
     Popup {

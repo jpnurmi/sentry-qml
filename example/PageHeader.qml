@@ -65,65 +65,57 @@ Item {
             }
         }
 
-        RowLayout {
+        IconToolButton {
             id: headerActions
 
             visible: header.showFeedbackButton
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
-
-            IconToolButton {
-                text: qsTr("Feedback")
-                Accessible.name: qsTr("Feedback")
-                onClicked: header.feedbackClicked()
-            }
+            text: qsTr("Feedback")
+            Accessible.name: qsTr("Feedback")
+            onClicked: header.feedbackClicked()
         }
     }
 
-    ColumnLayout {
+    RowLayout {
         id: compactHeader
 
         visible: header.compact
         width: parent.width
-        spacing: 8
+        height: visible ? implicitHeight : 0
+        spacing: 10
 
-        RowLayout {
+        BackButton {
+            visible: header.canGoBack
+            onClicked: header.backClicked()
+        }
+
+        Image {
+            Layout.preferredWidth: 34
+            Layout.preferredHeight: 30
+            Layout.leftMargin: 4
+            Layout.rightMargin: 2
+            source: "sentry-glyph.svg"
+            sourceSize.width: width
+            sourceSize.height: height
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+        }
+
+        Label {
+            text: qsTr("Sentry QML")
+            color: AppTheme.text
+            font.pixelSize: 28
+            font.weight: Font.DemiBold
             Layout.fillWidth: true
-            spacing: 10
+            elide: Text.ElideRight
+        }
 
-            BackButton {
-                visible: header.canGoBack
-                onClicked: header.backClicked()
-            }
-
-            Image {
-                Layout.preferredWidth: 34
-                Layout.preferredHeight: 30
-                Layout.leftMargin: 4
-                Layout.rightMargin: 2
-                source: "sentry-glyph.svg"
-                sourceSize.width: width
-                sourceSize.height: height
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-            }
-
-            Label {
-                text: qsTr("Sentry QML")
-                color: AppTheme.text
-                font.pixelSize: 28
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
-                elide: Text.ElideRight
-            }
-
-            IconToolButton {
-                visible: header.showFeedbackButton
-                text: qsTr("Feedback")
-                Accessible.name: qsTr("Feedback")
-                onClicked: header.feedbackClicked()
-            }
+        IconToolButton {
+            visible: header.showFeedbackButton
+            text: qsTr("Feedback")
+            Accessible.name: qsTr("Feedback")
+            onClicked: header.feedbackClicked()
         }
     }
 }

@@ -20,7 +20,7 @@ QtObject {
 
     property string dsn: ""
     property string databasePath: defaultDatabasePath
-    property string messageText: qsTr("Hello from Sentry QML")
+    property string messageText: ""
     property string release: qsTr("sentry-qml-example@0.1.0")
     property string environment: qsTr("qml")
     property string dist: ""

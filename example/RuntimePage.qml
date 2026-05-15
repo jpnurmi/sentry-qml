@@ -756,7 +756,6 @@ Item {
                 ColumnLayout {
                     id: captureLayout
 
-                    readonly property real sideControlWidth: root.actionWidth
                     readonly property real optionControlWidth: Math.max(exceptionKindCombo.implicitWidth, breadcrumbCategoryCombo.implicitWidth)
 
                     anchors.fill: parent
@@ -846,26 +845,26 @@ Item {
                             Layout.minimumWidth: visible ? captureLayout.optionControlWidth : 0
                         }
 
-                        TextField {
+                        LabeledTextField {
+                            id: messageField
+
                             text: AppState.messageText
-                            onTextEdited: AppState.messageText = text
                             placeholderText: qsTr("Message")
+                            trailingActionText: "\u2192"
+                            trailingActionAccessibleName: AppState.captureMode === 2 ? qsTr("Add") : qsTr("Capture")
+                            trailingActionTooltip: messageField.trailingActionAccessibleName
+                            trailingActionEnabled: AppState.messageText.trim().length > 0
                             Layout.fillWidth: true
                             Layout.minimumWidth: 80
-                        }
 
-                        ActionButton {
-                            id: captureButton
-
-                            text: AppState.captureMode === 2 ? qsTr("Add") : qsTr("Capture")
-                            primary: true
-                            Layout.alignment: Qt.AlignRight
-                            Layout.preferredWidth: captureLayout.sideControlWidth
-                            Layout.minimumWidth: captureLayout.sideControlWidth
-
-                            onClicked: {
+                            onTextEdited: AppState.messageText = text
+                            onAccepted: {
+                                if (!messageField.trailingActionEnabled)
+                                    return;
                                 root.captureRequested();
+                                AppState.messageText = "";
                             }
+                            onTrailingActionTriggered: root.captureRequested()
                         }
                     }
                 }

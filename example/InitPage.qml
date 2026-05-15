@@ -15,6 +15,11 @@ Item {
 
     signal initializeRequested
 
+    function openDatabaseFolderDialog() {
+        databaseFolderDialog.currentFolder = AppState.toFileUrl(AppState.databasePath);
+        databaseFolderDialog.open();
+    }
+
     ScrollView {
         id: initializeScrollView
 
@@ -63,11 +68,11 @@ Item {
 
                         text: qsTr("OPTIONS")
                         color: AppTheme.text
-                        font.pixelSize: 18
+                        font.pixelSize: 16
                         font.weight: Font.DemiBold
+                        verticalAlignment: Text.AlignVCenter
                         Layout.fillWidth: true
                         Layout.preferredHeight: 32
-                        Layout.topMargin: 0
                     }
 
                     LabeledTextField {
@@ -78,29 +83,16 @@ Item {
                         onTextEdited: AppState.dsn = text
                     }
 
-                    GridLayout {
+                    LabeledTextField {
                         Layout.fillWidth: true
-                        columns: 2
-                        rowSpacing: 10
-                        columnSpacing: 10
-
-                        LabeledTextField {
-                            label: qsTr("Database")
-                            text: AppState.databasePath
-                            placeholderText: qsTr("/path/to/sentry-db")
-                            Layout.fillWidth: true
-                            onTextEdited: AppState.databasePath = text
-                        }
-
-                        ActionButton {
-                            text: qsTr("Browse...")
-                            Layout.fillWidth: root.compact
-                            Layout.alignment: Qt.AlignBottom | Qt.AlignRight
-                            onClicked: {
-                                databaseFolderDialog.currentFolder = AppState.toFileUrl(AppState.databasePath);
-                                databaseFolderDialog.open();
-                            }
-                        }
+                        label: qsTr("Database")
+                        text: AppState.databasePath
+                        placeholderText: qsTr("/path/to/sentry-db")
+                        trailingActionText: "\u2026"
+                        trailingActionAccessibleName: qsTr("Browse database")
+                        trailingActionTooltip: qsTr("Browse...")
+                        onTextEdited: AppState.databasePath = text
+                        onTrailingActionTriggered: root.openDatabaseFolderDialog()
                     }
 
                     FolderDialog {

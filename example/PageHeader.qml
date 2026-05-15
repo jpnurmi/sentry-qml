@@ -69,6 +69,8 @@ Item {
             id: headerActions
 
             visible: header.showFeedbackButton
+            width: implicitWidth
+            height: implicitHeight
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: qsTr("Feedback")

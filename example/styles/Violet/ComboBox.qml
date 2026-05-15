@@ -11,10 +11,10 @@ T.ComboBox {
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
                              implicitContentHeight + topPadding + bottomPadding,
                              Theme.controlHeight)
-    leftPadding: 14
-    rightPadding: 38
-    topPadding: 6
-    bottomPadding: 6
+    leftPadding: 16
+    rightPadding: 40
+    topPadding: 8
+    bottomPadding: 8
 
     delegate: ItemDelegate {
         required property int index

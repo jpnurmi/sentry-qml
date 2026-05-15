@@ -16,7 +16,7 @@ ColumnLayout {
 
     signal valueModified()
 
-    spacing: 6
+    spacing: AppTheme.labelSpacing
     Layout.fillWidth: true
 
     Label {

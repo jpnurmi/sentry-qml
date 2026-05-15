@@ -14,8 +14,8 @@ Button {
     font.weight: Font.DemiBold
     implicitWidth: preferredWidth
     implicitHeight: S.Theme.controlHeight
-    leftPadding: 14
-    rightPadding: 14
+    leftPadding: 16
+    rightPadding: 16
 
     contentItem: Text {
         text: control.text

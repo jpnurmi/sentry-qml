@@ -10,9 +10,9 @@ Item {
     id: root
 
     property bool compact: false
-    property int pageMargin: 20
-    property int panelMargin: 18
-    property int controlHeight: 42
+    property int pageMargin: AppTheme.pageMargin
+    property int panelMargin: AppTheme.panelMargin
+    property int controlHeight: AppTheme.controlHeight
     property int actionWidth: 152
     property string consentText: ""
     property color consentColor: AppTheme.success
@@ -186,7 +186,7 @@ Item {
             anchors.fill: parent
             anchors.margins: root.panelMargin
             anchors.topMargin: 0
-            spacing: 12
+            spacing: AppTheme.panelSpacing
 
             Label {
                 text: qsTr("CONSENT")
@@ -200,7 +200,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: AppTheme.formSpacing
 
                 ConsentStatusIcon {
                     Layout.alignment: Qt.AlignVCenter
@@ -464,8 +464,8 @@ Item {
         property int scopeTab: 0
         readonly property int headerHeight: 34
         readonly property int rowHeight: 34
-        readonly property int tablePadding: 14
-        readonly property int removeColumnWidth: 42
+        readonly property int tablePadding: AppTheme.panelMargin
+        readonly property int removeColumnWidth: 40
         readonly property int keyColumnWidth: Math.round((tableFrame.width - tablePadding * 2 - removeColumnWidth) * 0.42)
         readonly property int valueColumnX: tablePadding + keyColumnWidth
 
@@ -596,8 +596,8 @@ Item {
         property var model
         readonly property int headerHeight: 34
         readonly property int rowHeight: 34
-        readonly property int tablePadding: 14
-        readonly property int removeColumnWidth: 42
+        readonly property int tablePadding: AppTheme.panelMargin
+        readonly property int removeColumnWidth: 40
         readonly property int sizeColumnWidth: Math.min(120, Math.max(86, Math.round(tableFrame.width * 0.18)))
         readonly property int sizeColumnX: tableFrame.width - tablePadding - removeColumnWidth - sizeColumnWidth
         readonly property int fileColumnWidth: Math.max(80, sizeColumnX - tablePadding - 12)
@@ -733,7 +733,7 @@ Item {
             id: runtimePage
 
             width: runtimeScrollView.availableWidth
-            spacing: 16
+            spacing: AppTheme.pageSpacing
 
             PageHeader {
                 compact: root.compact
@@ -761,14 +761,14 @@ Item {
                     anchors.fill: parent
                     anchors.margins: root.panelMargin
                     anchors.topMargin: 0
-                    spacing: 12
+                    spacing: AppTheme.panelSpacing
 
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: -root.panelMargin
                         Layout.rightMargin: -root.panelMargin
                         Layout.preferredHeight: 32
-                        spacing: 10
+                        spacing: AppTheme.formSpacing
 
                         RowLayout {
                             spacing: 0
@@ -808,7 +808,7 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
+                        spacing: AppTheme.formSpacing
 
                         CaptureOptionComboBox {
                             id: exceptionKindCombo
@@ -873,8 +873,8 @@ Item {
             GridLayout {
                 Layout.fillWidth: true
                 columns: root.compact ? 1 : 2
-                rowSpacing: 16
-                columnSpacing: 16
+                rowSpacing: AppTheme.pageSpacing
+                columnSpacing: AppTheme.pageSpacing
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -889,13 +889,13 @@ Item {
                         anchors.fill: parent
                         anchors.margins: root.panelMargin
                         anchors.topMargin: 0
-                        spacing: 12
+                        spacing: AppTheme.panelSpacing
 
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: -root.panelMargin
                             Layout.rightMargin: -root.panelMargin
-                            spacing: 10
+                            spacing: AppTheme.formSpacing
 
                             RowLayout {
                                 spacing: 0
@@ -989,8 +989,8 @@ Item {
                             Layout.fillWidth: true
                             columns: root.compact ? 1 : 2
                             uniformCellWidths: true
-                            rowSpacing: 10
-                            columnSpacing: 10
+                            rowSpacing: AppTheme.formSpacing
+                            columnSpacing: AppTheme.formSpacing
 
                             LabeledTextField {
                                 label: qsTr("ID")
@@ -1031,8 +1031,8 @@ Item {
             GridLayout {
                 Layout.fillWidth: true
                 columns: root.compact ? 1 : 2
-                rowSpacing: 16
-                columnSpacing: 16
+                rowSpacing: AppTheme.pageSpacing
+                columnSpacing: AppTheme.pageSpacing
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -1048,12 +1048,12 @@ Item {
                         anchors.fill: parent
                         anchors.margins: root.panelMargin
                         anchors.topMargin: 0
-                        spacing: 12
+                        spacing: AppTheme.panelSpacing
 
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 32
-                            spacing: 8
+                            spacing: AppTheme.labelSpacing
 
                             Label {
                                 text: qsTr("SESSION")
@@ -1083,8 +1083,8 @@ Item {
                             Layout.fillWidth: true
                             columns: root.compact ? 1 : 2
                             uniformCellWidths: true
-                            rowSpacing: 10
-                            columnSpacing: 10
+                            rowSpacing: AppTheme.formSpacing
+                            columnSpacing: AppTheme.formSpacing
 
                             LabeledTextField {
                                 label: qsTr("Release")
@@ -1118,7 +1118,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: root.panelMargin
                         anchors.topMargin: 0
-                        spacing: 12
+                        spacing: AppTheme.panelSpacing
 
                         Label {
                             text: qsTr("CRASH")
@@ -1133,13 +1133,13 @@ Item {
                         GridLayout {
                             Layout.fillWidth: true
                             columns: 2
-                            rowSpacing: 10
-                            columnSpacing: 10
+                            rowSpacing: AppTheme.formSpacing
+                            columnSpacing: AppTheme.formSpacing
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.minimumWidth: 80
-                                spacing: 6
+                                spacing: AppTheme.labelSpacing
 
                                 Label {
                                     text: qsTr("Type")

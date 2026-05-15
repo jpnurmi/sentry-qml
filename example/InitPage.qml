@@ -10,8 +10,8 @@ Item {
 
     property bool compact: false
     property bool initialized: false
-    property real pageMargin: 20
-    property real panelMargin: 18
+    property real pageMargin: AppTheme.pageMargin
+    property real panelMargin: AppTheme.panelMargin
 
     signal initializeRequested
 
@@ -35,7 +35,7 @@ Item {
             id: initializePage
 
             width: initializeScrollView.availableWidth
-            spacing: 16
+            spacing: AppTheme.pageSpacing
 
             PageHeader {
                 id: initializeHeader
@@ -61,7 +61,7 @@ Item {
                     anchors.top: parent.top
                     anchors.margins: root.panelMargin
                     anchors.topMargin: 0
-                    spacing: 14
+                    spacing: AppTheme.groupSpacing
 
                     Label {
                         id: initializeTitle
@@ -109,8 +109,8 @@ Item {
                         Layout.fillWidth: true
                         columns: root.compact ? 1 : 3
                         uniformCellWidths: true
-                        rowSpacing: 10
-                        columnSpacing: 10
+                        rowSpacing: AppTheme.formSpacing
+                        columnSpacing: AppTheme.formSpacing
 
                         LabeledTextField {
                             label: qsTr("Release")
@@ -141,8 +141,8 @@ Item {
                         Layout.fillWidth: true
                         columns: root.compact ? 1 : 3
                         uniformCellWidths: true
-                        rowSpacing: 10
-                        columnSpacing: 10
+                        rowSpacing: AppTheme.formSpacing
+                        columnSpacing: AppTheme.formSpacing
 
                         LabeledDoubleSpinBox {
                             label: qsTr("Sample rate")
@@ -184,8 +184,8 @@ Item {
                         columns: root.compact ? 1 : 4
                         flow: GridLayout.LeftToRight
                         uniformCellWidths: !root.compact
-                        rowSpacing: 10
-                        columnSpacing: 16
+                        rowSpacing: AppTheme.formSpacing
+                        columnSpacing: AppTheme.pageSpacing
 
                         CheckBox {
                             text: qsTr("Debug")

@@ -15,8 +15,8 @@ T.TextField {
                              placeholder.implicitHeight + topPadding + bottomPadding,
                              Theme.controlHeight)
     padding: 12
-    leftPadding: 14
-    rightPadding: 14
+    leftPadding: 16
+    rightPadding: 16
     color: control.enabled ? Theme.text : Theme.disabledText
     selectionColor: Theme.accent
     selectedTextColor: Theme.text

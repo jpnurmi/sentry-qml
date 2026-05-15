@@ -9,10 +9,10 @@ T.SpinBox {
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
                              contentItem.implicitHeight + topPadding + bottomPadding,
                              Theme.controlHeight)
-    leftPadding: 14
-    rightPadding: 34
-    topPadding: 6
-    bottomPadding: 6
+    leftPadding: 16
+    rightPadding: 36
+    topPadding: 8
+    bottomPadding: 8
 
     validator: IntValidator {
         locale: control.locale.name

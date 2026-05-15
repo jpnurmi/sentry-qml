@@ -11,7 +11,7 @@ T.ToolButton {
                              implicitContentHeight + topPadding + bottomPadding,
                              Theme.controlHeight)
     padding: 8
-    spacing: 6
+    spacing: 8
 
     icon.width: 20
     icon.height: 20

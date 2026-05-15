@@ -8,8 +8,6 @@ Popup {
     id: root
 
     property int scopeTab: 0
-    property real pageMargin: 20
-    property real panelMargin: 18
     property var applyScope: null
 
     function openFor(tab) {
@@ -33,16 +31,12 @@ Popup {
         close();
     }
 
-    x: (Window.width - width) / 2
-    y: Math.max(root.pageMargin, (Window.height - height) / 2)
-    width: Math.min(Math.max(0, Window.width - root.pageMargin * 2), 420)
     modal: true
     focus: true
-    padding: root.panelMargin
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    padding: AppTheme.panelMargin
 
     contentItem: ColumnLayout {
-        spacing: 14
+        spacing: AppTheme.groupSpacing
 
         Label {
             text: root.scopeTab === 0 ? qsTr("Add tag") : qsTr("Add context")
@@ -68,7 +62,7 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            spacing: AppTheme.formSpacing
 
             Item {
                 Layout.fillWidth: true

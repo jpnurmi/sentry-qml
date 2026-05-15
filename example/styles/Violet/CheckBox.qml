@@ -9,7 +9,7 @@ T.CheckBox {
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
                              implicitContentHeight + topPadding + bottomPadding,
                              implicitIndicatorHeight + topPadding + bottomPadding)
-    spacing: 10
+    spacing: 12
     padding: 0
 
     indicator: Rectangle {

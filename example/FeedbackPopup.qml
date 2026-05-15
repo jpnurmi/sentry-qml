@@ -8,8 +8,7 @@ Popup {
     id: root
 
     property bool compact: false
-    property real pageMargin: 20
-    property real panelMargin: 18
+    property int messageHeight: 160
     property var sendFeedback: null
 
     function openFeedback() {
@@ -24,16 +23,12 @@ Popup {
             close();
     }
 
-    x: (Window.width - width) / 2
-    y: Math.max(root.pageMargin, (Window.height - height) / 2)
-    width: Math.min(Math.max(0, Window.width - root.pageMargin * 2), 520)
     modal: true
     focus: true
-    padding: root.panelMargin
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    padding: AppTheme.panelMargin
 
     contentItem: ColumnLayout {
-        spacing: 14
+        spacing: AppTheme.groupSpacing
 
         Label {
             text: qsTr("Feedback")
@@ -47,8 +42,8 @@ Popup {
             Layout.fillWidth: true
             columns: root.compact ? 1 : 2
             uniformCellWidths: true
-            rowSpacing: 10
-            columnSpacing: 10
+            rowSpacing: AppTheme.formSpacing
+            columnSpacing: AppTheme.formSpacing
 
             LabeledTextField {
                 id: feedbackNameField
@@ -68,7 +63,7 @@ Popup {
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: AppTheme.labelSpacing
 
             Label {
                 text: qsTr("Message")
@@ -90,10 +85,10 @@ Popup {
                 wrapMode: TextArea.Wrap
                 leftPadding: 12
                 rightPadding: 12
-                topPadding: 10
-                bottomPadding: 10
+                topPadding: AppTheme.formSpacing
+                bottomPadding: AppTheme.formSpacing
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(220, Math.max(130, Window.height * 0.24))
+                Layout.preferredHeight: root.messageHeight
 
                 background: Rectangle {
                     color: feedbackMessageArea.activeFocus ? AppTheme.inputFocus : AppTheme.input
@@ -106,7 +101,7 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            spacing: AppTheme.formSpacing
 
             Item {
                 Layout.fillWidth: true

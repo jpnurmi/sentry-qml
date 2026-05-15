@@ -35,7 +35,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(0, Math.min(implicitWidth, desktopHeader.titleMaxWidth))
-            spacing: 10
+            spacing: AppTheme.formSpacing
             clip: true
 
             BackButton {
@@ -85,7 +85,7 @@ Item {
         visible: header.compact
         width: parent.width
         height: visible ? implicitHeight : 0
-        spacing: 10
+        spacing: AppTheme.formSpacing
 
         BackButton {
             visible: header.canGoBack

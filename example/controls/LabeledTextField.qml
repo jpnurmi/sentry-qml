@@ -31,7 +31,7 @@ ColumnLayout {
             trailingActionTriggered();
     }
 
-    spacing: labelItem.visible ? 6 : 0
+    spacing: labelItem.visible ? AppTheme.labelSpacing : 0
     Layout.fillWidth: true
 
     Label {
@@ -57,7 +57,7 @@ ColumnLayout {
 
             anchors.fill: parent
             font.pixelSize: 15
-            rightPadding: trailingActionButton.visible ? trailingActionButton.width + 22 : 14
+            rightPadding: trailingActionButton.visible ? trailingActionButton.width + AppTheme.groupSpacing : AppTheme.groupSpacing
 
             onAccepted: control.accept()
             onTextEdited: control.textEdited()
@@ -80,7 +80,7 @@ ColumnLayout {
             height: implicitHeight
             padding: 0
             anchors.right: parent.right
-            anchors.rightMargin: 7
+            anchors.rightMargin: AppTheme.labelSpacing
             anchors.verticalCenter: parent.verticalCenter
             z: 1
 

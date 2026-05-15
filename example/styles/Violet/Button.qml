@@ -10,8 +10,8 @@ T.Button {
                              implicitContentHeight + topPadding + bottomPadding,
                              Theme.controlHeight)
     padding: 12
-    leftPadding: 18
-    rightPadding: 18
+    leftPadding: 16
+    rightPadding: 16
     spacing: 8
 
     icon.width: 18

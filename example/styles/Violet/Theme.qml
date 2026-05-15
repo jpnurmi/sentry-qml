@@ -25,5 +25,5 @@ QtObject {
     readonly property color criticalHover: "#ee6b91"
 
     readonly property int radius: 7
-    readonly property int controlHeight: 42
+    readonly property int controlHeight: 40
 }

@@ -17,10 +17,10 @@ ApplicationWindow {
     title: qsTr("Sentry QML")
     color: AppTheme.background
 
-    readonly property bool compact: width < 900
-    readonly property int pageMargin: compact ? 14 : 20
-    readonly property int panelMargin: compact ? 14 : 18
-    readonly property int controlHeight: 42
+    readonly property bool compact: width < AppTheme.compactWidth
+    readonly property int pageMargin: compact ? AppTheme.compactPageMargin : AppTheme.pageMargin
+    readonly property int panelMargin: compact ? AppTheme.compactPanelMargin : AppTheme.panelMargin
+    readonly property int controlHeight: AppTheme.controlHeight
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(initializeActionMetrics.width + 28, reinitializeActionMetrics.width + 28, sendActionMetrics.width + 28, addActionMetrics.width + 28, crashActionMetrics.width + 28)))
     property var attachmentHandles: []
 
@@ -457,8 +457,10 @@ ApplicationWindow {
     ScopeEditorPopup {
         id: scopeEditorPopup
 
-        pageMargin: window.pageMargin
-        panelMargin: window.panelMargin
+        width: Math.min(Math.max(0, window.width - window.pageMargin * 2), 416)
+        height: implicitHeight
+        x: (window.width - width) / 2
+        y: Math.max(window.pageMargin, (window.height - height) / 2)
         applyScope: function() {
             window.applyScope();
         }
@@ -479,8 +481,11 @@ ApplicationWindow {
         id: feedbackPopup
 
         compact: window.compact
-        pageMargin: window.pageMargin
-        panelMargin: window.panelMargin
+        messageHeight: Math.min(220, Math.max(130, window.height * 0.24))
+        width: Math.min(Math.max(0, window.width - window.pageMargin * 2), 512)
+        height: implicitHeight
+        x: (window.width - width) / 2
+        y: Math.max(window.pageMargin, (window.height - height) / 2)
         sendFeedback: function(name, email, message) {
             return window.sendFeedback(name, email, message);
         }
@@ -496,7 +501,6 @@ ApplicationWindow {
     Popup {
         id: globalStatusPopup
 
-        parent: Overlay.overlay
         modal: false
         dim: false
         focus: false
@@ -505,7 +509,7 @@ ApplicationWindow {
         visible: true
         width: globalStatusPill.implicitWidth
         height: globalStatusPill.implicitHeight
-        x: parent ? Math.max(window.pageMargin, parent.width - width - window.pageMargin) : window.pageMargin
+        x: Math.max(window.pageMargin, window.width - width - window.pageMargin)
         y: window.pageMargin
         background: Item {}
         contentItem: Banner {

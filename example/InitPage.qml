@@ -8,10 +8,9 @@ import "controls"
 Item {
     id: root
 
-    property bool compact: false
     property bool initialized: false
-    property real pageMargin: AppTheme.pageMargin
-    property real panelMargin: AppTheme.panelMargin
+    readonly property int pageMargin: AppTheme.pageMargin
+    readonly property int panelMargin: AppTheme.panelMargin
 
     signal initializeRequested
 
@@ -40,7 +39,6 @@ Item {
             PageHeader {
                 id: initializeHeader
 
-                compact: root.compact
                 canGoBack: false
             }
 
@@ -107,7 +105,7 @@ Item {
 
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: root.compact ? 1 : 3
+                        columns: AppTheme.compact ? 1 : 3
                         uniformCellWidths: true
                         rowSpacing: AppTheme.formSpacing
                         columnSpacing: AppTheme.formSpacing
@@ -139,7 +137,7 @@ Item {
 
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: root.compact ? 1 : 3
+                        columns: AppTheme.compact ? 1 : 3
                         uniformCellWidths: true
                         rowSpacing: AppTheme.formSpacing
                         columnSpacing: AppTheme.formSpacing
@@ -181,9 +179,9 @@ Item {
                         id: featureFlow
 
                         Layout.fillWidth: true
-                        columns: root.compact ? 1 : 4
+                        columns: AppTheme.compact ? 1 : 4
                         flow: GridLayout.LeftToRight
-                        uniformCellWidths: !root.compact
+                        uniformCellWidths: !AppTheme.compact
                         rowSpacing: AppTheme.formSpacing
                         columnSpacing: AppTheme.pageSpacing
 

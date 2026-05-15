@@ -8,16 +8,19 @@ import "controls"
 Item {
     id: root
 
-    property bool compact: false
-    property int pageMargin: AppTheme.pageMargin
-    property int panelMargin: AppTheme.panelMargin
-    property int controlHeight: AppTheme.controlHeight
-    property int actionWidth: 152
     property string consentText: ""
     property color consentColor: AppTheme.success
     property var tagModel
     property var contextModel
     property var attachmentModel
+    readonly property int pageMargin: AppTheme.pageMargin
+    readonly property int panelMargin: AppTheme.panelMargin
+    readonly property int controlHeight: AppTheme.controlHeight
+    readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
+        giveActionMetrics.width,
+        revokeActionMetrics.width,
+        crashActionMetrics.width
+    ) + 28))
 
     signal backRequested()
     signal feedbackRequested()
@@ -30,6 +33,30 @@ Item {
     signal toggleUserConsentRequested()
     signal removeScopeEntryRequested(var scopeTab, var index, var key, var entryModel)
     signal removeAttachmentRequested(var index)
+
+    TextMetrics {
+        id: giveActionMetrics
+
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        text: qsTr("Give")
+    }
+
+    TextMetrics {
+        id: revokeActionMetrics
+
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        text: qsTr("Revoke")
+    }
+
+    TextMetrics {
+        id: crashActionMetrics
+
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        text: qsTr("Crash")
+    }
 
     component ConsentActionButton: Button {
         id: consentButton
@@ -389,7 +416,7 @@ Item {
             id: tableFrame
 
             anchors.fill: parent
-            implicitHeight: root.compact ? 148 : 124
+            implicitHeight: AppTheme.compact ? 148 : 124
             color: "#151518"
             border.color: "#24242b"
             radius: 7
@@ -518,7 +545,7 @@ Item {
             id: tableFrame
 
             anchors.fill: parent
-            implicitHeight: root.compact ? 148 : 124
+            implicitHeight: AppTheme.compact ? 148 : 124
             color: "#151518"
             border.color: "#24242b"
             radius: 7
@@ -644,7 +671,6 @@ Item {
             spacing: AppTheme.pageSpacing
 
             PageHeader {
-                compact: root.compact
                 canGoBack: true
 
                 onBackClicked: root.backRequested()
@@ -780,7 +806,7 @@ Item {
 
             GridLayout {
                 Layout.fillWidth: true
-                columns: root.compact ? 1 : 2
+                columns: AppTheme.compact ? 1 : 2
                 rowSpacing: AppTheme.pageSpacing
                 columnSpacing: AppTheme.pageSpacing
 
@@ -895,7 +921,7 @@ Item {
 
                         GridLayout {
                             Layout.fillWidth: true
-                            columns: root.compact ? 1 : 2
+                            columns: AppTheme.compact ? 1 : 2
                             uniformCellWidths: true
                             rowSpacing: AppTheme.formSpacing
                             columnSpacing: AppTheme.formSpacing
@@ -938,14 +964,14 @@ Item {
 
             GridLayout {
                 Layout.fillWidth: true
-                columns: root.compact ? 1 : 2
+                columns: AppTheme.compact ? 1 : 2
                 rowSpacing: AppTheme.pageSpacing
                 columnSpacing: AppTheme.pageSpacing
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.row: root.compact ? 1 : 0
-                    Layout.column: root.compact ? 0 : 1
+                    Layout.row: AppTheme.compact ? 1 : 0
+                    Layout.column: AppTheme.compact ? 0 : 1
                     implicitHeight: sessionLayout.implicitHeight + root.panelMargin
                     color: AppTheme.surface
                     radius: 8
@@ -989,7 +1015,7 @@ Item {
 
                         GridLayout {
                             Layout.fillWidth: true
-                            columns: root.compact ? 1 : 2
+                            columns: AppTheme.compact ? 1 : 2
                             uniformCellWidths: true
                             rowSpacing: AppTheme.formSpacing
                             columnSpacing: AppTheme.formSpacing

@@ -26,11 +26,11 @@ QtObject {
     readonly property color disabled: "#2b2c32"
     readonly property color disabledText: "#777183"
 
+    property bool compact: false
+
     readonly property int compactWidth: 900
-    readonly property int pageMargin: 20
-    readonly property int compactPageMargin: 16
+    readonly property int pageMargin: compact ? 16 : 20
     readonly property int panelMargin: 16
-    readonly property int compactPanelMargin: 16
     readonly property int controlHeight: 40
     readonly property int pageSpacing: 16
     readonly property int groupSpacing: 16

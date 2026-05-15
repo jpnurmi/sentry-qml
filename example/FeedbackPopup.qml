@@ -7,7 +7,6 @@ import "controls"
 Popup {
     id: root
 
-    property bool compact: false
     property int messageHeight: 160
     property var sendFeedback: null
 
@@ -40,7 +39,7 @@ Popup {
 
         GridLayout {
             Layout.fillWidth: true
-            columns: root.compact ? 1 : 2
+            columns: AppTheme.compact ? 1 : 2
             uniformCellWidths: true
             rowSpacing: AppTheme.formSpacing
             columnSpacing: AppTheme.formSpacing

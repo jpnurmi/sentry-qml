@@ -8,14 +8,13 @@ Item {
     id: header
 
     property bool canGoBack: false
-    property bool compact: false
     property bool showFeedbackButton: false
 
     signal backClicked
     signal feedbackClicked
 
     Layout.fillWidth: true
-    implicitHeight: compact ? compactHeader.implicitHeight : desktopHeader.implicitHeight
+    implicitHeight: AppTheme.compact ? compactHeader.implicitHeight : desktopHeader.implicitHeight
 
     Item {
         id: desktopHeader
@@ -24,7 +23,7 @@ Item {
         readonly property real titleMaxWidth: parent.width
             - (headerActions.visible ? headerActions.implicitWidth + headerGap : 0)
 
-        visible: !header.compact
+        visible: !AppTheme.compact
         width: parent.width
         height: visible ? implicitHeight : 0
         implicitHeight: Math.max(titleRow.implicitHeight, headerActions.implicitHeight)
@@ -82,7 +81,7 @@ Item {
     RowLayout {
         id: compactHeader
 
-        visible: header.compact
+        visible: AppTheme.compact
         width: parent.width
         height: visible ? implicitHeight : 0
         spacing: AppTheme.formSpacing

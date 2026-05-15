@@ -17,51 +17,12 @@ ApplicationWindow {
     title: qsTr("Sentry QML")
     color: AppTheme.background
 
-    readonly property bool compact: width < AppTheme.compactWidth
-    readonly property int pageMargin: compact ? AppTheme.compactPageMargin : AppTheme.pageMargin
-    readonly property int panelMargin: compact ? AppTheme.compactPanelMargin : AppTheme.panelMargin
-    readonly property int controlHeight: AppTheme.controlHeight
-    readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(initializeActionMetrics.width + 28, reinitializeActionMetrics.width + 28, sendActionMetrics.width + 28, addActionMetrics.width + 28, crashActionMetrics.width + 28)))
     property var attachmentHandles: []
 
-    TextMetrics {
-        id: initializeActionMetrics
-
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        text: qsTr("Initialize")
-    }
-
-    TextMetrics {
-        id: reinitializeActionMetrics
-
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        text: qsTr("Re-initialize")
-    }
-
-    TextMetrics {
-        id: sendActionMetrics
-
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        text: qsTr("Send")
-    }
-
-    TextMetrics {
-        id: addActionMetrics
-
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        text: qsTr("Add")
-    }
-
-    TextMetrics {
-        id: crashActionMetrics
-
-        font.pixelSize: 14
-        font.weight: Font.DemiBold
-        text: qsTr("Crash")
+    Binding {
+        target: AppTheme
+        property: "compact"
+        value: window.width < AppTheme.compactWidth
     }
 
     SentryOptions {
@@ -457,10 +418,10 @@ ApplicationWindow {
     ScopeEditorPopup {
         id: scopeEditorPopup
 
-        width: Math.min(Math.max(0, window.width - window.pageMargin * 2), 416)
+        width: Math.min(Math.max(0, window.width - AppTheme.pageMargin * 2), 416)
         height: implicitHeight
         x: (window.width - width) / 2
-        y: Math.max(window.pageMargin, (window.height - height) / 2)
+        y: Math.max(AppTheme.pageMargin, (window.height - height) / 2)
         applyScope: function() {
             window.applyScope();
         }
@@ -480,12 +441,11 @@ ApplicationWindow {
     FeedbackPopup {
         id: feedbackPopup
 
-        compact: window.compact
         messageHeight: Math.min(220, Math.max(130, window.height * 0.24))
-        width: Math.min(Math.max(0, window.width - window.pageMargin * 2), 512)
+        width: Math.min(Math.max(0, window.width - AppTheme.pageMargin * 2), 512)
         height: implicitHeight
         x: (window.width - width) / 2
-        y: Math.max(window.pageMargin, (window.height - height) / 2)
+        y: Math.max(AppTheme.pageMargin, (window.height - height) / 2)
         sendFeedback: function(name, email, message) {
             return window.sendFeedback(name, email, message);
         }
@@ -509,8 +469,8 @@ ApplicationWindow {
         visible: true
         width: globalStatusPill.implicitWidth
         height: globalStatusPill.implicitHeight
-        x: Math.max(window.pageMargin, window.width - width - window.pageMargin)
-        y: window.pageMargin
+        x: Math.max(AppTheme.pageMargin, window.width - width - AppTheme.pageMargin)
+        y: AppTheme.pageMargin
         background: Item {}
         contentItem: Banner {
             id: globalStatusPill
@@ -526,10 +486,7 @@ ApplicationWindow {
         InitPage {
             width: pageStack.width
             height: pageStack.height
-            compact: window.compact
             initialized: Sentry.initialized
-            pageMargin: window.pageMargin
-            panelMargin: window.panelMargin
 
             onInitializeRequested: {
                 initializeSentry();
@@ -543,11 +500,6 @@ ApplicationWindow {
         RuntimePage {
             width: pageStack.width
             height: pageStack.height
-            compact: window.compact
-            pageMargin: window.pageMargin
-            panelMargin: window.panelMargin
-            controlHeight: window.controlHeight
-            actionWidth: window.actionWidth
             consentText: consentFooterText()
             consentColor: consentFooterColor()
             tagModel: tagEntries

@@ -22,31 +22,6 @@ ApplicationWindow {
         value: window.width < AppTheme.compactWidth
     }
 
-    function isInitializeStatus(message) {
-        return message === qsTr("Initialization failed") || message === qsTr("Re-initialization failed");
-    }
-
-    function resetStatus() {
-        if (!isInitializeStatus(AppState.statusMessage))
-            AppState.setStatus(qsTr("Ready"), Sentry.initialized, Sentry.initialized ? 1 : 0);
-    }
-
-    function getStatusText() {
-        if (isInitializeStatus(AppState.statusMessage))
-            return AppState.statusMessage;
-        if (AppState.statusMessage !== qsTr("Ready"))
-            return AppState.statusMessage;
-        return Sentry.initialized ? qsTr("Ready") : qsTr("Not initialized");
-    }
-
-    function getStatusSeverity() {
-        if (isInitializeStatus(AppState.statusMessage))
-            return 2;
-        if (AppState.statusMessage !== qsTr("Ready"))
-            return AppState.statusSeverity;
-        return Sentry.initialized ? 1 : 0;
-    }
-
     Connections {
         target: Sentry
 
@@ -72,22 +47,11 @@ ApplicationWindow {
         }
     }
 
-    Popup {
-        id: statusPopup
+    StatusBanner {
+        id: statusBanner
 
-        modal: false
-        dim: false
-        focus: false
-        closePolicy: Popup.NoAutoClose
-        padding: 0
-        visible: true
         x: Math.max(AppTheme.pageMargin, window.width - width - AppTheme.pageMargin)
         y: AppTheme.pageMargin
-        background: Item {}
-        contentItem: Banner {
-            severity: getStatusSeverity()
-            text: getStatusText()
-        }
     }
 
     Component {
@@ -99,7 +63,7 @@ ApplicationWindow {
             }
 
             onBackRequested: {
-                resetStatus();
+                statusBanner.reset();
                 stackView.pop();
             }
         }

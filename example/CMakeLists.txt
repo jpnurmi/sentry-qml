@@ -25,13 +25,13 @@ qt_add_qml_module(sentry_qml_example
     QML_FILES
         controls/ActionButton.qml
         controls/BackButton.qml
-        controls/Banner.qml
         controls/FloatingActionButton.qml
         controls/Icon.qml
         controls/IconToolButton.qml
         controls/LabeledDoubleSpinBox.qml
         controls/LabeledSpinBox.qml
         controls/LabeledTextField.qml
+        controls/Pill.qml
         AppState.qml
         AppTheme.qml
         FeedbackPopup.qml
@@ -40,6 +40,7 @@ qt_add_qml_module(sentry_qml_example
         PageHeader.qml
         RuntimePage.qml
         ScopeEditorPopup.qml
+        StatusBanner.qml
     RESOURCES
         sentry-glyph.svg
 )

@@ -71,6 +71,19 @@ jobs:
           if (-not $qtVersion) { throw "Could not read Qt version" }
           "version=$qtVersion" >> $env:GITHUB_OUTPUT
 
+      - name: Read Sentry module cache keys
+        id: sentry-module-cache
+        shell: pwsh
+        run: |
+          $sentryNativeSha = & git -C modules/sentry-native rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or -not $sentryNativeSha) { throw "Could not read sentry-native SHA" }
+
+          $sentryCocoaSha = & git -C modules/sentry-cocoa rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or -not $sentryCocoaSha) { throw "Could not read sentry-cocoa SHA" }
+
+          "sentry-native-sha=$sentryNativeSha" >> $env:GITHUB_OUTPUT
+          "sentry-cocoa-sha=$sentryCocoaSha" >> $env:GITHUB_OUTPUT
+
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
@@ -88,9 +101,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build/sentry-native
-          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
+          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
           restore-keys: |
-            sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-
+            sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-
 
       - name: Restore SentryObjC cache
         if: matrix.sentry_sdk == 'Cocoa'
@@ -98,9 +111,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build/sentry-cocoa
-          key: sentryobjc-${{ matrix.runner }}-${{ hashFiles('cmake/cocoa.cmake', 'cmake/sentry-cocoa.cmake') }}
+          key: sentryobjc-${{ matrix.runner }}-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}-${{ hashFiles('cmake/cocoa.cmake', 'cmake/sentry-cocoa.cmake') }}
           restore-keys: |
-            sentryobjc-${{ matrix.runner }}-
+            sentryobjc-${{ matrix.runner }}-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}-
 
       - name: Install Crashpad dependencies
         if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'

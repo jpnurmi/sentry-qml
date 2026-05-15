@@ -507,11 +507,6 @@ Item {
                 Layout.fillWidth: true
             }
         }
-        indicator: ComboChevron {
-            x: combo.width - width - 12
-            y: (combo.height - height) / 2
-            active: combo.hovered || combo.popup.visible
-        }
         delegate: ItemDelegate {
             id: comboDelegate
 
@@ -597,11 +592,6 @@ Item {
             font: optionCombo.font
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
-        }
-        indicator: ComboChevron {
-            x: optionCombo.width - width - 12
-            y: (optionCombo.height - height) / 2
-            active: optionCombo.hovered || optionCombo.popup.visible
         }
         delegate: ItemDelegate {
             id: optionDelegate
@@ -1403,11 +1393,6 @@ Item {
                                         elide: Text.ElideRight
                                         leftPadding: crashKindCombo.leftPadding
                                         rightPadding: crashKindCombo.rightPadding
-                                    }
-                                    indicator: ComboChevron {
-                                        x: crashKindCombo.width - width - 12
-                                        y: (crashKindCombo.height - height) / 2
-                                        active: crashKindCombo.hovered || crashKindCombo.popup.visible
                                     }
                                     delegate: ItemDelegate {
                                         id: crashKindDelegate

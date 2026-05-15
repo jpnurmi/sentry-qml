@@ -25,18 +25,16 @@ T.ComboBox {
         highlighted: control.highlightedIndex === index
     }
 
-    indicator: Text {
-        x: control.mirrored ? control.leftPadding : control.width - width - 14
+    indicator: Image {
+        x: control.mirrored ? 14 : control.width - width - 14
         y: (control.height - height) / 2
-        width: 18
-        height: 18
-        text: "⌄"
-        color: control.enabled ? Theme.muted : Theme.disabledText
-        opacity: control.down ? 1.0 : control.hovered ? 0.85 : 0.65
-        font.family: control.font.family
-        font.pixelSize: Math.max(18, control.font.pixelSize)
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
+        width: 12
+        height: 8
+        source: "qrc:/images/chevron-down.svg"
+        sourceSize.width: width
+        sourceSize.height: height
+        fillMode: Image.PreserveAspectFit
+        opacity: control.enabled ? control.down || control.hovered || control.popup.visible ? 1 : 0.65 : 0.35
     }
 
     contentItem: TextInput {

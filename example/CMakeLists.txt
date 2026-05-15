@@ -26,7 +26,6 @@ qt_add_qml_module(sentry_qml_example
         controls/ActionButton.qml
         controls/BackButton.qml
         controls/Banner.qml
-        controls/ComboChevron.qml
         controls/FloatingActionButton.qml
         controls/Icon.qml
         controls/IconToolButton.qml

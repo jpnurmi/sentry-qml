@@ -20,7 +20,7 @@ set_source_files_properties(AppTheme.qml
 )
 
 qt_add_qml_module(sentry_qml_example
-    URI SentryExample
+    URI SentryQmlExample
     VERSION 1.0
     QML_FILES
         controls/ActionButton.qml

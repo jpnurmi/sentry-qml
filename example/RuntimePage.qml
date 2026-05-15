@@ -10,7 +10,6 @@ Item {
     id: root
 
     property var attachmentHandles: []
-    property var nativeCrashAction: null
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
         giveActionMetrics.width,
         revokeActionMetrics.width,
@@ -285,10 +284,7 @@ Item {
     function triggerCrash() {
         if (AppState.crashKindIndex === 0) {
             AppState.setStatus(qsTr("Crashing..."), false);
-            if (root.nativeCrashAction)
-                root.nativeCrashAction();
-            else
-                AppState.setStatus(qsTr("Native crash action is not available"), false);
+            Native.crash();
         } else {
             AppState.setStatus(qsTr("Triggering QML error..."), false);
             triggerQmlError();

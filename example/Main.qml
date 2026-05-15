@@ -37,8 +37,7 @@ ApplicationWindow {
         initialItem: InitPage {
             onInitialized: {
                 AppState.setStatus(qsTr("Ready"), true);
-                if (stackView.depth === 1)
-                    stackView.push(runtimePage);
+                stackView.push(runtimePage);
                 AppState.sessionActive = false;
             }
             onFailed: {
@@ -58,10 +57,6 @@ ApplicationWindow {
         id: runtimePage
 
         RuntimePage {
-            nativeCrashAction: function() {
-                exampleActions.crash();
-            }
-
             onBackRequested: {
                 statusBanner.reset();
                 stackView.pop();

@@ -7,7 +7,7 @@ import Sentry 1.0
 import "controls"
 
 Item {
-    id: root
+    id: page
 
     property var attachmentHandles: []
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
@@ -329,7 +329,7 @@ Item {
         hoverEnabled: true
         font.pixelSize: 14
         font.weight: Font.DemiBold
-        implicitWidth: root.actionWidth
+        implicitWidth: page.actionWidth
         implicitHeight: AppTheme.controlHeight
         contentItem: Text {
             text: consentButton.text
@@ -404,8 +404,8 @@ Item {
                 }
 
                 Text {
-                    text: root.consentFooterText()
-                    color: consentPanel.consentActionable ? root.consentFooterColor() : AppTheme.muted
+                    text: page.consentFooterText()
+                    color: consentPanel.consentActionable ? page.consentFooterColor() : AppTheme.muted
                     font.pixelSize: 15
                     font.weight: Font.DemiBold
                     verticalAlignment: Text.AlignVCenter
@@ -416,10 +416,10 @@ Item {
                 ConsentActionButton {
                     giveConsent: Sentry.userConsent !== Sentry.UserConsentGiven
                     enabled: consentPanel.consentActionable
-                    Layout.preferredWidth: root.actionWidth
+                    Layout.preferredWidth: page.actionWidth
 
                     onClicked: {
-                        root.toggleUserConsent();
+                        page.toggleUserConsent();
                     }
                 }
             }
@@ -461,6 +461,28 @@ Item {
                 color: AppTheme.accent
                 opacity: tabButton.selected ? 1 : tabButton.hovered ? 0.28 : 0
             }
+        }
+    }
+
+    component TabStrip: Flickable {
+        id: tabStrip
+
+        default property alias tabs: tabRow.data
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 32
+        clip: true
+        contentWidth: tabRow.implicitWidth
+        contentHeight: height
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentWidth > width
+
+        RowLayout {
+            id: tabRow
+
+            height: parent.height
+            spacing: 0
         }
     }
 
@@ -656,7 +678,7 @@ Item {
         readonly property int valueColumnX: tablePadding + keyColumnWidth
 
         function removeEntry(index, key) {
-            root.removeScopeEntry(scopeTab, index, key, model);
+            page.removeScopeEntry(scopeTab, index, key, model);
         }
 
         Layout.fillWidth: true
@@ -891,7 +913,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
 
                             onClicked: {
-                                root.removeAttachmentAt(attachmentRow.index);
+                                page.removeAttachmentAt(attachmentRow.index);
                             }
                         }
                     }
@@ -908,12 +930,12 @@ Item {
     ScopeEditorPopup {
         id: scopeEditorPopup
 
-        width: Math.min(Math.max(0, root.width - AppTheme.pageMargin * 2), 416)
+        width: Math.min(Math.max(0, page.width - AppTheme.pageMargin * 2), 416)
         height: implicitHeight
-        x: (root.width - width) / 2
-        y: Math.max(AppTheme.pageMargin, (root.height - height) / 2)
+        x: (page.width - width) / 2
+        y: Math.max(AppTheme.pageMargin, (page.height - height) / 2)
         applyScope: function() {
-            root.applyScope();
+            page.applyScope();
         }
     }
 
@@ -924,20 +946,20 @@ Item {
         currentFolder: AppState.toFileUrl(AppState.databasePath)
 
         onAccepted: {
-            root.addAttachment(selectedFile);
+            page.addAttachment(selectedFile);
         }
     }
 
     FeedbackPopup {
         id: feedbackPopup
 
-        messageHeight: Math.min(220, Math.max(130, root.height * 0.24))
-        width: Math.min(Math.max(0, root.width - AppTheme.pageMargin * 2), 512)
+        messageHeight: Math.min(220, Math.max(130, page.height * 0.24))
+        width: Math.min(Math.max(0, page.width - AppTheme.pageMargin * 2), 512)
         height: implicitHeight
-        x: (root.width - width) / 2
-        y: Math.max(AppTheme.pageMargin, (root.height - height) / 2)
+        x: (page.width - width) / 2
+        y: Math.max(AppTheme.pageMargin, (page.height - height) / 2)
         sendFeedback: function(name, email, message) {
-            return root.sendFeedback(name, email, message);
+            return page.sendFeedback(name, email, message);
         }
     }
 
@@ -960,7 +982,7 @@ Item {
             PageHeader {
                 canGoBack: true
 
-                onBackClicked: root.backRequested()
+                onBackClicked: page.backRequested()
             }
 
             ConsentPanel {
@@ -991,9 +1013,7 @@ Item {
                         Layout.preferredHeight: 32
                         spacing: AppTheme.formSpacing
 
-                        RowLayout {
-                            spacing: 0
-
+                        TabStrip {
                             TabButton {
                                 text: qsTr("Message")
                                 selected: AppState.captureMode === 0
@@ -1011,10 +1031,6 @@ Item {
                                 selected: AppState.captureMode === 2
                                 onClicked: AppState.captureMode = 2
                             }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
                         }
 
                         LevelComboBox {
@@ -1082,10 +1098,10 @@ Item {
                             onAccepted: {
                                 if (!messageField.trailingActionEnabled)
                                     return;
-                                root.capture();
+                                page.capture();
                                 AppState.messageText = "";
                             }
-                            onTrailingActionTriggered: root.capture()
+                            onTrailingActionTriggered: page.capture()
                         }
                     }
                 }
@@ -1118,9 +1134,7 @@ Item {
                             Layout.rightMargin: -AppTheme.panelMargin
                             spacing: AppTheme.formSpacing
 
-                            RowLayout {
-                                spacing: 0
-
+                            TabStrip {
                                 TabButton {
                                     text: qsTr("Tags")
                                     selected: AppState.scopeTab === 0
@@ -1138,10 +1152,6 @@ Item {
                                     selected: AppState.scopeTab === 2
                                     onClicked: AppState.scopeTab = 2
                                 }
-                            }
-
-                            Item {
-                                Layout.fillWidth: true
                             }
 
                             IconToolButton {
@@ -1218,7 +1228,7 @@ Item {
                                 text: AppState.userId
                                 placeholderText: qsTr("12345")
                                 onTextEdited: AppState.userId = text
-                                onEditingFinished: root.syncUser()
+                                onEditingFinished: page.syncUser()
                             }
 
                             LabeledTextField {
@@ -1226,7 +1236,7 @@ Item {
                                 text: AppState.username
                                 placeholderText: qsTr("jane")
                                 onTextEdited: AppState.username = text
-                                onEditingFinished: root.syncUser()
+                                onEditingFinished: page.syncUser()
                             }
 
                             LabeledTextField {
@@ -1234,7 +1244,7 @@ Item {
                                 text: AppState.email
                                 placeholderText: qsTr("jane@example.com")
                                 onTextEdited: AppState.email = text
-                                onEditingFinished: root.syncUser()
+                                onEditingFinished: page.syncUser()
                             }
 
                             LabeledTextField {
@@ -1242,7 +1252,7 @@ Item {
                                 text: AppState.ipAddress
                                 placeholderText: qsTr("127.0.0.1")
                                 onTextEdited: AppState.ipAddress = text
-                                onEditingFinished: root.syncUser()
+                                onEditingFinished: page.syncUser()
                             }
                         }
                     }
@@ -1295,7 +1305,7 @@ Item {
                                 enabled: Sentry.initialized
 
                                 onClicked: {
-                                    root.toggleSession();
+                                    page.toggleSession();
                                 }
                             }
                         }
@@ -1442,11 +1452,11 @@ Item {
                                 destructive: true
                                 enabled: Sentry.initialized
                                 Layout.alignment: Qt.AlignBottom | Qt.AlignRight
-                                Layout.preferredWidth: root.actionWidth
-                                Layout.minimumWidth: root.actionWidth
+                                Layout.preferredWidth: page.actionWidth
+                                Layout.minimumWidth: page.actionWidth
 
                                 onClicked: {
-                                    root.triggerCrash();
+                                    page.triggerCrash();
                                 }
                             }
                         }

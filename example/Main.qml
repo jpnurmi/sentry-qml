@@ -49,6 +49,7 @@ ApplicationWindow {
     StatusBanner {
         id: statusBanner
 
+        visible: true
         x: Math.max(AppTheme.pageMargin, window.width - width - AppTheme.pageMargin)
         y: AppTheme.pageMargin
     }

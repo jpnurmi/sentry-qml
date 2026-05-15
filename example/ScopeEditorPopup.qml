@@ -5,29 +5,29 @@ import QtQuick.Layouts
 import "controls"
 
 Popup {
-    id: root
+    id: popup
 
     property int scopeTab: 0
     property var applyScope: null
 
     function openFor(tab) {
-        root.scopeTab = tab;
+        popup.scopeTab = tab;
         scopeKeyField.text = "";
         scopeValueField.text = "";
         open();
     }
 
     function submitScope() {
-        if (root.scopeTab === 0) {
+        if (popup.scopeTab === 0) {
             AppState.tagKey = scopeKeyField.text;
             AppState.tagValue = scopeValueField.text;
         } else {
             AppState.contextKey = scopeKeyField.text;
             AppState.contextValue = scopeValueField.text;
         }
-        AppState.scopeTab = root.scopeTab;
-        if (root.applyScope)
-            root.applyScope();
+        AppState.scopeTab = popup.scopeTab;
+        if (popup.applyScope)
+            popup.applyScope();
         close();
     }
 
@@ -39,7 +39,7 @@ Popup {
         spacing: AppTheme.groupSpacing
 
         Label {
-            text: root.scopeTab === 0 ? qsTr("Add tag") : qsTr("Add context")
+            text: popup.scopeTab === 0 ? qsTr("Add tag") : qsTr("Add context")
             color: AppTheme.text
             font.pixelSize: 16
             font.weight: Font.DemiBold
@@ -49,15 +49,15 @@ Popup {
         LabeledTextField {
             id: scopeKeyField
 
-            label: root.scopeTab === 0 ? qsTr("Key") : qsTr("Context")
-            placeholderText: root.scopeTab === 0 ? qsTr("feature") : qsTr("device")
+            label: popup.scopeTab === 0 ? qsTr("Key") : qsTr("Context")
+            placeholderText: popup.scopeTab === 0 ? qsTr("feature") : qsTr("device")
         }
 
         LabeledTextField {
             id: scopeValueField
 
             label: qsTr("Value")
-            placeholderText: root.scopeTab === 0 ? qsTr("checkout") : qsTr("mobile")
+            placeholderText: popup.scopeTab === 0 ? qsTr("checkout") : qsTr("mobile")
         }
 
         RowLayout {
@@ -72,7 +72,7 @@ Popup {
                 text: qsTr("Cancel")
 
                 onClicked: {
-                    root.close();
+                    popup.close();
                 }
             }
 
@@ -81,7 +81,7 @@ Popup {
                 primary: true
 
                 onClicked: {
-                    root.submitScope();
+                    popup.submitScope();
                 }
             }
         }

@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import "controls"
 
 Popup {
-    id: root
+    id: popup
 
     property int messageHeight: 160
     property var sendFeedback: null
@@ -18,7 +18,7 @@ Popup {
     }
 
     function submitFeedback() {
-        if (root.sendFeedback && root.sendFeedback(feedbackNameField.text, feedbackEmailField.text, feedbackMessageArea.text))
+        if (popup.sendFeedback && popup.sendFeedback(feedbackNameField.text, feedbackEmailField.text, feedbackMessageArea.text))
             close();
     }
 
@@ -87,7 +87,7 @@ Popup {
                 topPadding: AppTheme.formSpacing
                 bottomPadding: AppTheme.formSpacing
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.messageHeight
+                Layout.preferredHeight: popup.messageHeight
 
                 background: Rectangle {
                     color: feedbackMessageArea.activeFocus ? AppTheme.inputFocus : AppTheme.input
@@ -110,7 +110,7 @@ Popup {
                 text: qsTr("Cancel")
 
                 onClicked: {
-                    root.close();
+                    popup.close();
                 }
             }
 
@@ -120,7 +120,7 @@ Popup {
                 enabled: feedbackMessageArea.text.trim().length > 0
 
                 onClicked: {
-                    root.submitFeedback();
+                    popup.submitFeedback();
                 }
             }
         }

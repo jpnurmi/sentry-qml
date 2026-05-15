@@ -5,7 +5,7 @@ import Sentry 1.0
 import "controls"
 
 Popup {
-    id: root
+    id: banner
 
     function isInitializeStatus(message) {
         return message === qsTr("Initialization failed") || message === qsTr("Re-initialization failed");
@@ -37,14 +37,11 @@ Popup {
     focus: false
     closePolicy: Popup.NoAutoClose
     padding: 0
-    visible: true
-    width: pill.implicitWidth
-    height: pill.implicitHeight
-    background: Item {}
-    contentItem: Pill {
-        id: pill
 
-        severity: root.statusSeverity()
-        text: root.statusText()
+    contentItem: Pill {
+        severity: banner.statusSeverity()
+        text: banner.statusText()
     }
+
+    background: Item { }
 }

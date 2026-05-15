@@ -1,7 +1,6 @@
 import QtCore
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import Sentry 1.0
 
 import "controls"
@@ -17,42 +16,10 @@ ApplicationWindow {
     title: qsTr("Sentry QML")
     color: AppTheme.background
 
-    property var attachmentHandles: []
-
     Binding {
         target: AppTheme
         property: "compact"
         value: window.width < AppTheme.compactWidth
-    }
-
-    ListModel {
-        id: tagEntries
-
-        ListElement {
-            entryKey: "backend"
-            entryValue: "qml"
-        }
-    }
-
-    ListModel {
-        id: contextEntries
-
-        ListElement {
-            entryKey: "example"
-            entryValue: "qml"
-        }
-    }
-
-    ListModel {
-        id: attachmentEntries
-    }
-
-    function statusSeverity(message, ok) {
-        return ok ? 1 : 2;
-    }
-
-    function setStatus(message, ok, severity) {
-        AppState.setStatus(message, ok, severity === undefined ? statusSeverity(message, ok) : severity);
     }
 
     function isInitializeStatus(message) {
@@ -61,7 +28,7 @@ ApplicationWindow {
 
     function resetRuntimeStatus() {
         if (!isInitializeStatus(AppState.statusMessage))
-            setStatus(qsTr("Ready"), Sentry.initialized, Sentry.initialized ? 1 : 0);
+            AppState.setStatus(qsTr("Ready"), Sentry.initialized, Sentry.initialized ? 1 : 0);
     }
 
     function globalStatusText() {
@@ -80,297 +47,11 @@ ApplicationWindow {
         return Sentry.initialized ? 1 : 0;
     }
 
-    function upsertEntry(model, key, value) {
-        for (let i = 0; i < model.count; ++i) {
-            if (model.get(i).entryKey === key) {
-                model.set(i, {
-                    entryKey: key,
-                    entryValue: value
-                });
-                return;
-            }
-        }
-        model.append({
-            entryKey: key,
-            entryValue: value
-        });
-    }
-
-    function fileNameFromPath(path) {
-        const localPath = AppState.toLocalPath(path);
-        const normalized = localPath.replace(/\\/g, "/");
-        const index = normalized.lastIndexOf("/");
-        return index >= 0 ? normalized.substring(index + 1) : normalized;
-    }
-
-    function formattedAttachmentSize(size) {
-        const bytes = Number(size);
-        return bytes >= 0 ? Qt.locale().formattedDataSize(bytes) : qsTr("Unknown");
-    }
-
-    function clearAttachmentEntries() {
-        attachmentHandles = [];
-        attachmentEntries.clear();
-    }
-
-    function addAttachment(path) {
-        const localPath = AppState.toLocalPath(path);
-        const attachment = Sentry.attachFile(localPath);
-        const ok = attachment && attachment.valid;
-        if (ok) {
-            const handles = attachmentHandles.slice();
-            handles.push(attachment);
-            attachmentHandles = handles;
-            const filename = String(attachment.filename || "");
-            attachmentEntries.append({
-                entryKey: filename.length > 0 ? filename : fileNameFromPath(localPath),
-                entrySize: formattedAttachmentSize(attachment.size)
-            });
-        }
-        setStatus(ok ? qsTr("Attachment added") : qsTr("Attachment was not added"), ok);
-    }
-
-    function removeAttachmentAt(index) {
-        const attachment = attachmentHandles[index];
-        const ok = attachment && Sentry.removeAttachment(attachment);
-        if (ok) {
-            const handles = attachmentHandles.slice();
-            handles.splice(index, 1);
-            attachmentHandles = handles;
-            attachmentEntries.remove(index);
-        }
-        setStatus(ok ? qsTr("Attachment removed") : qsTr("Attachment was not removed"), ok);
-    }
-
-    function capture() {
-        if (AppState.captureMode === 1) {
-            captureException();
-        } else if (AppState.captureMode === 2) {
-            addBreadcrumb();
-        } else {
-            captureMessage();
-        }
-    }
-
-    function captureMessage() {
-        const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
-        setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
-    }
-
-    function applyScope() {
-        if (AppState.scopeTab === 0) {
-            const tagKey = AppState.tagKey.trim();
-            if (tagKey.length === 0) {
-                setStatus(qsTr("Tag key is required"), false);
-                return;
-            }
-
-            const ok = Sentry.setTag(tagKey, AppState.tagValue);
-            if (ok)
-                upsertEntry(tagEntries, tagKey, AppState.tagValue);
-            setStatus(ok ? qsTr("Tag added") : qsTr("Tag was not added"), ok);
-        } else if (AppState.scopeTab === 1) {
-            const contextKey = AppState.contextKey.trim();
-            if (contextKey.length === 0) {
-                setStatus(qsTr("Context key is required"), false);
-                return;
-            }
-
-            const ok = Sentry.setContext(contextKey, {
-                value: AppState.contextValue,
-                messageLength: AppState.messageText.length
-            });
-            if (ok)
-                upsertEntry(contextEntries, contextKey, AppState.contextValue);
-            setStatus(ok ? qsTr("Context added") : qsTr("Context was not added"), ok);
-        }
-    }
-
-    function syncUser() {
-        if (!Sentry.initialized)
-            return;
-        const ok = Sentry.setUser({
-            id: AppState.userId,
-            username: AppState.username,
-            email: AppState.email,
-            ipAddress: AppState.ipAddress
-        });
-        if (!ok)
-            setStatus(qsTr("User was not updated"), false);
-    }
-
-    function consentFooterColor() {
-        if (!Sentry.userConsentRequired)
-            return AppTheme.surfaceRaised;
-        if (Sentry.userConsent === Sentry.UserConsentGiven)
-            return AppTheme.success;
-        if (Sentry.userConsent === Sentry.UserConsentRevoked)
-            return AppTheme.critical;
-        return "#9b6b17";
-    }
-
-    function consentFooterText() {
-        if (!Sentry.userConsentRequired)
-            return qsTr("Not required");
-        if (Sentry.userConsent === Sentry.UserConsentGiven)
-            return qsTr("Given — events will be sent to Sentry");
-        if (Sentry.userConsent === Sentry.UserConsentRevoked)
-            return qsTr("Revoked — events will not be sent to Sentry");
-        return qsTr("Unknown — events will not be sent to Sentry");
-    }
-
-    function toggleUserConsent() {
-        if (!Sentry.userConsentRequired) {
-            setStatus(qsTr("Consent is not required"), false);
-            return;
-        }
-
-        const giveConsent = Sentry.userConsent !== Sentry.UserConsentGiven;
-        const ok = giveConsent ? Sentry.giveUserConsent() : Sentry.revokeUserConsent();
-        if (ok)
-            setStatus(giveConsent ? qsTr("User consent given") : qsTr("User consent revoked"), true, giveConsent ? 1 : 2);
-        else
-            setStatus(giveConsent ? qsTr("User consent was not given") : qsTr("User consent was not revoked"), false);
-    }
-
-    function sendFeedback(name, email, message) {
-        const feedbackMessage = message.trim();
-        if (feedbackMessage.length === 0) {
-            setStatus(qsTr("Feedback message is required"), false);
-            return false;
-        }
-
-        const feedback = {
-            message: feedbackMessage
-        };
-        const feedbackName = name.trim();
-        const feedbackEmail = email.trim();
-        if (feedbackName.length > 0)
-            feedback.name = feedbackName;
-        if (feedbackEmail.length > 0)
-            feedback.email = feedbackEmail;
-
-        const ok = Sentry.captureFeedback(feedback);
-        setStatus(ok ? qsTr("Feedback sent") : qsTr("Feedback was not sent"), ok);
-        return ok;
-    }
-
-    function startSession() {
-        let ok = true;
-        const release = AppState.sessionRelease.trim();
-        const environment = AppState.sessionEnvironment.trim();
-
-        if (release.length > 0)
-            ok = Sentry.setRelease(release) && ok;
-        if (environment.length > 0)
-            ok = Sentry.setEnvironment(environment) && ok;
-
-        ok = Sentry.startSession() && ok;
-        if (ok)
-            AppState.sessionActive = true;
-        setStatus(ok ? qsTr("Session started") : qsTr("Session was not started"), ok);
-    }
-
-    function endSession() {
-        const ok = Sentry.endSession(Sentry.SessionExited);
-        if (ok)
-            AppState.sessionActive = false;
-        setStatus(ok ? qsTr("Session ended") : qsTr("Session was not ended"), ok);
-    }
-
-    function toggleSession() {
-        if (AppState.sessionActive)
-            endSession();
-        else
-            startSession();
-    }
-
-    function addBreadcrumb() {
-        const ok = Sentry.addBreadcrumb({
-            message: AppState.messageText,
-            category: AppState.breadcrumbCategory(),
-            type: "manual",
-            level: AppState.captureLevel(),
-            data: {
-                message: AppState.messageText
-            }
-        });
-        setStatus(ok ? qsTr("Breadcrumb added") : qsTr("Breadcrumb was not added"), ok);
-    }
-
-    function captureException() {
-        if (AppState.exceptionKind() === "native") {
-            setStatus(qsTr("Native exception capture is not available"), false);
-            return;
-        }
-
-        try {
-            throw new Error(AppState.messageText);
-        } catch (exception) {
-            const eventId = Sentry.captureException(exception);
-            setStatus(eventId.length > 0 ? qsTr("Captured exception %1").arg(eventId) : qsTr("Exception was not captured"), eventId.length > 0);
-        }
-    }
-
-    function triggerQmlError() {
-        callMissingQmlFunction();
-    }
-
-    function triggerCrash() {
-        if (AppState.crashKindIndex === 0) {
-            setStatus(qsTr("Crashing..."), false);
-            exampleActions.crash();
-        } else {
-            setStatus(qsTr("Triggering QML error..."), false);
-            triggerQmlError();
-        }
-    }
-
-    function callMissingQmlFunction() {
-        missingQmlFunction();
-    }
-
     Connections {
         target: Sentry
 
         function onErrorOccurred(message) {
-            setStatus(message, false);
-        }
-    }
-
-    ScopeEditorPopup {
-        id: scopeEditorPopup
-
-        width: Math.min(Math.max(0, window.width - AppTheme.pageMargin * 2), 416)
-        height: implicitHeight
-        x: (window.width - width) / 2
-        y: Math.max(AppTheme.pageMargin, (window.height - height) / 2)
-        applyScope: function() {
-            window.applyScope();
-        }
-    }
-
-    FileDialog {
-        id: attachmentFileDialog
-
-        title: qsTr("Attach file")
-        currentFolder: AppState.toFileUrl(AppState.databasePath)
-
-        onAccepted: {
-            addAttachment(selectedFile);
-        }
-    }
-
-    FeedbackPopup {
-        id: feedbackPopup
-
-        messageHeight: Math.min(220, Math.max(130, window.height * 0.24))
-        width: Math.min(Math.max(0, window.width - AppTheme.pageMargin * 2), 512)
-        height: implicitHeight
-        x: (window.width - width) / 2
-        y: Math.max(AppTheme.pageMargin, (window.height - height) / 2)
-        sendFeedback: function(name, email, message) {
-            return window.sendFeedback(name, email, message);
+            AppState.setStatus(message, false);
         }
     }
 
@@ -380,14 +61,13 @@ ApplicationWindow {
         anchors.fill: parent
         initialItem: InitPage {
             onInitialized: {
-                clearAttachmentEntries();
-                setStatus(qsTr("Ready"), true);
+                AppState.setStatus(qsTr("Ready"), true);
                 if (pageStack.depth === 1)
                     pageStack.push(runtimePageComponent);
                 AppState.sessionActive = false;
             }
             onFailed: {
-                setStatus(qsTr("Re-initialization failed"), false);
+                AppState.setStatus(qsTr("Re-initialization failed"), false);
             }
         }
     }
@@ -418,37 +98,13 @@ ApplicationWindow {
         id: runtimePageComponent
 
         RuntimePage {
-            consentText: consentFooterText()
-            consentColor: consentFooterColor()
-            tagModel: tagEntries
-            contextModel: contextEntries
-            attachmentModel: attachmentEntries
+            nativeCrashAction: function() {
+                exampleActions.crash();
+            }
 
             onBackRequested: {
                 resetRuntimeStatus();
                 pageStack.pop();
-            }
-            onFeedbackRequested: feedbackPopup.openFeedback()
-            onCaptureRequested: capture()
-            onAddScopeItemRequested: function(tab) {
-                scopeEditorPopup.openFor(tab);
-            }
-            onAddAttachmentRequested: attachmentFileDialog.open()
-            onSyncUserRequested: syncUser()
-            onToggleSessionRequested: toggleSession()
-            onTriggerCrashRequested: triggerCrash()
-            onToggleUserConsentRequested: toggleUserConsent()
-            onRemoveScopeEntryRequested: function(scopeTab, index, key, entryModel) {
-                const ok = scopeTab === 0 ? Sentry.removeTag(key) : Sentry.removeContext(key);
-                if (ok)
-                    entryModel.remove(index);
-
-                const successMessage = scopeTab === 0 ? qsTr("Tag removed") : qsTr("Context removed");
-                const failureMessage = scopeTab === 0 ? qsTr("Tag was not removed") : qsTr("Context was not removed");
-                setStatus(ok ? successMessage : failureMessage, ok);
-            }
-            onRemoveAttachmentRequested: function(index) {
-                removeAttachmentAt(index);
             }
         }
     }

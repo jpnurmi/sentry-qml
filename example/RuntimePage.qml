@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import Sentry 1.0
 
@@ -8,12 +9,8 @@ import "controls"
 Item {
     id: root
 
-    property string consentText: ""
-    property color consentColor: AppTheme.success
-    property var tagModel
-    property var contextModel
-    property var attachmentModel
-    readonly property int controlHeight: AppTheme.controlHeight
+    property var attachmentHandles: []
+    property var nativeCrashAction: null
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
         giveActionMetrics.width,
         revokeActionMetrics.width,
@@ -21,16 +18,286 @@ Item {
     ) + 28))
 
     signal backRequested()
-    signal feedbackRequested()
-    signal captureRequested()
-    signal addScopeItemRequested(var tab)
-    signal addAttachmentRequested()
-    signal syncUserRequested()
-    signal toggleSessionRequested()
-    signal triggerCrashRequested()
-    signal toggleUserConsentRequested()
-    signal removeScopeEntryRequested(var scopeTab, var index, var key, var entryModel)
-    signal removeAttachmentRequested(var index)
+
+    ListModel {
+        id: tagEntries
+
+        ListElement {
+            entryKey: "backend"
+            entryValue: "qml"
+        }
+    }
+
+    ListModel {
+        id: contextEntries
+
+        ListElement {
+            entryKey: "example"
+            entryValue: "qml"
+        }
+    }
+
+    ListModel {
+        id: attachmentEntries
+    }
+
+    function upsertEntry(model, key, value) {
+        for (let i = 0; i < model.count; ++i) {
+            if (model.get(i).entryKey === key) {
+                model.set(i, {
+                    entryKey: key,
+                    entryValue: value
+                });
+                return;
+            }
+        }
+        model.append({
+            entryKey: key,
+            entryValue: value
+        });
+    }
+
+    function fileNameFromPath(path) {
+        const localPath = AppState.toLocalPath(path);
+        const normalized = localPath.replace(/\\/g, "/");
+        const index = normalized.lastIndexOf("/");
+        return index >= 0 ? normalized.substring(index + 1) : normalized;
+    }
+
+    function formattedAttachmentSize(size) {
+        const bytes = Number(size);
+        return bytes >= 0 ? Qt.locale().formattedDataSize(bytes) : qsTr("Unknown");
+    }
+
+    function addAttachment(path) {
+        const localPath = AppState.toLocalPath(path);
+        const attachment = Sentry.attachFile(localPath);
+        const ok = attachment && attachment.valid;
+        if (ok) {
+            const handles = attachmentHandles.slice();
+            handles.push(attachment);
+            attachmentHandles = handles;
+            const filename = String(attachment.filename || "");
+            attachmentEntries.append({
+                entryKey: filename.length > 0 ? filename : fileNameFromPath(localPath),
+                entrySize: formattedAttachmentSize(attachment.size)
+            });
+        }
+        AppState.setStatus(ok ? qsTr("Attachment added") : qsTr("Attachment was not added"), ok);
+    }
+
+    function removeAttachmentAt(index) {
+        const attachment = attachmentHandles[index];
+        const ok = attachment && Sentry.removeAttachment(attachment);
+        if (ok) {
+            const handles = attachmentHandles.slice();
+            handles.splice(index, 1);
+            attachmentHandles = handles;
+            attachmentEntries.remove(index);
+        }
+        AppState.setStatus(ok ? qsTr("Attachment removed") : qsTr("Attachment was not removed"), ok);
+    }
+
+    function removeScopeEntry(scopeTab, index, key, entryModel) {
+        const ok = scopeTab === 0 ? Sentry.removeTag(key) : Sentry.removeContext(key);
+        if (ok)
+            entryModel.remove(index);
+
+        const successMessage = scopeTab === 0 ? qsTr("Tag removed") : qsTr("Context removed");
+        const failureMessage = scopeTab === 0 ? qsTr("Tag was not removed") : qsTr("Context was not removed");
+        AppState.setStatus(ok ? successMessage : failureMessage, ok);
+    }
+
+    function capture() {
+        if (AppState.captureMode === 1) {
+            captureException();
+        } else if (AppState.captureMode === 2) {
+            addBreadcrumb();
+        } else {
+            captureMessage();
+        }
+    }
+
+    function captureMessage() {
+        const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
+        AppState.setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
+    }
+
+    function applyScope() {
+        if (AppState.scopeTab === 0) {
+            const tagKey = AppState.tagKey.trim();
+            if (tagKey.length === 0) {
+                AppState.setStatus(qsTr("Tag key is required"), false);
+                return;
+            }
+
+            const ok = Sentry.setTag(tagKey, AppState.tagValue);
+            if (ok)
+                upsertEntry(tagEntries, tagKey, AppState.tagValue);
+            AppState.setStatus(ok ? qsTr("Tag added") : qsTr("Tag was not added"), ok);
+        } else if (AppState.scopeTab === 1) {
+            const contextKey = AppState.contextKey.trim();
+            if (contextKey.length === 0) {
+                AppState.setStatus(qsTr("Context key is required"), false);
+                return;
+            }
+
+            const ok = Sentry.setContext(contextKey, {
+                value: AppState.contextValue,
+                messageLength: AppState.messageText.length
+            });
+            if (ok)
+                upsertEntry(contextEntries, contextKey, AppState.contextValue);
+            AppState.setStatus(ok ? qsTr("Context added") : qsTr("Context was not added"), ok);
+        }
+    }
+
+    function syncUser() {
+        if (!Sentry.initialized)
+            return;
+        const ok = Sentry.setUser({
+            id: AppState.userId,
+            username: AppState.username,
+            email: AppState.email,
+            ipAddress: AppState.ipAddress
+        });
+        if (!ok)
+            AppState.setStatus(qsTr("User was not updated"), false);
+    }
+
+    function consentFooterColor() {
+        if (!Sentry.userConsentRequired)
+            return AppTheme.surfaceRaised;
+        if (Sentry.userConsent === Sentry.UserConsentGiven)
+            return AppTheme.success;
+        if (Sentry.userConsent === Sentry.UserConsentRevoked)
+            return AppTheme.critical;
+        return "#9b6b17";
+    }
+
+    function consentFooterText() {
+        if (!Sentry.userConsentRequired)
+            return qsTr("Not required");
+        if (Sentry.userConsent === Sentry.UserConsentGiven)
+            return qsTr("Given — events will be sent to Sentry");
+        if (Sentry.userConsent === Sentry.UserConsentRevoked)
+            return qsTr("Revoked — events will not be sent to Sentry");
+        return qsTr("Unknown — events will not be sent to Sentry");
+    }
+
+    function toggleUserConsent() {
+        if (!Sentry.userConsentRequired) {
+            AppState.setStatus(qsTr("Consent is not required"), false);
+            return;
+        }
+
+        const giveConsent = Sentry.userConsent !== Sentry.UserConsentGiven;
+        const ok = giveConsent ? Sentry.giveUserConsent() : Sentry.revokeUserConsent();
+        if (ok)
+            AppState.setStatus(giveConsent ? qsTr("User consent given") : qsTr("User consent revoked"), true, giveConsent ? 1 : 2);
+        else
+            AppState.setStatus(giveConsent ? qsTr("User consent was not given") : qsTr("User consent was not revoked"), false);
+    }
+
+    function sendFeedback(name, email, message) {
+        const feedbackMessage = message.trim();
+        if (feedbackMessage.length === 0) {
+            AppState.setStatus(qsTr("Feedback message is required"), false);
+            return false;
+        }
+
+        const feedback = {
+            message: feedbackMessage
+        };
+        const feedbackName = name.trim();
+        const feedbackEmail = email.trim();
+        if (feedbackName.length > 0)
+            feedback.name = feedbackName;
+        if (feedbackEmail.length > 0)
+            feedback.email = feedbackEmail;
+
+        const ok = Sentry.captureFeedback(feedback);
+        AppState.setStatus(ok ? qsTr("Feedback sent") : qsTr("Feedback was not sent"), ok);
+        return ok;
+    }
+
+    function startSession() {
+        let ok = true;
+        const release = AppState.sessionRelease.trim();
+        const environment = AppState.sessionEnvironment.trim();
+
+        if (release.length > 0)
+            ok = Sentry.setRelease(release) && ok;
+        if (environment.length > 0)
+            ok = Sentry.setEnvironment(environment) && ok;
+
+        ok = Sentry.startSession() && ok;
+        if (ok)
+            AppState.sessionActive = true;
+        AppState.setStatus(ok ? qsTr("Session started") : qsTr("Session was not started"), ok);
+    }
+
+    function endSession() {
+        const ok = Sentry.endSession(Sentry.SessionExited);
+        if (ok)
+            AppState.sessionActive = false;
+        AppState.setStatus(ok ? qsTr("Session ended") : qsTr("Session was not ended"), ok);
+    }
+
+    function toggleSession() {
+        if (AppState.sessionActive)
+            endSession();
+        else
+            startSession();
+    }
+
+    function addBreadcrumb() {
+        const ok = Sentry.addBreadcrumb({
+            message: AppState.messageText,
+            category: AppState.breadcrumbCategory(),
+            type: "manual",
+            level: AppState.captureLevel(),
+            data: {
+                message: AppState.messageText
+            }
+        });
+        AppState.setStatus(ok ? qsTr("Breadcrumb added") : qsTr("Breadcrumb was not added"), ok);
+    }
+
+    function captureException() {
+        if (AppState.exceptionKind() === "native") {
+            AppState.setStatus(qsTr("Native exception capture is not available"), false);
+            return;
+        }
+
+        try {
+            throw new Error(AppState.messageText);
+        } catch (exception) {
+            const eventId = Sentry.captureException(exception);
+            AppState.setStatus(eventId.length > 0 ? qsTr("Captured exception %1").arg(eventId) : qsTr("Exception was not captured"), eventId.length > 0);
+        }
+    }
+
+    function triggerQmlError() {
+        callMissingQmlFunction();
+    }
+
+    function triggerCrash() {
+        if (AppState.crashKindIndex === 0) {
+            AppState.setStatus(qsTr("Crashing..."), false);
+            if (root.nativeCrashAction)
+                root.nativeCrashAction();
+            else
+                AppState.setStatus(qsTr("Native crash action is not available"), false);
+        } else {
+            AppState.setStatus(qsTr("Triggering QML error..."), false);
+            triggerQmlError();
+        }
+    }
+
+    function callMissingQmlFunction() {
+        missingQmlFunction();
+    }
 
     TextMetrics {
         id: giveActionMetrics
@@ -141,8 +408,8 @@ Item {
                 }
 
                 Text {
-                    text: root.consentText
-                    color: consentPanel.consentActionable ? root.consentColor : AppTheme.muted
+                    text: root.consentFooterText()
+                    color: consentPanel.consentActionable ? root.consentFooterColor() : AppTheme.muted
                     font.pixelSize: 15
                     font.weight: Font.DemiBold
                     verticalAlignment: Text.AlignVCenter
@@ -156,7 +423,7 @@ Item {
                     Layout.preferredWidth: root.actionWidth
 
                     onClicked: {
-                        root.toggleUserConsentRequested();
+                        root.toggleUserConsent();
                     }
                 }
             }
@@ -403,7 +670,7 @@ Item {
         readonly property int valueColumnX: tablePadding + keyColumnWidth
 
         function removeEntry(index, key) {
-            root.removeScopeEntryRequested(scopeTab, index, key, model);
+            root.removeScopeEntry(scopeTab, index, key, model);
         }
 
         Layout.fillWidth: true
@@ -638,7 +905,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
 
                             onClicked: {
-                                root.removeAttachmentRequested(attachmentRow.index);
+                                root.removeAttachmentAt(attachmentRow.index);
                             }
                         }
                     }
@@ -649,6 +916,42 @@ Item {
                     height: Math.max(0, tableFrame.height - attachmentsView.headerHeight - 1 - attachmentsView.model.count * attachmentsView.rowHeight)
                 }
             }
+        }
+    }
+
+    ScopeEditorPopup {
+        id: scopeEditorPopup
+
+        width: Math.min(Math.max(0, root.width - AppTheme.pageMargin * 2), 416)
+        height: implicitHeight
+        x: (root.width - width) / 2
+        y: Math.max(AppTheme.pageMargin, (root.height - height) / 2)
+        applyScope: function() {
+            root.applyScope();
+        }
+    }
+
+    FileDialog {
+        id: attachmentFileDialog
+
+        title: qsTr("Attach file")
+        currentFolder: AppState.toFileUrl(AppState.databasePath)
+
+        onAccepted: {
+            root.addAttachment(selectedFile);
+        }
+    }
+
+    FeedbackPopup {
+        id: feedbackPopup
+
+        messageHeight: Math.min(220, Math.max(130, root.height * 0.24))
+        width: Math.min(Math.max(0, root.width - AppTheme.pageMargin * 2), 512)
+        height: implicitHeight
+        x: (root.width - width) / 2
+        y: Math.max(AppTheme.pageMargin, (root.height - height) / 2)
+        sendFeedback: function(name, email, message) {
+            return root.sendFeedback(name, email, message);
         }
     }
 
@@ -793,10 +1096,10 @@ Item {
                             onAccepted: {
                                 if (!messageField.trailingActionEnabled)
                                     return;
-                                root.captureRequested();
+                                root.capture();
                                 AppState.messageText = "";
                             }
-                            onTrailingActionTriggered: root.captureRequested()
+                            onTrailingActionTriggered: root.capture()
                         }
                     }
                 }
@@ -864,9 +1167,9 @@ Item {
 
                                 onClicked: {
                                     if (AppState.scopeTab === 2)
-                                        root.addAttachmentRequested();
+                                        attachmentFileDialog.open();
                                     else
-                                        root.addScopeItemRequested(AppState.scopeTab);
+                                        scopeEditorPopup.openFor(AppState.scopeTab);
                                 }
                             }
                         }
@@ -877,17 +1180,17 @@ Item {
                             currentIndex: Math.min(AppState.scopeTab, 2)
 
                             ScopeEntriesView {
-                                model: root.tagModel
+                                model: tagEntries
                                 scopeTab: 0
                             }
 
                             ScopeEntriesView {
-                                model: root.contextModel
+                                model: contextEntries
                                 scopeTab: 1
                             }
 
                             AttachmentEntriesView {
-                                model: root.attachmentModel
+                                model: attachmentEntries
                             }
                         }
                     }
@@ -929,7 +1232,7 @@ Item {
                                 text: AppState.userId
                                 placeholderText: qsTr("12345")
                                 onTextEdited: AppState.userId = text
-                                onEditingFinished: root.syncUserRequested()
+                                onEditingFinished: root.syncUser()
                             }
 
                             LabeledTextField {
@@ -937,7 +1240,7 @@ Item {
                                 text: AppState.username
                                 placeholderText: qsTr("jane")
                                 onTextEdited: AppState.username = text
-                                onEditingFinished: root.syncUserRequested()
+                                onEditingFinished: root.syncUser()
                             }
 
                             LabeledTextField {
@@ -945,7 +1248,7 @@ Item {
                                 text: AppState.email
                                 placeholderText: qsTr("jane@example.com")
                                 onTextEdited: AppState.email = text
-                                onEditingFinished: root.syncUserRequested()
+                                onEditingFinished: root.syncUser()
                             }
 
                             LabeledTextField {
@@ -953,7 +1256,7 @@ Item {
                                 text: AppState.ipAddress
                                 placeholderText: qsTr("127.0.0.1")
                                 onTextEdited: AppState.ipAddress = text
-                                onEditingFinished: root.syncUserRequested()
+                                onEditingFinished: root.syncUser()
                             }
                         }
                     }
@@ -1006,7 +1309,7 @@ Item {
                                 enabled: Sentry.initialized
 
                                 onClicked: {
-                                    root.toggleSessionRequested();
+                                    root.toggleSession();
                                 }
                             }
                         }
@@ -1162,7 +1465,7 @@ Item {
                                 Layout.minimumWidth: root.actionWidth
 
                                 onClicked: {
-                                    root.triggerCrashRequested();
+                                    root.triggerCrash();
                                 }
                             }
                         }
@@ -1185,7 +1488,7 @@ Item {
         icon.height: 16
 
         onClicked: {
-            root.feedbackRequested();
+            feedbackPopup.openFeedback();
         }
     }
 }

@@ -25,43 +25,6 @@ ApplicationWindow {
         value: window.width < AppTheme.compactWidth
     }
 
-    SentryOptions {
-        id: sentryOptions
-
-        dsn: AppState.dsn
-        databasePath: AppState.databasePath
-        release: AppState.release
-        environment: AppState.environment
-        dist: AppState.dist
-        debug: AppState.debugEnabled
-        enableLogs: AppState.logsEnabled
-        enableMetrics: AppState.metricsEnabled
-        autoSessionTracking: AppState.autoSessionTrackingEnabled
-        requireUserConsent: AppState.requireUserConsentEnabled
-        attachViewHierarchy: AppState.viewHierarchyEnabled
-        sampleRate: AppState.sampleRate
-        maxBreadcrumbs: AppState.maxBreadcrumbs
-        shutdownTimeout: AppState.shutdownTimeout
-        user: SentryUser {
-            userId: AppState.userId
-            username: AppState.username
-            email: AppState.email
-            ipAddress: AppState.ipAddress
-        }
-        beforeSend: function (event) {
-            console.log("### beforeSend");
-            event.extra = event.extra || {};
-            event.extra.example = "sentry-qml";
-            return event;
-        }
-        onCrash: function (event) {
-            console.log("### onCrash");
-            event.extra = event.extra || {};
-            event.extra.exampleCrash = true;
-            return event;
-        }
-    }
-
     ListModel {
         id: tagEntries
 
@@ -151,9 +114,6 @@ ApplicationWindow {
     }
 
     function addAttachment(path) {
-        if (!ensureInitialized())
-            return;
-
         const localPath = AppState.toLocalPath(path);
         const attachment = Sentry.attachFile(localPath);
         const ok = attachment && attachment.valid;
@@ -171,9 +131,6 @@ ApplicationWindow {
     }
 
     function removeAttachmentAt(index) {
-        if (!ensureInitialized())
-            return;
-
         const attachment = attachmentHandles[index];
         const ok = attachment && Sentry.removeAttachment(attachment);
         if (ok) {
@@ -185,32 +142,7 @@ ApplicationWindow {
         setStatus(ok ? qsTr("Attachment removed") : qsTr("Attachment was not removed"), ok);
     }
 
-    function initializeSentry() {
-        if (Sentry.initialized && !Sentry.close()) {
-            setStatus(qsTr("Re-initialization failed"), false);
-            return false;
-        }
-
-        const ok = Sentry.init(sentryOptions);
-        if (ok) {
-            AppState.sessionActive = false;
-            clearAttachmentEntries();
-            setStatus(qsTr("Ready"), true);
-            if (pageStack.depth === 1)
-                pageStack.push(runtimePageComponent);
-        } else {
-            setStatus(qsTr("Initialization failed"), false);
-        }
-        return ok;
-    }
-
-    function ensureInitialized() {
-        return Sentry.initialized || initializeSentry();
-    }
-
     function capture() {
-        if (!ensureInitialized())
-            return;
         if (AppState.captureMode === 1) {
             captureException();
         } else if (AppState.captureMode === 2) {
@@ -226,8 +158,6 @@ ApplicationWindow {
     }
 
     function applyScope() {
-        if (!ensureInitialized())
-            return;
         if (AppState.scopeTab === 0) {
             const tagKey = AppState.tagKey.trim();
             if (tagKey.length === 0) {
@@ -304,9 +234,6 @@ ApplicationWindow {
     }
 
     function sendFeedback(name, email, message) {
-        if (!ensureInitialized())
-            return false;
-
         const feedbackMessage = message.trim();
         if (feedbackMessage.length === 0) {
             setStatus(qsTr("Feedback message is required"), false);
@@ -329,8 +256,6 @@ ApplicationWindow {
     }
 
     function startSession() {
-        if (!ensureInitialized())
-            return;
         let ok = true;
         const release = AppState.sessionRelease.trim();
         const environment = AppState.sessionEnvironment.trim();
@@ -347,8 +272,6 @@ ApplicationWindow {
     }
 
     function endSession() {
-        if (!ensureInitialized())
-            return;
         const ok = Sentry.endSession(Sentry.SessionExited);
         if (ok)
             AppState.sessionActive = false;
@@ -455,7 +378,18 @@ ApplicationWindow {
         id: pageStack
 
         anchors.fill: parent
-        initialItem: initializePageComponent
+        initialItem: InitPage {
+            onInitialized: {
+                clearAttachmentEntries();
+                setStatus(qsTr("Ready"), true);
+                if (pageStack.depth === 1)
+                    pageStack.push(runtimePageComponent);
+                AppState.sessionActive = false;
+            }
+            onFailed: {
+                setStatus(qsTr("Re-initialization failed"), false);
+            }
+        }
     }
 
     Popup {
@@ -481,25 +415,9 @@ ApplicationWindow {
     }
 
     Component {
-        id: initializePageComponent
-
-        InitPage {
-            width: pageStack.width
-            height: pageStack.height
-            initialized: Sentry.initialized
-
-            onInitializeRequested: {
-                initializeSentry();
-            }
-        }
-    }
-
-    Component {
         id: runtimePageComponent
 
         RuntimePage {
-            width: pageStack.width
-            height: pageStack.height
             consentText: consentFooterText()
             consentColor: consentFooterColor()
             tagModel: tagEntries
@@ -521,9 +439,6 @@ ApplicationWindow {
             onTriggerCrashRequested: triggerCrash()
             onToggleUserConsentRequested: toggleUserConsent()
             onRemoveScopeEntryRequested: function(scopeTab, index, key, entryModel) {
-                if (!ensureInitialized())
-                    return;
-
                 const ok = scopeTab === 0 ? Sentry.removeTag(key) : Sentry.removeContext(key);
                 if (ok)
                     entryModel.remove(index);

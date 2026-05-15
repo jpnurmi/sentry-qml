@@ -2,52 +2,91 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
+import Sentry 1.0
 
 import "controls"
 
 Item {
-    id: root
+    id: page
 
-    property bool initialized: false
-    readonly property int pageMargin: AppTheme.pageMargin
-    readonly property int panelMargin: AppTheme.panelMargin
+    signal failed
+    signal initialized
 
-    signal initializeRequested
+    function initialize() {
+        if (Sentry.initialized && !Sentry.close()) {
+            page.failed();
+            return false;
+        }
 
-    function openDatabaseFolderDialog() {
-        databaseFolderDialog.currentFolder = AppState.toFileUrl(AppState.databasePath);
-        databaseFolderDialog.open();
+        if (!Sentry.init(options)) {
+            page.failed();
+            return false;
+        }
+
+        page.initialized()
+        return true;
+    }
+
+    SentryOptions {
+        id: options
+
+        dsn: AppState.dsn
+        databasePath: AppState.databasePath
+        release: AppState.release
+        environment: AppState.environment
+        dist: AppState.dist
+        debug: AppState.debugEnabled
+        enableLogs: AppState.logsEnabled
+        enableMetrics: AppState.metricsEnabled
+        autoSessionTracking: AppState.autoSessionTrackingEnabled
+        requireUserConsent: AppState.requireUserConsentEnabled
+        attachViewHierarchy: AppState.viewHierarchyEnabled
+        sampleRate: AppState.sampleRate
+        maxBreadcrumbs: AppState.maxBreadcrumbs
+        shutdownTimeout: AppState.shutdownTimeout
+        user: SentryUser {
+            userId: AppState.userId
+            username: AppState.username
+            email: AppState.email
+            ipAddress: AppState.ipAddress
+        }
+        beforeSend: function (event) {
+            console.log("### beforeSend");
+            event.extra = event.extra || {};
+            event.extra.example = "sentry-qml";
+            return event;
+        }
+        onCrash: function (event) {
+            console.log("### onCrash");
+            event.extra = event.extra || {};
+            event.extra.exampleCrash = true;
+            return event;
+        }
     }
 
     ScrollView {
-        id: initializeScrollView
+        id: scrollView
 
         anchors.fill: parent
         clip: true
-        padding: root.pageMargin
+        padding: AppTheme.pageMargin
         contentWidth: availableWidth
 
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
         ColumnLayout {
-            id: initializePage
-
-            width: initializeScrollView.availableWidth
+            width: scrollView.availableWidth
             spacing: AppTheme.pageSpacing
 
             PageHeader {
-                id: initializeHeader
-
                 canGoBack: false
             }
 
             Rectangle {
-                id: initializePanel
-
                 Layout.fillWidth: true
-                Layout.bottomMargin: root.pageMargin
-                implicitHeight: setupLayout.implicitHeight + root.panelMargin
+                Layout.bottomMargin: AppTheme.pageMargin
+                implicitHeight: setupLayout.implicitHeight + AppTheme.panelMargin
                 color: AppTheme.surface
                 radius: 8
 
@@ -57,13 +96,11 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.margins: root.panelMargin
+                    anchors.margins: AppTheme.panelMargin
                     anchors.topMargin: 0
                     spacing: AppTheme.groupSpacing
 
                     Label {
-                        id: initializeTitle
-
                         text: qsTr("OPTIONS")
                         color: AppTheme.text
                         font.pixelSize: 16
@@ -90,11 +127,11 @@ Item {
                         trailingActionAccessibleName: qsTr("Browse database")
                         trailingActionTooltip: qsTr("Browse...")
                         onTextEdited: AppState.databasePath = text
-                        onTrailingActionTriggered: root.openDatabaseFolderDialog()
+                        onTrailingActionTriggered: folderDialog.open()
                     }
 
                     FolderDialog {
-                        id: databaseFolderDialog
+                        id: folderDialog
 
                         title: qsTr("Choose database")
                         currentFolder: AppState.toFileUrl(AppState.databasePath)
@@ -176,8 +213,6 @@ Item {
                     }
 
                     GridLayout {
-                        id: featureFlow
-
                         Layout.fillWidth: true
                         columns: AppTheme.compact ? 1 : 4
                         flow: GridLayout.LeftToRight
@@ -233,17 +268,15 @@ Item {
     }
 
     FloatingActionButton {
-        readonly property string actionText: root.initialized ? qsTr("Re-initialize") : qsTr("Initialize")
-
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: root.pageMargin
+        anchors.margins: AppTheme.pageMargin
         implicitWidth: 56
         implicitHeight: 56
-        text: root.initialized ? "\u21bb" : "\u2192"
-        tooltip: actionText
-        font.pixelSize: root.initialized ? 24 : 28
+        text: Sentry.initialized ? "\u21bb" : "\u2192"
+        tooltip: Sentry.initialized ? qsTr("Re-initialize") : qsTr("Initialize")
+        font.pixelSize: Sentry.initialized ? 24 : 28
         font.weight: Font.DemiBold
-        onClicked: root.initializeRequested()
+        onClicked: page.initialize()
     }
 }

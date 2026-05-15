@@ -13,8 +13,6 @@ Item {
     property var tagModel
     property var contextModel
     property var attachmentModel
-    readonly property int pageMargin: AppTheme.pageMargin
-    readonly property int panelMargin: AppTheme.panelMargin
     readonly property int controlHeight: AppTheme.controlHeight
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
         giveActionMetrics.width,
@@ -69,7 +67,7 @@ Item {
         font.pixelSize: 14
         font.weight: Font.DemiBold
         implicitWidth: root.actionWidth
-        implicitHeight: root.controlHeight
+        implicitHeight: AppTheme.controlHeight
         contentItem: Text {
             text: consentButton.text
             color: consentButton.enabled ? AppTheme.text : AppTheme.disabledText
@@ -111,7 +109,7 @@ Item {
 
         readonly property bool consentActionable: Sentry.userConsentRequired
 
-        implicitHeight: consentPanelLayout.implicitHeight + root.panelMargin
+        implicitHeight: consentPanelLayout.implicitHeight + AppTheme.panelMargin
         radius: 8
         color: AppTheme.surface
 
@@ -119,7 +117,7 @@ Item {
             id: consentPanelLayout
 
             anchors.fill: parent
-            anchors.margins: root.panelMargin
+            anchors.margins: AppTheme.panelMargin
             anchors.topMargin: 0
             spacing: AppTheme.panelSpacing
 
@@ -174,8 +172,8 @@ Item {
         font.pixelSize: 16
         font.weight: Font.DemiBold
         padding: 0
-        leftPadding: root.panelMargin
-        rightPadding: root.panelMargin
+        leftPadding: AppTheme.panelMargin
+        rightPadding: AppTheme.panelMargin
         topPadding: 0
         bottomPadding: 0
         implicitWidth: tabText.implicitWidth + leftPadding + rightPadding
@@ -322,7 +320,7 @@ Item {
 
         font.pixelSize: 14
         implicitWidth: optionComboMetrics.width + leftPadding + rightPadding + 24
-        implicitHeight: root.controlHeight
+        implicitHeight: AppTheme.controlHeight
         leftPadding: 12
         rightPadding: 30
         Layout.fillWidth: false
@@ -659,7 +657,7 @@ Item {
 
         anchors.fill: parent
         clip: true
-        padding: root.pageMargin
+        padding: AppTheme.pageMargin
         contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
@@ -683,7 +681,7 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: captureLayout.implicitHeight + root.panelMargin
+                implicitHeight: captureLayout.implicitHeight + AppTheme.panelMargin
                 color: AppTheme.surface
                 radius: 8
 
@@ -693,14 +691,14 @@ Item {
                     readonly property real optionControlWidth: Math.max(exceptionKindCombo.implicitWidth, breadcrumbCategoryCombo.implicitWidth)
 
                     anchors.fill: parent
-                    anchors.margins: root.panelMargin
+                    anchors.margins: AppTheme.panelMargin
                     anchors.topMargin: 0
                     spacing: AppTheme.panelSpacing
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: -root.panelMargin
-                        Layout.rightMargin: -root.panelMargin
+                        Layout.leftMargin: -AppTheme.panelMargin
+                        Layout.rightMargin: -AppTheme.panelMargin
                         Layout.preferredHeight: 32
                         spacing: AppTheme.formSpacing
 
@@ -736,7 +734,7 @@ Item {
                             currentIndex: AppState.captureLevelIndex
                             onActivated: AppState.captureLevelIndex = currentIndex
                             Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                            Layout.rightMargin: root.panelMargin
+                            Layout.rightMargin: AppTheme.panelMargin
                         }
                     }
 
@@ -813,7 +811,7 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    implicitHeight: scopeLayout.implicitHeight + root.panelMargin
+                    implicitHeight: scopeLayout.implicitHeight + AppTheme.panelMargin
                     color: AppTheme.surface
                     radius: 8
 
@@ -821,14 +819,14 @@ Item {
                         id: scopeLayout
 
                         anchors.fill: parent
-                        anchors.margins: root.panelMargin
+                        anchors.margins: AppTheme.panelMargin
                         anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Layout.leftMargin: -root.panelMargin
-                            Layout.rightMargin: -root.panelMargin
+                            Layout.leftMargin: -AppTheme.panelMargin
+                            Layout.rightMargin: -AppTheme.panelMargin
                             spacing: AppTheme.formSpacing
 
                             RowLayout {
@@ -862,7 +860,7 @@ Item {
                                 Accessible.name: AppState.scopeTab === 0 ? qsTr("Add tag") : AppState.scopeTab === 1 ? qsTr("Add context") : qsTr("Add attachment")
                                 enabled: Sentry.initialized
                                 Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                Layout.rightMargin: root.panelMargin
+                                Layout.rightMargin: AppTheme.panelMargin
 
                                 onClicked: {
                                     if (AppState.scopeTab === 2)
@@ -897,7 +895,7 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: userLayout.implicitHeight + root.panelMargin
+                    implicitHeight: userLayout.implicitHeight + AppTheme.panelMargin
                     color: AppTheme.surface
                     radius: 8
 
@@ -905,7 +903,7 @@ Item {
                         id: userLayout
 
                         anchors.fill: parent
-                        anchors.margins: root.panelMargin
+                        anchors.margins: AppTheme.panelMargin
                         anchors.topMargin: 0
                         spacing: 12
 
@@ -972,7 +970,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.row: AppTheme.compact ? 1 : 0
                     Layout.column: AppTheme.compact ? 0 : 1
-                    implicitHeight: sessionLayout.implicitHeight + root.panelMargin
+                    implicitHeight: sessionLayout.implicitHeight + AppTheme.panelMargin
                     color: AppTheme.surface
                     radius: 8
 
@@ -980,7 +978,7 @@ Item {
                         id: sessionLayout
 
                         anchors.fill: parent
-                        anchors.margins: root.panelMargin
+                        anchors.margins: AppTheme.panelMargin
                         anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
 
@@ -1042,7 +1040,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.row: 0
                     Layout.column: 0
-                    implicitHeight: crashLayout.implicitHeight + root.panelMargin
+                    implicitHeight: crashLayout.implicitHeight + AppTheme.panelMargin
                     color: AppTheme.surface
                     radius: 8
 
@@ -1050,7 +1048,7 @@ Item {
                         id: crashLayout
 
                         anchors.fill: parent
-                        anchors.margins: root.panelMargin
+                        anchors.margins: AppTheme.panelMargin
                         anchors.topMargin: 0
                         spacing: AppTheme.panelSpacing
 
@@ -1090,7 +1088,7 @@ Item {
                                     currentIndex: AppState.crashKindIndex
                                     onActivated: AppState.crashKindIndex = currentIndex
                                     font.pixelSize: 14
-                                    implicitHeight: root.controlHeight
+                                    implicitHeight: AppTheme.controlHeight
                                     leftPadding: 12
                                     rightPadding: 30
                                     Layout.fillWidth: true
@@ -1180,7 +1178,7 @@ Item {
 
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: root.pageMargin
+        anchors.margins: AppTheme.pageMargin
         tooltip: qsTr("Feedback")
         iconSource: "qrc:/images/feedback.svg"
         icon.width: 22

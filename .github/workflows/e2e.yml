@@ -59,9 +59,10 @@ jobs:
             qt_host: all_os
             qt_target: wasm
             qt_arch: wasm_singlethread
-            qt_archives: ""
+            qt_archives: qtbase qtdeclarative
             host_qt_host: linux
             host_qt_arch: linux_gcc_64
+            host_qt_archives: icu
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
           - name: Android (Qt LTS, API 35)
             sentry_backend: Android
@@ -71,7 +72,10 @@ jobs:
             qt_host: linux
             qt_target: android
             qt_arch: android_x86_64
-            qt_archives: ""
+            qt_archives: qtbase qtdeclarative
+            host_qt_host: linux
+            host_qt_arch: linux_gcc_64
+            host_qt_archives: icu
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
           - name: iOS (Qt LTS, simulator)
@@ -154,6 +158,20 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
+      - name: Install host Qt ICU archive
+        if: matrix.host_qt_arch
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: ${{ matrix.host_qt_host }}
+          target: desktop
+          arch: ${{ matrix.host_qt_arch }}
+          archives: ${{ matrix.host_qt_archives }}
+          cache: false
+          install-deps: false
+          set-env: false
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
       - name: Install iOS Qt
         if: matrix.qt_target == 'ios'
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -195,7 +213,7 @@ jobs:
               $env:RUNNER_TOOL_CACHE
             ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
             foreach ($root in $hostRoots) {
-              $hostDir = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
+              $hostDir = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt_arch }}" -ErrorAction SilentlyContinue |
                 Where-Object {
                   (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
                   (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))

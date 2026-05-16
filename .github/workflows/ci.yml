@@ -182,8 +182,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread, qt_archives: ""}
-          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread, qt_archives: ""}
+          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread, qt_archives: "qtbase qtdeclarative", host_qt_host: linux, host_qt_arch: linux_gcc_64, host_qt_archives: icu}
+          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread, qt_archives: "qtbase qtdeclarative", host_qt_host: linux, host_qt_arch: linux_gcc_64, host_qt_archives: icu}
 
     steps:
       - name: Check out sources
@@ -215,6 +215,19 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
+      - name: Install host Qt ICU archive
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: ${{ matrix.host_qt_host }}
+          target: desktop
+          arch: ${{ matrix.host_qt_arch }}
+          archives: ${{ matrix.host_qt_archives }}
+          cache: false
+          install-deps: false
+          set-env: false
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
       - name: Find wasm Qt paths
         id: wasm-qt-paths
         shell: pwsh
@@ -237,7 +250,7 @@ jobs:
 
           $hostPath = $null
           foreach ($root in $roots) {
-            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter gcc_64 -ErrorAction SilentlyContinue |
+            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt_arch }}" -ErrorAction SilentlyContinue |
               Where-Object {
                 (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
                 (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
@@ -381,8 +394,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: LTS, android_api: 28, qt_archives: ""}
-          - {qt: latest, android_api: 36, qt_archives: ""}
+          - {qt: LTS, android_api: 28, qt_archives: "qtbase qtdeclarative", host_qt_archives: icu}
+          - {qt: latest, android_api: 36, qt_archives: "qtbase qtdeclarative", host_qt_archives: icu}
 
     steps:
       - name: Check out sources
@@ -413,6 +426,20 @@ jobs:
           dir: ${{ runner.temp }}/qt-android
           cache: true
           install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
+      - name: Install host Qt ICU archive
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          archives: ${{ matrix.host_qt_archives }}
+          dir: ${{ runner.temp }}/qt-android
+          cache: false
+          install-deps: false
+          set-env: false
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Find Android Qt paths

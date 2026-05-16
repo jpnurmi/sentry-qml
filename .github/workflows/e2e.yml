@@ -30,24 +30,28 @@ jobs:
             qt: LTS
             qt_host: linux
             qt_arch: linux_gcc_64
+            qt_archives: icu qtbase qtdeclarative
           - name: Crashpad (Qt LTS, ubuntu-24.04)
             sentry_backend: Crashpad
             runner: ubuntu-24.04
             qt: LTS
             qt_host: linux
             qt_arch: linux_gcc_64
+            qt_archives: icu qtbase qtdeclarative
           - name: Native (Qt latest, ubuntu-24.04)
             sentry_backend: Native
             runner: ubuntu-24.04
             qt: latest
             qt_host: linux
             qt_arch: linux_gcc_64
+            qt_archives: icu qtbase qtdeclarative
           - name: Cocoa (Qt LTS, macos-15)
             sentry_backend: Cocoa
             runner: macos-15
             qt: LTS
             qt_host: mac
             qt_arch: clang_64
+            qt_archives: qtbase qtdeclarative
           - name: WebAssembly (Qt LTS, single-threaded)
             sentry_backend: Wasm
             runner: ubuntu-24.04
@@ -55,6 +59,7 @@ jobs:
             qt_host: all_os
             qt_target: wasm
             qt_arch: wasm_singlethread
+            qt_archives: ""
             host_qt_host: linux
             host_qt_arch: linux_gcc_64
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
@@ -66,6 +71,7 @@ jobs:
             qt_host: linux
             qt_target: android
             qt_arch: android_x86_64
+            qt_archives: ""
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
           - name: iOS (Qt LTS, simulator)
@@ -75,6 +81,7 @@ jobs:
             qt_host: mac
             qt_target: ios
             qt_arch: ios
+            qt_archives: qtbase qtdeclarative
             cmake_generator: Xcode
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
@@ -142,7 +149,7 @@ jobs:
           host: ${{ matrix.qt_host }}
           target: ${{ matrix.qt_target || 'desktop' }}
           arch: ${{ matrix.qt_arch }}
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -155,7 +162,7 @@ jobs:
           host: mac
           target: ios
           arch: ios
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           dir: ${{ runner.temp }}/qt-ios
           cache: true
           install-deps: true

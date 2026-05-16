@@ -31,27 +31,27 @@ jobs:
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
         #   pipx run aqtinstall aqt list-qt all_os wasm --arch 6.11.0
         include:
-          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Native, runner: ubuntu-24.04, qt: latest, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64, qt_archives: "icu qtbase qtdeclarative"}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64, qt_archives: "icu qtbase qtdeclarative"}
+          - {sentry_backend: Native, runner: ubuntu-24.04, qt: latest, qt_host: linux, qt_arch: linux_gcc_64, qt_archives: "icu qtbase qtdeclarative"}
 
-          - {sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_backend: Native, runner: ubuntu-24.04-arm, qt: latest, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64, qt_archives: "icu qtbase qtdeclarative"}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64, qt_archives: "icu qtbase qtdeclarative"}
+          - {sentry_backend: Native, runner: ubuntu-24.04-arm, qt: latest, qt_host: linux_arm64, qt_arch: linux_gcc_arm64, qt_archives: "icu qtbase qtdeclarative"}
 
-          - {sentry_backend: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Cocoa, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Native, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Cocoa, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Native, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64, qt_archives: "qtbase qtdeclarative"}
 
-          - {sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_backend: Native, runner: windows-2025, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Native, runner: windows-2025, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_64, qt_archives: "qtbase qtdeclarative"}
 
-          - {sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_backend: Native, runner: windows-11-arm, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled, qt_archives: "qtbase qtdeclarative"}
+          - {sentry_backend: Native, runner: windows-11-arm, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled, qt_archives: "qtbase qtdeclarative"}
 
     steps:
       - name: Check out sources
@@ -91,7 +91,7 @@ jobs:
           host: ${{ matrix.qt_host }}
           target: desktop
           arch: ${{ matrix.qt_arch }}
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -182,8 +182,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread}
-          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread}
+          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread, qt_archives: ""}
+          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread, qt_archives: ""}
 
     steps:
       - name: Check out sources
@@ -210,7 +210,7 @@ jobs:
           host: ${{ matrix.qt_host }}
           target: ${{ matrix.qt_target }}
           arch: ${{ matrix.qt_arch }}
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -381,8 +381,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: LTS, android_api: 28}
-          - {qt: latest, android_api: 36}
+          - {qt: LTS, android_api: 28, qt_archives: ""}
+          - {qt: latest, android_api: 36, qt_archives: ""}
 
     steps:
       - name: Check out sources
@@ -409,7 +409,7 @@ jobs:
           host: linux
           target: android
           arch: android_x86_64
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           dir: ${{ runner.temp }}/qt-android
           cache: true
           install-deps: true
@@ -518,7 +518,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: LTS}
+          - {qt: LTS, qt_archives: "qtbase qtdeclarative"}
 
     steps:
       - name: Check out sources
@@ -545,7 +545,7 @@ jobs:
           host: mac
           target: ios
           arch: ios
-          archives: qtbase qtdeclarative
+          archives: ${{ matrix.qt_archives }}
           dir: ${{ runner.temp }}/qt-ios
           cache: true
           install-deps: true

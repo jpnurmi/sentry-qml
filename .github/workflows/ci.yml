@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   ci:
-    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt.track }}, ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -31,27 +31,27 @@ jobs:
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
         #   pipx run aqtinstall aqt list-qt all_os wasm --arch 6.11.0
         include:
-          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_backend: Native, runner: ubuntu-24.04, qt: latest, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: {track: LTS, host: linux, target: desktop, arch: linux_gcc_64, archives: "icu qtbase qtdeclarative"}}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: {track: LTS, host: linux, target: desktop, arch: linux_gcc_64, archives: "icu qtbase qtdeclarative"}}
+          - {sentry_backend: Native, runner: ubuntu-24.04, qt: {track: latest, host: linux, target: desktop, arch: linux_gcc_64, archives: "icu qtbase qtdeclarative"}}
 
-          - {sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_backend: Native, runner: ubuntu-24.04-arm, qt: latest, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: {track: LTS, host: linux_arm64, target: desktop, arch: linux_gcc_arm64, archives: "icu qtbase qtdeclarative"}}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: {track: LTS, host: linux_arm64, target: desktop, arch: linux_gcc_arm64, archives: "icu qtbase qtdeclarative"}}
+          - {sentry_backend: Native, runner: ubuntu-24.04-arm, qt: {track: latest, host: linux_arm64, target: desktop, arch: linux_gcc_arm64, archives: "icu qtbase qtdeclarative"}}
 
-          - {sentry_backend: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Cocoa, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_backend: Native, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Cocoa, runner: macos-15, qt: {track: LTS, host: mac, target: desktop, arch: clang_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Cocoa, runner: macos-26, qt: {track: latest, host: mac, target: desktop, arch: clang_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Inproc, runner: macos-15, qt: {track: LTS, host: mac, target: desktop, arch: clang_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Crashpad, runner: macos-15, qt: {track: LTS, host: mac, target: desktop, arch: clang_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Native, runner: macos-26, qt: {track: latest, host: mac, target: desktop, arch: clang_64, archives: "qtbase qtdeclarative"}}
 
-          - {sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_backend: Native, runner: windows-2025, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_backend: Inproc, runner: windows-2022, qt: {track: LTS, host: windows, target: desktop, arch: win64_msvc2022_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Crashpad, runner: windows-2022, qt: {track: LTS, host: windows, target: desktop, arch: win64_msvc2022_64, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Native, runner: windows-2025, qt: {track: latest, host: windows, target: desktop, arch: win64_msvc2022_64, archives: "qtbase qtdeclarative"}}
 
-          - {sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_backend: Native, runner: windows-11-arm, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_backend: Inproc, runner: windows-11-arm, qt: {track: LTS, host: windows, target: desktop, arch: win64_msvc2022_arm64_cross_compiled, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Crashpad, runner: windows-11-arm, qt: {track: LTS, host: windows, target: desktop, arch: win64_msvc2022_arm64_cross_compiled, archives: "qtbase qtdeclarative"}}
+          - {sentry_backend: Native, runner: windows-11-arm, qt: {track: latest, host: windows, target: desktop, arch: win64_msvc2022_arm64_cross_compiled, archives: "qtbase qtdeclarative"}}
 
     steps:
       - name: Check out sources
@@ -64,7 +64,7 @@ jobs:
         id: qt
         shell: pwsh
         run: |
-          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $qtTrack = "${{ matrix.qt.track }}".ToLowerInvariant()
           $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
           if (-not $versionProperty) { throw "Could not read Qt version" }
           $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
@@ -88,9 +88,10 @@ jobs:
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: ${{ matrix.qt_host }}
-          target: desktop
-          arch: ${{ matrix.qt_arch }}
+          host: ${{ matrix.qt.host }}
+          target: ${{ matrix.qt.target }}
+          arch: ${{ matrix.qt.arch }}
+          archives: ${{ matrix.qt.archives }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -101,9 +102,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build/sentry-native
-          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
+          key: sentry-native-${{ matrix.runner }}-${{ matrix.qt.arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
           restore-keys: |
-            sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-
+            sentry-native-${{ matrix.runner }}-${{ matrix.qt.arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-
 
       - name: Restore SentryObjC cache
         if: matrix.sentry_backend == 'Cocoa'
@@ -160,28 +161,29 @@ jobs:
           fi
 
       - name: Test
+        id: test
         run: ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure
         env:
           QT_QPA_PLATFORM: offscreen
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.test.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+          name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt.track }}, ${{ matrix.runner }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
 
   wasm:
-    name: WebAssembly (Qt ${{ matrix.qt }}, ${{ matrix.variant }})
+    name: WebAssembly (Qt ${{ matrix.qt.track }}, ${{ matrix.variant }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {variant: single-threaded, qt: LTS, qt_host: all_os, qt_target: wasm, qt_arch: wasm_singlethread}
-          - {variant: multi-threaded, qt: latest, qt_host: all_os, qt_target: wasm, qt_arch: wasm_multithread}
+          - {variant: single-threaded, qt: {track: LTS, host: all_os, target: wasm, arch: wasm_singlethread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}}
+          - {variant: multi-threaded, qt: {track: latest, host: all_os, target: wasm, arch: wasm_multithread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}}
 
     steps:
       - name: Check out sources
@@ -194,7 +196,7 @@ jobs:
         id: qt
         shell: pwsh
         run: |
-          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $qtTrack = "${{ matrix.qt.track }}".ToLowerInvariant()
           $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
           if (-not $versionProperty) { throw "Could not read Qt version" }
           $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
@@ -205,34 +207,31 @@ jobs:
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: ${{ matrix.qt_host }}
-          target: ${{ matrix.qt_target }}
-          arch: ${{ matrix.qt_arch }}
+          host: ${{ matrix.qt.host }}
+          target: ${{ matrix.qt.target }}
+          arch: ${{ matrix.qt.arch }}
+          archives: ${{ matrix.qt.archives }}
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Install host Qt
+      - name: Install host Qt ICU archive
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: linux
+          host: ${{ matrix.host_qt.host }}
           target: desktop
-          arch: linux_gcc_64
-          dir: ${{ runner.temp }}/qt-host
-          cache: true
-          install-deps: true
+          arch: ${{ matrix.host_qt.arch }}
+          archives: ${{ matrix.host_qt.archives }}
+          cache: false
+          install-deps: false
+          set-env: false
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Find wasm Qt paths
         id: wasm-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
-            Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake') } |
-            Select-Object -First 1
-          if (-not $hostPath) { throw "Could not find host Qt installation" }
-
           $roots = @(
             $env:GITHUB_WORKSPACE,
             (Split-Path $env:GITHUB_WORKSPACE -Parent),
@@ -242,12 +241,24 @@ jobs:
 
           $wasmPath = $null
           foreach ($root in $roots) {
-            $wasmPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
+            $wasmPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt.arch }}" -ErrorAction SilentlyContinue |
               Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
               Select-Object -First 1
             if ($wasmPath) { break }
           }
           if (-not $wasmPath) { throw "Could not find wasm Qt installation" }
+
+          $hostPath = $null
+          foreach ($root in $roots) {
+            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt.path }}" -ErrorAction SilentlyContinue |
+              Where-Object {
+                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+              } |
+              Select-Object -First 1
+            if ($hostPath) { break }
+          }
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
 
           "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
           "wasm_path=$($wasmPath.FullName)" >> $env:GITHUB_OUTPUT
@@ -376,15 +387,15 @@ jobs:
           done
 
   android:
-    name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
+    name: Android (Qt ${{ matrix.qt.track }}, API ${{ matrix.android_api }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {qt: LTS, android_api: 28}
-          - {qt: latest, android_api: 36}
+          - {qt: {track: LTS, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28}
+          - {qt: {track: latest, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36}
 
     steps:
       - name: Check out sources
@@ -397,7 +408,7 @@ jobs:
         id: qt
         shell: pwsh
         run: |
-          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $qtTrack = "${{ matrix.qt.track }}".ToLowerInvariant()
           $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
           if (-not $versionProperty) { throw "Could not read Qt version" }
           $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
@@ -408,35 +419,42 @@ jobs:
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: linux
-          target: android
-          arch: android_x86_64
+          host: ${{ matrix.qt.host }}
+          target: ${{ matrix.qt.target }}
+          arch: ${{ matrix.qt.arch }}
+          archives: ${{ matrix.qt.archives }}
           dir: ${{ runner.temp }}/qt-android
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Install host Qt
+      - name: Install host Qt ICU archive
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: linux
+          host: ${{ matrix.host_qt.host }}
           target: desktop
-          arch: linux_gcc_64
-          dir: ${{ runner.temp }}/qt-host
-          cache: true
-          install-deps: true
+          arch: ${{ matrix.host_qt.arch }}
+          archives: ${{ matrix.host_qt.archives }}
+          dir: ${{ runner.temp }}/qt-android
+          cache: false
+          install-deps: false
+          set-env: false
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Find Android Qt paths
         id: android-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter "${{ matrix.host_qt.path }}" |
+            Where-Object {
+              (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+              (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+            } |
             Select-Object -First 1
           if (-not $hostPath) { throw "Could not find host Qt installation" }
 
-          $androidPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter android_x86_64 |
+          $androidPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter "${{ matrix.qt.arch }}" |
             Select-Object -First 1
           if (-not $androidPath) { throw "Could not find Android Qt installation" }
 
@@ -512,22 +530,22 @@ jobs:
         with: *android-test-run
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.first-android-test-run.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
+          name: Android (Qt ${{ matrix.qt.track }}, API ${{ matrix.android_api }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
 
   ios:
-    name: iOS (Qt ${{ matrix.qt }})
+    name: iOS (Qt ${{ matrix.qt.track }})
     runs-on: macos-15-intel
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {qt: LTS}
+          - {qt: {track: LTS, host: mac, target: ios, arch: ios, archives: "qtbase qtdeclarative"}}
 
     steps:
       - name: Check out sources
@@ -540,7 +558,7 @@ jobs:
         id: qt
         shell: pwsh
         run: |
-          $qtTrack = "${{ matrix.qt }}".ToLowerInvariant()
+          $qtTrack = "${{ matrix.qt.track }}".ToLowerInvariant()
           $versionProperty = Get-Content "modules/qt-$qtTrack.properties" | Where-Object { $_ -match '^\s*version\s*=' } | Select-Object -First 1
           if (-not $versionProperty) { throw "Could not read Qt version" }
           $qtVersion = (($versionProperty -split '=', 2)[1]).Trim() -replace '^v', ''
@@ -551,22 +569,11 @@ jobs:
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
-          host: mac
-          target: ios
-          arch: ios
+          host: ${{ matrix.qt.host }}
+          target: ${{ matrix.qt.target }}
+          arch: ${{ matrix.qt.arch }}
+          archives: ${{ matrix.qt.archives }}
           dir: ${{ runner.temp }}/qt-ios
-          cache: true
-          install-deps: true
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
-
-      - name: Install host Qt
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: ${{ steps.qt.outputs.version }}
-          host: mac
-          target: desktop
-          arch: clang_64
-          dir: ${{ runner.temp }}/qt-host
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -575,43 +582,21 @@ jobs:
         id: qt-paths
         shell: pwsh
         run: |
-          $hostPath = $null
-          $hostRoots = @(
-            "${{ runner.temp }}/qt-host",
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $hostRoots) {
-            $hostPath = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
-              Where-Object {
-                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
-                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
-              } |
-              Select-Object -First 1
-            if ($hostPath) { break }
-          }
-          if (-not $hostPath) { throw "Could not find host Qt installation" }
+          $qtRoot = Join-Path "${{ runner.temp }}/qt-ios/Qt" "${{ steps.qt.outputs.version }}"
+          $hostPath = Join-Path $qtRoot "macos"
+          $iosPath = Join-Path $qtRoot "ios"
 
-          $iosPath = $null
-          $roots = @(
-            "${{ runner.temp }}/qt-ios",
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $roots) {
-            $iosPath = Get-ChildItem $root -Directory -Recurse -Filter ios -ErrorAction SilentlyContinue |
-              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
-              Select-Object -First 1
-            if ($iosPath) { break }
+          if (-not (Test-Path (Join-Path $hostPath 'bin/qt-cmake')) -or
+              -not (Test-Path (Join-Path $hostPath 'lib/cmake/Qt6/Qt6Config.cmake'))) {
+            throw "Could not find host Qt installation at $hostPath"
           }
-          if (-not $iosPath) { throw "Could not find iOS Qt installation" }
 
-          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
-          "ios_path=$($iosPath.FullName)" >> $env:GITHUB_OUTPUT
+          if (-not (Test-Path (Join-Path $iosPath 'lib/cmake/Qt6/qt.toolchain.cmake'))) {
+            throw "Could not find iOS Qt installation at $iosPath"
+          }
+
+          "host_path=$hostPath" >> $env:GITHUB_OUTPUT
+          "ios_path=$iosPath" >> $env:GITHUB_OUTPUT
 
       - name: Read SentryObjC cache key
         id: sentryobjc-cache-key
@@ -677,19 +662,20 @@ jobs:
           echo "SENTRY_QML_IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
 
       - name: Test iOS
+        id: ios-tests
         run: |
           mkdir -p build/tests/test-results
           ctest --test-dir build \
             --build-config RelWithDebInfo \
             --verbose \
             --output-on-failure \
-            --output-junit build/tests/test-results/ctest-ios.xml
+            --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-ios.xml"
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.ios-tests.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: iOS (Qt ${{ matrix.qt }})
+          name: iOS (Qt ${{ matrix.qt.track }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
           fail-on-empty: false

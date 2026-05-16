@@ -182,8 +182,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {variant: single-threaded, qt: {track: LTS, host: all_os, target: wasm, arch: wasm_singlethread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, archives: icu}}
-          - {variant: multi-threaded, qt: {track: latest, host: all_os, target: wasm, arch: wasm_multithread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, archives: icu}}
+          - {variant: single-threaded, qt: {track: LTS, host: all_os, target: wasm, arch: wasm_singlethread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}}
+          - {variant: multi-threaded, qt: {track: latest, host: all_os, target: wasm, arch: wasm_multithread, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}}
 
     steps:
       - name: Check out sources
@@ -250,7 +250,7 @@ jobs:
 
           $hostPath = $null
           foreach ($root in $roots) {
-            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt.arch }}" -ErrorAction SilentlyContinue |
+            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt.path }}" -ErrorAction SilentlyContinue |
               Where-Object {
                 (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
                 (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
@@ -394,8 +394,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: {track: LTS, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, archives: icu}, android_api: 28}
-          - {qt: {track: latest, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, archives: icu}, android_api: 36}
+          - {qt: {track: LTS, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28}
+          - {qt: {track: latest, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36}
 
     steps:
       - name: Check out sources
@@ -446,7 +446,7 @@ jobs:
         id: android-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter "${{ matrix.host_qt.arch }}" |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter "${{ matrix.host_qt.path }}" |
             Where-Object {
               (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
               (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))

@@ -72,6 +72,7 @@ jobs:
             host_qt:
               host: linux
               arch: linux_gcc_64
+              path: gcc_64
               archives: icu
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
           - name: Android (Qt LTS, API 35)
@@ -87,6 +88,7 @@ jobs:
             host_qt:
               host: linux
               arch: linux_gcc_64
+              path: gcc_64
               archives: icu
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
@@ -226,7 +228,7 @@ jobs:
               $env:RUNNER_TOOL_CACHE
             ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
             foreach ($root in $hostRoots) {
-              $hostDir = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt.arch }}" -ErrorAction SilentlyContinue |
+              $hostDir = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.host_qt.path }}" -ErrorAction SilentlyContinue |
                 Where-Object {
                   (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
                   (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))

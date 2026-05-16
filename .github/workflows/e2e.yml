@@ -142,6 +142,7 @@ jobs:
           host: ${{ matrix.qt_host }}
           target: ${{ matrix.qt_target || 'desktop' }}
           arch: ${{ matrix.qt_arch }}
+          archives: qtbase qtdeclarative
           cache: true
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
@@ -154,6 +155,7 @@ jobs:
           host: mac
           target: ios
           arch: ios
+          archives: qtbase qtdeclarative
           dir: ${{ runner.temp }}/qt-ios
           cache: true
           install-deps: true
@@ -167,6 +169,7 @@ jobs:
           host: ${{ matrix.host_qt_host || 'linux' }}
           target: desktop
           arch: ${{ matrix.host_qt_arch || 'linux_gcc_64' }}
+          archives: qtbase qtdeclarative
           dir: ${{ runner.temp }}/qt-host
           cache: true
           install-deps: true

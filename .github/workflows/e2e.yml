@@ -75,8 +75,6 @@ jobs:
             qt_host: mac
             qt_target: ios
             qt_arch: ios
-            host_qt_host: mac
-            host_qt_arch: clang_64
             cmake_generator: Xcode
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
@@ -137,6 +135,7 @@ jobs:
           "sentry-cocoa-sha=$sentryCocoaSha" >> $env:GITHUB_OUTPUT
 
       - name: Install Qt
+        if: matrix.qt_target != 'ios'
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
@@ -147,8 +146,21 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
+      - name: Install iOS Qt
+        if: matrix.qt_target == 'ios'
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: ${{ steps.qt.outputs.version }}
+          host: mac
+          target: ios
+          arch: ios
+          dir: ${{ runner.temp }}/qt-ios
+          cache: true
+          install-deps: true
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
+
       - name: Install host Qt
-        if: matrix.qt_target
+        if: matrix.qt_target && matrix.qt_target != 'ios'
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ steps.qt.outputs.version }}
@@ -165,44 +177,62 @@ jobs:
         id: qt-target-paths
         shell: pwsh
         run: |
-          $hostPath = $null
-          $hostRoots = @(
-            "${{ runner.temp }}/qt-host",
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $hostRoots) {
-            $hostPath = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
-              Where-Object {
-                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
-                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
-              } |
-              Select-Object -First 1
-            if ($hostPath) { break }
+          if ("${{ matrix.qt_target }}" -eq "ios") {
+            $qtRoot = Join-Path "${{ runner.temp }}/qt-ios/Qt" "${{ steps.qt.outputs.version }}"
+            $hostPath = Join-Path $qtRoot "macos"
+            $targetPath = Join-Path $qtRoot "ios"
+
+            if (-not (Test-Path (Join-Path $hostPath 'bin/qt-cmake')) -or
+                -not (Test-Path (Join-Path $hostPath 'lib/cmake/Qt6/Qt6Config.cmake'))) {
+              throw "Could not find host Qt installation at $hostPath"
+            }
+
+            if (-not (Test-Path (Join-Path $targetPath 'lib/cmake/Qt6/qt.toolchain.cmake'))) {
+              throw "Could not find iOS Qt installation at $targetPath"
+            }
+          } else {
+            $hostDir = $null
+            $hostRoots = @(
+              "${{ runner.temp }}/qt-host",
+              $env:GITHUB_WORKSPACE,
+              (Split-Path $env:GITHUB_WORKSPACE -Parent),
+              $env:RUNNER_TEMP,
+              $env:RUNNER_TOOL_CACHE
+            ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+            foreach ($root in $hostRoots) {
+              $hostDir = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
+                Where-Object {
+                  (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+                  (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+                } |
+                Select-Object -First 1
+              if ($hostDir) { break }
+            }
+            if (-not $hostDir) { throw "Could not find host Qt installation" }
+
+            $targetDir = $null
+            $roots = @(
+              $env:GITHUB_WORKSPACE,
+              (Split-Path $env:GITHUB_WORKSPACE -Parent),
+              $env:RUNNER_TEMP,
+              $env:RUNNER_TOOL_CACHE
+            ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+            foreach ($root in $roots) {
+              $targetDir = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
+                Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
+                Select-Object -First 1
+              if ($targetDir) { break }
+            }
+            if (-not $targetDir) { throw "Could not find target Qt installation" }
+
+            $hostPath = $hostDir.FullName
+            $targetPath = $targetDir.FullName
           }
-          if (-not $hostPath) { throw "Could not find host Qt installation" }
 
-          $targetPath = $null
-          $roots = @(
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $roots) {
-            $targetPath = Get-ChildItem $root -Directory -Recurse -Filter "${{ matrix.qt_arch }}" -ErrorAction SilentlyContinue |
-              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
-              Select-Object -First 1
-            if ($targetPath) { break }
-          }
-          if (-not $targetPath) { throw "Could not find target Qt installation" }
+          "host_path=$hostPath" >> $env:GITHUB_OUTPUT
+          "target_path=$targetPath" >> $env:GITHUB_OUTPUT
 
-          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
-          "target_path=$($targetPath.FullName)" >> $env:GITHUB_OUTPUT
-
-          $helperPath = Join-Path $targetPath.FullName 'lib/cmake/Qt6/QtPublicWasmToolchainHelpers.cmake'
+          $helperPath = Join-Path $targetPath 'lib/cmake/Qt6/QtPublicWasmToolchainHelpers.cmake'
           if (Test-Path $helperPath) {
             $helperText = Get-Content $helperPath -Raw
             if ($helperText -notmatch 'QT_EMCC_RECOMMENDED_VERSION\s+"([^"]+)"') {
@@ -306,12 +336,19 @@ jobs:
           key: ${{ steps.sentryobjc-cache-key.outputs.key }}
 
       - name: Build SentryObjC iOS XCFramework
-        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-matched-key == ''
+        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
         run: |
           cd modules/sentry-cocoa
           ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
           mkdir -p "$RUNNER_TEMP/sentry-cocoa"
           ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+
+      - name: Save SentryObjC iOS XCFramework
+        if: matrix.qt_target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/sentry-cocoa
+          key: ${{ steps.sentryobjc-cache-key.outputs.key }}
 
       - name: Install Crashpad dependencies
         if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'

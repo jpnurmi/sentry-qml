@@ -8,6 +8,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qurl.h>
+#include <QtGui/qguiapplication.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qtcpserver.h>
 #include <QtNetwork/qtcpsocket.h>
@@ -54,6 +55,7 @@ class SentryQmlCrashTest : public QObject
 private slots:
     void capturesNativeCrashWithQmlScope_data();
     void capturesNativeCrashWithQmlScope();
+    void capturesNativeCrashWithScreenshot();
 };
 
 class CrashEnvelopeServer : public QTcpServer
@@ -238,9 +240,9 @@ int runCrashTarget(int argc, char *argv[])
 #    endif
 #endif
 
-    QCoreApplication app(argc, argv);
-    QCoreApplication::setOrganizationName(QStringLiteral("Sentry"));
-    QCoreApplication::setApplicationName(QStringLiteral("Sentry QML Crash Test Target"));
+    QGuiApplication app(argc, argv);
+    QGuiApplication::setOrganizationName(QStringLiteral("Sentry"));
+    QGuiApplication::setApplicationName(QStringLiteral("Sentry QML Crash Test Target"));
 
     const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
 
@@ -251,10 +253,13 @@ int runCrashTarget(int argc, char *argv[])
     const QString crashType = argc > 2
         ? QString::fromLocal8Bit(argv[2])
         : QStringLiteral("segfault");
+    const bool attachScreenshot =
+        environment.value(QStringLiteral("SENTRY_QML_TEST_ATTACH_SCREENSHOT")) == QLatin1String("1");
 
     CrashActions crashActions;
     engine.rootContext()->setContextProperty(QStringLiteral("crashActions"), &crashActions);
     engine.rootContext()->setContextProperty(QStringLiteral("testCrashType"), crashType);
+    engine.rootContext()->setContextProperty(QStringLiteral("testAttachScreenshot"), attachScreenshot);
     engine.rootContext()->setContextProperty(QStringLiteral("testDsn"),
                                              environment.value(QStringLiteral("SENTRY_QML_TEST_DSN")));
     engine.rootContext()->setContextProperty(
@@ -273,6 +278,10 @@ int runCrashTarget(int argc, char *argv[])
     if (!object) {
         qWarning().noquote() << component.errorString();
         return 3;
+    }
+
+    if (attachScreenshot) {
+        return app.exec();
     }
 
     return 4;
@@ -323,6 +332,7 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
                        QStringLiteral(SENTRY_QML_IMPORT_PATH));
     environment.insert(QStringLiteral("SENTRY_QML_TEST_QML_DIR"),
                        QStringLiteral(SENTRY_QML_TEST_QML_DIR));
+    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
     process.setProcessEnvironment(environment);
     process.setWorkingDirectory(QFileInfo(targetPath).absolutePath());
     QSignalSpy finishedSpy(&process, &QProcess::finished);
@@ -349,6 +359,54 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
     QVERIFY(body.contains(QByteArrayLiteral("\"crash_type\":\"") + crashType.toUtf8() + QByteArrayLiteral("\"")));
     QVERIFY(body.contains("\"fingerprint\":[\"{{ default }}\",\"qml-crash\"]"));
     QVERIFY(body.contains("crash breadcrumb"));
+}
+
+void SentryQmlCrashTest::capturesNativeCrashWithScreenshot()
+{
+#if defined(SENTRY_QML_TEST_SDK_CRASHPAD) && !defined(Q_OS_WIN)
+    QSKIP("Crashpad screenshot capture is only available on Windows.");
+#endif
+
+    CrashEnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    const QString targetPath = QCoreApplication::applicationFilePath();
+    QVERIFY2(QFileInfo::exists(targetPath), qPrintable(targetPath));
+
+    QProcess process;
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("SENTRY_QML_TEST_DSN"),
+                       QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    environment.insert(QStringLiteral("SENTRY_QML_TEST_DATABASE_PATH"),
+                       QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    environment.insert(QStringLiteral("SENTRY_QML_TEST_QML_IMPORT_PATH"),
+                       QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    environment.insert(QStringLiteral("SENTRY_QML_TEST_QML_DIR"),
+                       QStringLiteral(SENTRY_QML_TEST_QML_DIR));
+    environment.insert(QStringLiteral("SENTRY_QML_TEST_ATTACH_SCREENSHOT"), QStringLiteral("1"));
+    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    process.setProcessEnvironment(environment);
+    process.setWorkingDirectory(QFileInfo(targetPath).absolutePath());
+    QSignalSpy finishedSpy(&process, &QProcess::finished);
+    process.start(targetPath, {QStringLiteral("--crash"), QStringLiteral("segfault")});
+
+    QVERIFY2(process.waitForStarted(5000), qPrintable(process.errorString()));
+    QTRY_VERIFY_WITH_TIMEOUT(!finishedSpy.isEmpty(), 60000);
+
+    const QByteArray output = process.readAllStandardOutput() + process.readAllStandardError();
+    QVERIFY2(process.exitStatus() == QProcess::CrashExit || process.exitCode() != 0, output.constData());
+
+    QTRY_VERIFY2_WITH_TIMEOUT(server.contains("sentry-qml@crash"),
+                              missingCrashEnvelopeDiagnostics(output, server.combinedBody()).constData(),
+                              15000);
+
+    const QByteArray body = server.combinedBody();
+    QVERIFY(body.contains("\"type\":\"event\""));
+    QVERIFY(body.contains("\"filename\":\"screenshot.png\""));
+    QVERIFY(body.contains("\"content_type\":\"image/png\""));
 }
 
 int main(int argc, char *argv[])

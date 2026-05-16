@@ -126,6 +126,7 @@ private:
     QMetaObject::Connection m_applicationShutdownConnection;
     int m_maxBreadcrumbs = 100;
     int m_userConsent = -1;
+    bool m_attachScreenshot = false;
     bool m_attachViewHierarchy = false;
     bool m_applyHooksLocally = false;
     bool m_requireUserConsent = false;

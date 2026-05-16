@@ -1,6 +1,8 @@
 #include <QtCore/qbytearray.h>
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qelapsedtimer.h>
 #include <QtCore/qeventloop.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
@@ -10,6 +12,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qtextstream.h>
+#include <QtCore/qthread.h>
 #include <QtCore/qtimer.h>
 #include <QtCore/qurl.h>
 #include <QtCore/quuid.h>
@@ -21,6 +24,7 @@
 #include <csignal>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 #if defined(__SANITIZE_ADDRESS__)
 #    define SENTRY_QML_E2E_ASAN_ACTIVE 1
@@ -93,6 +97,31 @@ void triggerSegfault()
 #endif
 }
 
+bool waitForSuccess(QObject *object, int timeoutMs)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < timeoutMs) {
+        if (object->property("success").toBool()) {
+            return true;
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(10);
+    }
+    return object->property("success").toBool();
+}
+
+bool printCapturedEventResult(QObject *object, const QString &action)
+{
+    const QString eventId = object->property("eventId").toString();
+    const bool success = object->property("success").toBool() && !eventId.isEmpty();
+    if (success) {
+        printMarker(QStringLiteral("EVENT_CAPTURED"), eventId);
+    }
+    printResult(action, success, eventId);
+    return success;
+}
+
 class CrashActions : public QObject
 {
     Q_OBJECT
@@ -101,6 +130,43 @@ public:
     using QObject::QObject;
 
     Q_INVOKABLE void crash() { triggerSegfault(); }
+};
+
+class ActionResultReporter : public QObject
+{
+    Q_OBJECT
+
+public:
+    ActionResultReporter(QObject *object, QString action, QObject *parent = nullptr)
+        : QObject(parent)
+        , m_object(object)
+        , m_action(std::move(action))
+    {
+    }
+
+public slots:
+    void reportResult() { finish(false); }
+
+    void reportTimeout() { finish(true); }
+
+private:
+    void finish(bool timedOut)
+    {
+        if (m_finished) {
+            return;
+        }
+        m_finished = true;
+
+        const bool success = !timedOut && m_object && printCapturedEventResult(m_object, m_action);
+        if (timedOut) {
+            printResult(m_action, false);
+        }
+        QCoreApplication::exit(success ? 0 : 1);
+    }
+
+    QObject *m_object = nullptr;
+    QString m_action;
+    bool m_finished = false;
 };
 
 int main(int argc, char *argv[])
@@ -113,8 +179,8 @@ int main(int argc, char *argv[])
     const QString action = arguments.value(1);
     if (action.isEmpty()) {
         qCritical("usage: sentry_qml_e2e_app "
-                  "<message-capture|consent-capture|feedback-capture|view-hierarchy-capture|attributes-capture|"
-                  "crash-capture|crash-send> "
+                  "<message-capture|consent-capture|feedback-capture|screenshot-capture|view-hierarchy-capture|"
+                  "attributes-capture|crash-capture|crash-send> "
                   "[--dsn <dsn>] [--run-id <id>] [--database-path <path>] [--crash-id <id>]");
         return 64;
     }
@@ -186,13 +252,20 @@ int main(int argc, char *argv[])
     }
 
     if (action == QLatin1String("message-capture") || action == QLatin1String("consent-capture")
-        || action == QLatin1String("feedback-capture") || action == QLatin1String("view-hierarchy-capture")) {
-        const QString eventId = object->property("eventId").toString();
-        const bool success = object->property("success").toBool() && !eventId.isEmpty();
-        if (success) {
-            printMarker(QStringLiteral("EVENT_CAPTURED"), eventId);
+        || action == QLatin1String("feedback-capture") || action == QLatin1String("screenshot-capture")
+        || action == QLatin1String("view-hierarchy-capture")) {
+#if defined(Q_OS_WASM)
+        if (action == QLatin1String("screenshot-capture")) {
+            ActionResultReporter reporter(object.get(), action, &app);
+            QObject::connect(object.get(), SIGNAL(actionFinished()), &reporter, SLOT(reportResult()));
+            QTimer::singleShot(40000, &reporter, SLOT(reportTimeout()));
+            return app.exec();
         }
-        printResult(action, success, eventId);
+#endif
+        if (action == QLatin1String("screenshot-capture")) {
+            waitForSuccess(object.get(), 40000);
+        }
+        const bool success = printCapturedEventResult(object.get(), action);
         return success ? 0 : 1;
     }
 

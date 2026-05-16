@@ -4,6 +4,7 @@
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
+#include <SentryQml/private/sentryscreenshot_p.h>
 #include <SentryQml/private/sentryviewhierarchy_p.h>
 
 #include <SentryQml/sentry.h>
@@ -182,6 +183,16 @@ SentryObjCBridge::Attachment viewHierarchyAttachment(const QByteArray &bytes)
     return attachment;
 }
 
+SentryObjCBridge::Attachment screenshotAttachment(const QByteArray &bytes)
+{
+    SentryObjCBridge::Attachment attachment;
+    attachment.type = SentryObjCBridge::Attachment::Bytes;
+    attachment.bytes = bytes;
+    attachment.filename = QStringLiteral("screenshot.png");
+    attachment.contentType = QStringLiteral("image/png");
+    return attachment;
+}
+
 bool isSupportedInteger(const QVariant &value)
 {
     switch (value.metaType().id()) {
@@ -341,6 +352,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.enableLogs = options->enableLogs();
     nativeOptions.enableMetrics = options->enableMetrics();
     nativeOptions.autoSessionTracking = options->autoSessionTracking();
+    nativeOptions.attachScreenshot = options->attachScreenshot();
     nativeOptions.sampleRate = options->sampleRate();
     nativeOptions.maxBreadcrumbs = options->maxBreadcrumbs();
     nativeOptions.shutdownTimeout = options->shutdownTimeout();
@@ -358,6 +370,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_contexts.clear();
     m_breadcrumbs.clear();
     m_maxBreadcrumbs = nativeOptions.maxBreadcrumbs;
+    m_attachScreenshot = options->attachScreenshot();
     m_attachViewHierarchy = options->attachViewHierarchy();
 
     if (!SentryObjCBridge::start(nativeOptions)) {
@@ -1042,14 +1055,22 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     const QStringList fingerprint = m_applyHooksLocally ? QStringList {} : m_fingerprint;
-    if (!m_attachViewHierarchy) {
+    if (!m_attachScreenshot && !m_attachViewHierarchy) {
         return SentryObjCBridge::captureEvent(nativeEvent, fingerprint);
     }
 
     QList<SentryObjCBridge::Attachment> attachments;
-    const QByteArray viewHierarchy = SentryViewHierarchy::toJson();
-    if (!viewHierarchy.isEmpty()) {
-        attachments.append(viewHierarchyAttachment(viewHierarchy));
+    if (m_attachScreenshot) {
+        const QByteArray screenshot = SentryScreenshot::toPng();
+        if (!screenshot.isEmpty()) {
+            attachments.append(screenshotAttachment(screenshot));
+        }
+    }
+    if (m_attachViewHierarchy) {
+        const QByteArray viewHierarchy = SentryViewHierarchy::toJson();
+        if (!viewHierarchy.isEmpty()) {
+            attachments.append(viewHierarchyAttachment(viewHierarchy));
+        }
     }
     return SentryObjCBridge::captureEvent(nativeEvent, fingerprint, attachments);
 }
@@ -1064,6 +1085,7 @@ void SentrySdk::clearLocalScope()
     m_contexts.clear();
     m_breadcrumbs.clear();
     m_maxBreadcrumbs = 100;
+    m_attachScreenshot = false;
     m_attachViewHierarchy = false;
 }
 

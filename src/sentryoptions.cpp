@@ -172,6 +172,21 @@ void SentryOptions::setRequireUserConsent(bool requireUserConsent)
     emit requireUserConsentChanged();
 }
 
+bool SentryOptions::attachScreenshot() const
+{
+    return m_attachScreenshot;
+}
+
+void SentryOptions::setAttachScreenshot(bool attachScreenshot)
+{
+    if (m_attachScreenshot == attachScreenshot) {
+        return;
+    }
+
+    m_attachScreenshot = attachScreenshot;
+    emit attachScreenshotChanged();
+}
+
 bool SentryOptions::attachViewHierarchy() const
 {
     return m_attachViewHierarchy;

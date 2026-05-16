@@ -217,10 +217,14 @@ set_source_files_properties(qml/IntegrationTest.qml PROPERTIES
 set_source_files_properties(qml/ViewHierarchyTest.qml PROPERTIES
     QT_RESOURCE_ALIAS ViewHierarchyTest.qml
 )
+set_source_files_properties(qml/ScreenshotTest.qml PROPERTIES
+    QT_RESOURCE_ALIAS ScreenshotTest.qml
+)
 qt_add_resources(tst_integration sentry_qml_integration_test_qml
     PREFIX "/sentry-qml-tests"
     FILES
         qml/IntegrationTest.qml
+        qml/ScreenshotTest.qml
         qml/ViewHierarchyTest.qml
 )
 
@@ -238,6 +242,8 @@ if(TARGET sentry-crash AND NOT ANDROID)
     target_compile_definitions(tst_crash PRIVATE
         SENTRY_QML_TEST_QML_DIR="${SENTRY_QML_TEST_QML_DIR}"
     )
+
+    target_link_libraries(tst_crash PRIVATE Qt6::Gui Qt6::Quick)
 
     target_sources(tst_crash PRIVATE
         qml/CrashTest.qml

@@ -32,6 +32,7 @@ QtObject {
     property bool metricsEnabled: true
     property bool autoSessionTrackingEnabled: true
     property bool requireUserConsentEnabled: false
+    property bool screenshotEnabled: false
     property bool viewHierarchyEnabled: false
     property string tagKey: qsTr("backend")
     property string tagValue: qsTr("qml")
@@ -64,6 +65,7 @@ QtObject {
         property alias metrics: state.metricsEnabled
         property alias autoSessionTracking: state.autoSessionTrackingEnabled
         property alias requireUserConsent: state.requireUserConsentEnabled
+        property alias screenshot: state.screenshotEnabled
         property alias viewHierarchy: state.viewHierarchyEnabled
         property alias sampleRate: state.sampleRate
         property alias maxBreadcrumbs: state.maxBreadcrumbs

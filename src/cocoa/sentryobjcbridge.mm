@@ -837,6 +837,9 @@ bool start(const Options &options)
         nativeOptions.enableLogs = options.enableLogs;
         nativeOptions.enableMetrics = options.enableMetrics;
         nativeOptions.enableAutoSessionTracking = options.autoSessionTracking;
+#if SENTRY_OBJC_UIKIT_AVAILABLE
+        nativeOptions.attachScreenshot = options.attachScreenshot;
+#endif
         nativeOptions.sampleRate = @(options.sampleRate);
         nativeOptions.maxBreadcrumbs = static_cast<NSUInteger>(options.maxBreadcrumbs);
         nativeOptions.shutdownTimeInterval = static_cast<NSTimeInterval>(options.shutdownTimeout) / 1000.0;

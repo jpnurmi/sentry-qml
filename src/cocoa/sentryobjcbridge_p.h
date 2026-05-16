@@ -59,6 +59,7 @@ struct Options
     bool enableLogs = true;
     bool enableMetrics = true;
     bool autoSessionTracking = true;
+    bool attachScreenshot = false;
     double sampleRate = 1.0;
     int maxBreadcrumbs = 100;
     int shutdownTimeout = 2000;

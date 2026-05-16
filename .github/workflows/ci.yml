@@ -215,28 +215,10 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Install host Qt
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: ${{ steps.qt.outputs.version }}
-          host: linux
-          target: desktop
-          arch: linux_gcc_64
-          archives: qtbase qtdeclarative
-          dir: ${{ runner.temp }}/qt-host
-          cache: true
-          install-deps: true
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
-
       - name: Find wasm Qt paths
         id: wasm-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
-            Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake') } |
-            Select-Object -First 1
-          if (-not $hostPath) { throw "Could not find host Qt installation" }
-
           $roots = @(
             $env:GITHUB_WORKSPACE,
             (Split-Path $env:GITHUB_WORKSPACE -Parent),
@@ -252,6 +234,18 @@ jobs:
             if ($wasmPath) { break }
           }
           if (-not $wasmPath) { throw "Could not find wasm Qt installation" }
+
+          $hostPath = $null
+          foreach ($root in $roots) {
+            $hostPath = Get-ChildItem $root -Directory -Recurse -Filter gcc_64 -ErrorAction SilentlyContinue |
+              Where-Object {
+                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+              } |
+              Select-Object -First 1
+            if ($hostPath) { break }
+          }
+          if (-not $hostPath) { throw "Could not find host Qt installation" }
 
           "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
           "wasm_path=$($wasmPath.FullName)" >> $env:GITHUB_OUTPUT
@@ -421,24 +415,15 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Install host Qt
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: ${{ steps.qt.outputs.version }}
-          host: linux
-          target: desktop
-          arch: linux_gcc_64
-          archives: qtbase qtdeclarative
-          dir: ${{ runner.temp }}/qt-host
-          cache: true
-          install-deps: true
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
-
       - name: Find Android Qt paths
         id: android-qt-paths
         shell: pwsh
         run: |
-          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-host" -Directory -Recurse -Filter gcc_64 |
+          $hostPath = Get-ChildItem "${{ runner.temp }}/qt-android" -Directory -Recurse -Filter gcc_64 |
+            Where-Object {
+              (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
+              (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
+            } |
             Select-Object -First 1
           if (-not $hostPath) { throw "Could not find host Qt installation" }
 

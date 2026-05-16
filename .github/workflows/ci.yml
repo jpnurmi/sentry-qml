@@ -160,12 +160,13 @@ jobs:
           fi
 
       - name: Test
+        id: test
         run: ctest --test-dir build --build-config RelWithDebInfo --verbose --output-on-failure
         env:
           QT_QPA_PLATFORM: offscreen
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.test.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
           name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
@@ -512,7 +513,7 @@ jobs:
         with: *android-test-run
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.first-android-test-run.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
           name: Android (Qt ${{ matrix.qt }}, API ${{ matrix.android_api }})
@@ -643,16 +644,17 @@ jobs:
           echo "SENTRY_QML_IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
 
       - name: Test iOS
+        id: ios-tests
         run: |
           mkdir -p build/tests/test-results
           ctest --test-dir build \
             --build-config RelWithDebInfo \
             --verbose \
             --output-on-failure \
-            --output-junit build/tests/test-results/ctest-ios.xml
+            --output-junit "$GITHUB_WORKSPACE/build/tests/test-results/ctest-ios.xml"
 
       - name: Publish test results
-        if: always()
+        if: always() && steps.ios-tests.outcome != 'skipped'
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
           name: iOS (Qt ${{ matrix.qt }})

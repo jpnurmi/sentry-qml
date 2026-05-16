@@ -39,6 +39,7 @@ Window {
     property string screenshotMessage: "Sentry QML E2E screenshot " + testRunId
     property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
     property SentryHint feedbackHint: SentryHint {}
+    signal actionFinished()
     signal crashSendFinished()
     property SentryOptions options: SentryOptions {
         dsn: testDsn
@@ -105,6 +106,7 @@ Window {
         flushed = Sentry.flush(10000)
         closed = Sentry.close()
         success = initialized && eventId !== "" && flushed && closed
+        actionFinished()
     }
 
     Component.onCompleted: {

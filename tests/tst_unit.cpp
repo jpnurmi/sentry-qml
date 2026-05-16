@@ -132,6 +132,7 @@ void SentryQmlUnitTest::importsQmlModule()
                 onCrash: function(event) { return event }
             }
             property bool ready: !Sentry.initialized && options.debug && !options.attachViewHierarchy
+                && !options.attachScreenshot
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0

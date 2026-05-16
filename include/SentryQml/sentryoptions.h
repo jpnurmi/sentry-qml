@@ -24,6 +24,7 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool enableMetrics READ enableMetrics WRITE setEnableMetrics NOTIFY enableMetricsChanged)
     Q_PROPERTY(bool autoSessionTracking READ autoSessionTracking WRITE setAutoSessionTracking NOTIFY autoSessionTrackingChanged)
     Q_PROPERTY(bool requireUserConsent READ requireUserConsent WRITE setRequireUserConsent NOTIFY requireUserConsentChanged)
+    Q_PROPERTY(bool attachScreenshot READ attachScreenshot WRITE setAttachScreenshot NOTIFY attachScreenshotChanged)
     Q_PROPERTY(bool attachViewHierarchy READ attachViewHierarchy WRITE setAttachViewHierarchy NOTIFY attachViewHierarchyChanged)
     Q_PROPERTY(double sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
     Q_PROPERTY(int maxBreadcrumbs READ maxBreadcrumbs WRITE setMaxBreadcrumbs NOTIFY maxBreadcrumbsChanged)
@@ -70,6 +71,9 @@ public:
     bool requireUserConsent() const;
     void setRequireUserConsent(bool requireUserConsent);
 
+    bool attachScreenshot() const;
+    void setAttachScreenshot(bool attachScreenshot);
+
     bool attachViewHierarchy() const;
     void setAttachViewHierarchy(bool attachViewHierarchy);
 
@@ -109,6 +113,7 @@ signals:
     void enableMetricsChanged();
     void autoSessionTrackingChanged();
     void requireUserConsentChanged();
+    void attachScreenshotChanged();
     void attachViewHierarchyChanged();
     void sampleRateChanged();
     void maxBreadcrumbsChanged();
@@ -131,6 +136,7 @@ private:
     bool m_enableMetrics = true;
     bool m_autoSessionTracking = true;
     bool m_requireUserConsent = false;
+    bool m_attachScreenshot = false;
     bool m_attachViewHierarchy = false;
     double m_sampleRate = 1.0;
     int m_maxBreadcrumbs = 100;

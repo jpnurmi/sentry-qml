@@ -508,6 +508,46 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'Screenshot capture' {
+        BeforeAll {
+            $script:ScreenshotMessage = "Sentry QML E2E screenshot $script:RunId"
+            $script:ScreenshotResult = Invoke-E2EAction -Action 'screenshot-capture'
+            $script:ScreenshotEventIds = Get-EventIds -AppOutput $script:ScreenshotResult.Output -ExpectedCount 1
+            $script:ScreenshotEvent = Get-SentryTestEvent `
+                -EventId $script:ScreenshotEventIds[0] `
+                -TimeoutSeconds 180
+            $script:ScreenshotAttachments = Get-SentryTestEventAttachments `
+                -EventId $script:ScreenshotEventIds[0] `
+                -ExpectedCount 1 `
+                -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            Assert-CleanExit -Result $script:ScreenshotResult
+        }
+
+        It 'captures a message event in Sentry' {
+            $script:ScreenshotEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:ScreenshotEvent -Name 'title' | Should -Be $script:ScreenshotMessage
+            Get-TagValue -SentryEvent $script:ScreenshotEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:ScreenshotEvent -Key 'test.action' | Should -Be 'screenshot-capture'
+        }
+
+        It 'uploads the screenshot attachment' {
+            $screenshotAttachment = @($script:ScreenshotAttachments) | Where-Object {
+                (Get-ObjectValue -InputObject $_ -Name 'name') -eq 'screenshot.png'
+            } | Select-Object -First 1
+
+            $screenshotAttachment | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $screenshotAttachment -Name 'mimetype' | Should -Be 'image/png'
+
+            Save-SentryTestEventAttachment `
+                -EventId $script:ScreenshotEventIds[0] `
+                -Attachment $screenshotAttachment `
+                -OutputPath (Get-OutputFilePath 'screenshot.png')
+        }
+    }
+
     Context 'View hierarchy capture' {
         BeforeAll {
             $script:ViewHierarchyMessage = "Sentry QML E2E view hierarchy $script:RunId"

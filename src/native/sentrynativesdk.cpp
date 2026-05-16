@@ -2,6 +2,7 @@
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
+#include <SentryQml/private/sentryscreenshot_p.h>
 #include <SentryQml/private/sentryviewhierarchy_p.h>
 
 #include <SentryQml/sentry.h>
@@ -489,6 +490,24 @@ void attachViewHierarchyToScope(sentry_scope_t *scope, const QByteArray &json)
     setNativeAttachmentContentType(attachment, QStringLiteral("application/json"));
 }
 
+void attachScreenshotToScope(sentry_scope_t *scope, const QByteArray &png)
+{
+    if (!scope || png.isEmpty()) {
+        return;
+    }
+
+    sentry_attachment_t *attachment = sentry_scope_attach_bytes_n(scope,
+                                                                  png.constData(),
+                                                                  static_cast<size_t>(png.size()),
+                                                                  "screenshot.png",
+                                                                  std::strlen("screenshot.png"));
+    if (!attachment) {
+        return;
+    }
+
+    setNativeAttachmentContentType(attachment, QStringLiteral("image/png"));
+}
+
 sentry_level_t logLevelFromInt(int level)
 {
     switch (level) {
@@ -626,6 +645,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_set_enable_metrics(nativeOptions, options->enableMetrics() ? 1 : 0);
     sentry_options_set_auto_session_tracking(nativeOptions, options->autoSessionTracking() ? 1 : 0);
     sentry_options_set_require_user_consent(nativeOptions, options->requireUserConsent() ? 1 : 0);
+    sentry_options_set_attach_screenshot(nativeOptions, options->attachScreenshot() ? 1 : 0);
     sentry_options_set_sample_rate(nativeOptions, options->sampleRate());
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
@@ -678,6 +698,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendState = std::move(beforeSendState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::move(crashHookState);
+    m_attachScreenshot = options->attachScreenshot();
     m_attachViewHierarchy = options->attachViewHierarchy();
     const SentryUser *user = options->user();
     if (user && !user->isEmpty()) {
@@ -714,6 +735,7 @@ bool SentrySdk::close()
     m_beforeSendState.reset();
     m_crashHookState.reset();
     m_onCrashState.reset();
+    m_attachScreenshot = false;
     m_attachViewHierarchy = false;
     m_fingerprint.clear();
     invalidateAttachments();
@@ -1522,16 +1544,22 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         return {};
     }
 
-    if (m_fingerprint.isEmpty() && !m_attachViewHierarchy) {
+    if (m_fingerprint.isEmpty() && !m_attachScreenshot && !m_attachViewHierarchy) {
         return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
+    }
+
+    QByteArray screenshot;
+    if (m_attachScreenshot) {
+        screenshot = SentryScreenshot::toPng();
     }
 
     QByteArray viewHierarchy;
     if (m_attachViewHierarchy) {
         viewHierarchy = SentryViewHierarchy::toJson();
-        if (m_fingerprint.isEmpty() && viewHierarchy.isEmpty()) {
-            return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
-        }
+    }
+
+    if (m_fingerprint.isEmpty() && screenshot.isEmpty() && viewHierarchy.isEmpty()) {
+        return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
     }
 
     sentry_scope_t *scope = sentry_local_scope_new();
@@ -1544,6 +1572,7 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     if (!m_fingerprint.isEmpty()) {
         sentry_scope_set_fingerprints(scope, nativeFingerprintFromStringList(m_fingerprint));
     }
+    attachScreenshotToScope(scope, screenshot);
     attachViewHierarchyToScope(scope, viewHierarchy);
     return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(event), scope));
 }

@@ -67,6 +67,9 @@ public final class SentryQmlBridge {
                 if (json.has("shutdownTimeout")) {
                     options.setShutdownTimeoutMillis(json.optLong("shutdownTimeout"));
                 }
+                if (json.has("attachScreenshot")) {
+                    options.setAttachScreenshot(json.optBoolean("attachScreenshot"));
+                }
                 if (json.has("attachViewHierarchy")) {
                     options.setAttachViewHierarchy(json.optBoolean("attachViewHierarchy"));
                 }

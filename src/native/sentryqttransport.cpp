@@ -25,10 +25,6 @@ class SentryQtTransportState
 public:
     bool start(const sentry_options_t *options)
     {
-        if (!ensureApplication()) {
-            return false;
-        }
-
         const char *dsnString = sentry_options_get_dsn(options);
         if (!dsnString || !*dsnString) {
             return true;
@@ -72,7 +68,7 @@ public:
 
     void send(const QByteArray &body)
     {
-        if (!QCoreApplication::instance() || QCoreApplication::closingDown()) {
+        if (!ensureApplication() || QCoreApplication::closingDown()) {
             return;
         }
 

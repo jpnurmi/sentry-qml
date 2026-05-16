@@ -40,6 +40,7 @@ Item {
         enableMetrics: AppState.metricsEnabled
         autoSessionTracking: AppState.autoSessionTrackingEnabled
         requireUserConsent: AppState.requireUserConsentEnabled
+        attachScreenshot: AppState.screenshotEnabled
         attachViewHierarchy: AppState.viewHierarchyEnabled
         sampleRate: AppState.sampleRate
         maxBreadcrumbs: AppState.maxBreadcrumbs
@@ -238,6 +239,13 @@ Item {
                             checked: AppState.requireUserConsentEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.requireUserConsentEnabled = checked
+                        }
+
+                        CheckBox {
+                            text: qsTr("Screenshots")
+                            checked: AppState.screenshotEnabled
+                            Layout.fillWidth: true
+                            onToggled: AppState.screenshotEnabled = checked
                         }
 
                         CheckBox {

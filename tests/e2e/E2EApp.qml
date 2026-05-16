@@ -2,10 +2,10 @@ import QtQuick
 import Sentry 1.0
 
 Window {
-    objectName: testAction === "view-hierarchy-capture" ? "e2eViewHierarchyWindow" : ""
+    objectName: testAction === "view-hierarchy-capture" ? "e2eViewHierarchyWindow" : testAction === "screenshot-capture" ? "e2eScreenshotWindow" : ""
     width: 320
     height: 240
-    visible: testAction === "view-hierarchy-capture"
+    visible: testAction === "view-hierarchy-capture" || testAction === "screenshot-capture"
 
     property bool initialized: false
     property bool flushed: false
@@ -36,6 +36,7 @@ Window {
     property string attributesLogMessage: "Sentry QML E2E attributes " + testRunId
     property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
+    property string screenshotMessage: "Sentry QML E2E screenshot " + testRunId
     property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
     property SentryHint feedbackHint: SentryHint {}
     signal crashSendFinished()
@@ -49,6 +50,7 @@ Window {
         requireUserConsent: testAction === "consent-capture"
         enableLogs: testAction === "attributes-capture"
         enableMetrics: testAction === "attributes-capture"
+        attachScreenshot: testAction === "screenshot-capture"
         attachViewHierarchy: testAction === "view-hierarchy-capture"
         user: SentryUser {
             userId: "e2e-user"
@@ -62,6 +64,23 @@ Window {
         interval: 5000
         repeat: false
         onTriggered: finishCrashSend()
+    }
+
+    Timer {
+        id: screenshotCaptureTimer
+        interval: 50
+        repeat: false
+        onTriggered: finishScreenshotCapture()
+    }
+
+    Rectangle {
+        objectName: "e2eScreenshotMarker"
+        visible: testAction === "screenshot-capture"
+        x: 24
+        y: 28
+        width: 72
+        height: 48
+        color: "#ff6655"
     }
 
     Rectangle {
@@ -79,6 +98,13 @@ Window {
         closed = Sentry.close()
         success = initialized && flushed && closed
         crashSendFinished()
+    }
+
+    function finishScreenshotCapture() {
+        eventId = Sentry.captureMessage(screenshotMessage, "info")
+        flushed = Sentry.flush(10000)
+        closed = Sentry.close()
+        success = initialized && eventId !== "" && flushed && closed
     }
 
     Component.onCompleted: {
@@ -138,6 +164,8 @@ Window {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && feedbackAttached && feedbackCaptured && flushed && closed
+        } else if (testAction === "screenshot-capture") {
+            screenshotCaptureTimer.start()
         } else if (testAction === "view-hierarchy-capture") {
             eventId = Sentry.captureMessage(viewHierarchyMessage, "info")
             flushed = Sentry.flush(10000)

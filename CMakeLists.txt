@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Qml Quick)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Qml Quick)
 find_package(Qt6QuickControls2 6.8 QUIET)
 find_package(Qt6QmlPrivate 6.8 QUIET)
 find_package(Qt6Test 6.8 QUIET)

@@ -26,6 +26,7 @@ class SentryQmlIntegrationTest : public QObject
 
 private slots:
     void capturesSdkFeaturesThroughHttpTransport();
+    void attachesScreenshotWhenEnabled();
     void attachesViewHierarchyWhenEnabled();
 };
 
@@ -168,6 +169,19 @@ EnvelopeItem findItem(const QList<EnvelopeItem> &items, const QString &type, con
     return item != items.cend() ? *item : EnvelopeItem {};
 }
 
+EnvelopeItem findItemByFilename(const QList<EnvelopeItem> &items, const QString &filename)
+{
+    const auto item = std::find_if(items.cbegin(), items.cend(),
+                                   [&filename](const EnvelopeItem &candidate)
+                                   {
+                                       return candidate.headers.value(QStringLiteral("type")).toString()
+                                                   == QStringLiteral("attachment")
+                                           && candidate.headers.value(QStringLiteral("filename")).toString()
+                                                   == filename;
+                                   });
+    return item != items.cend() ? *item : EnvelopeItem {};
+}
+
 bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray &needle, int timeoutMs)
 {
     QElapsedTimer timer;
@@ -184,6 +198,51 @@ bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray
 QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
 {
     return server.combinedBody().left(16 * 1024);
+}
+
+void SentryQmlIntegrationTest::attachesScreenshotWhenEnabled()
+{
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
+    IntegrationEnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/sentry-qml-tests/ScreenshotTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QTRY_COMPARE_WITH_TIMEOUT(object->property("eventId").toString().size(), 36, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(object->property("flushed").toBool(), true, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(object->property("closed").toBool(), true, 5000);
+
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Screenshot event"), 5000);
+
+    const QList<EnvelopeItem> items = findEnvelopeItems(server.bodies(), "Screenshot event");
+    QVERIFY(!items.isEmpty());
+
+    const EnvelopeItem event = findItem(items, QStringLiteral("event"), "Screenshot event");
+    QVERIFY(!event.payload.isEmpty());
+
+    const EnvelopeItem screenshot = findItemByFilename(items, QStringLiteral("screenshot.png"));
+    QVERIFY(!screenshot.payload.isEmpty());
+    QCOMPARE(screenshot.headers.value(QStringLiteral("content_type")).toString(), QStringLiteral("image/png"));
+    QVERIFY(screenshot.payload.startsWith("\x89PNG\r\n\x1a\n"));
 }
 
 void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()

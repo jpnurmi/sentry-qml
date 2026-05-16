@@ -2,6 +2,7 @@
 
 #include <SentryQml/private/sentryevent_p.h>
 #include <SentryQml/private/sentryhint_p.h>
+#include <SentryQml/private/sentryscreenshot_p.h>
 #include <SentryQml/private/sentryviewhierarchy_p.h>
 
 #include <SentryQml/sentry.h>
@@ -401,6 +402,16 @@ SentrySdkAttachmentState viewHierarchyAttachment(const QByteArray &bytes)
     return attachment;
 }
 
+SentrySdkAttachmentState screenshotAttachment(const QByteArray &bytes)
+{
+    SentrySdkAttachmentState attachment;
+    attachment.type = SentrySdkAttachmentState::Bytes;
+    attachment.bytes = bytes;
+    attachment.filename = QStringLiteral("screenshot.png");
+    attachment.contentType = QStringLiteral("image/png");
+    return attachment;
+}
+
 bool callBridgeBool(const char *method, const char *signature, const QString &arg)
 {
     const QJniObject string = QJniObject::fromString(arg);
@@ -637,6 +648,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_breadcrumbs.clear();
     m_fingerprint.clear();
     m_maxBreadcrumbs = options->maxBreadcrumbs();
+    m_attachScreenshot = options->attachScreenshot();
     m_attachViewHierarchy = options->attachViewHierarchy();
     m_requireUserConsent = options->requireUserConsent();
     m_userConsent = -1;
@@ -654,6 +666,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("sampleRate"), options->sampleRate()},
         {QStringLiteral("maxBreadcrumbs"), options->maxBreadcrumbs()},
         {QStringLiteral("shutdownTimeout"), options->shutdownTimeout()},
+        {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
         {QStringLiteral("attachViewHierarchy"), options->attachViewHierarchy()},
     };
     if (!m_user.isEmpty()) {
@@ -1464,6 +1477,12 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     QList<SentrySdkAttachmentState> attachments;
+    if (m_attachScreenshot) {
+        const QByteArray screenshot = SentryScreenshot::toPng();
+        if (!screenshot.isEmpty()) {
+            attachments.append(screenshotAttachment(screenshot));
+        }
+    }
     if (m_attachViewHierarchy) {
         const QByteArray viewHierarchy = SentryViewHierarchy::toJson();
         if (!viewHierarchy.isEmpty()) {
@@ -1490,6 +1509,7 @@ void SentrySdk::clearLocalScope()
     m_breadcrumbs.clear();
     m_fingerprint.clear();
     m_maxBreadcrumbs = 100;
+    m_attachScreenshot = false;
     m_attachViewHierarchy = false;
     m_requireUserConsent = false;
     m_userConsent = -1;

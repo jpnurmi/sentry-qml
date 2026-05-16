@@ -1,7 +1,12 @@
-import QtQml
+import QtQuick
 import Sentry 1.0
 
-QtObject {
+Window {
+    width: 160
+    height: 120
+    visible: testAttachScreenshot
+    color: "#334455"
+
     property SentryOptions options: SentryOptions {
         dsn: testDsn
         databasePath: testDatabasePath
@@ -9,6 +14,7 @@ QtObject {
         environment: "crash-test"
         dist: "7"
         autoSessionTracking: false
+        attachScreenshot: testAttachScreenshot
         maxBreadcrumbs: 10
         shutdownTimeout: 5000
         user: SentryUser {
@@ -16,6 +22,20 @@ QtObject {
             username: "crash"
             email: "crash@example.com"
         }
+    }
+
+    Rectangle {
+        anchors.centerIn: parent
+        width: 48
+        height: 32
+        color: "#55cc88"
+    }
+
+    Timer {
+        interval: 50
+        running: testAttachScreenshot
+        repeat: false
+        onTriggered: crashActions.crash(testCrashType)
     }
 
     Component.onCompleted: {
@@ -35,6 +55,7 @@ QtObject {
             level: "fatal",
             data: { scenario: "crash" }
         })
-        crashActions.crash(testCrashType)
+        if (!testAttachScreenshot)
+            crashActions.crash(testCrashType)
     }
 }

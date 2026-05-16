@@ -559,59 +559,25 @@ jobs:
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
-      - name: Install host Qt
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
-        with:
-          version: ${{ steps.qt.outputs.version }}
-          host: mac
-          target: desktop
-          arch: clang_64
-          dir: ${{ runner.temp }}/qt-host
-          cache: true
-          install-deps: true
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
-
       - name: Find Qt paths
         id: qt-paths
         shell: pwsh
         run: |
-          $hostPath = $null
-          $hostRoots = @(
-            "${{ runner.temp }}/qt-host",
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $hostRoots) {
-            $hostPath = Get-ChildItem $root -Directory -Recurse -ErrorAction SilentlyContinue |
-              Where-Object {
-                (Test-Path (Join-Path $_.FullName 'bin/qt-cmake')) -and
-                (Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/Qt6Config.cmake'))
-              } |
-              Select-Object -First 1
-            if ($hostPath) { break }
-          }
-          if (-not $hostPath) { throw "Could not find host Qt installation" }
+          $qtRoot = Join-Path "${{ runner.temp }}/qt-ios/Qt" "${{ steps.qt.outputs.version }}"
+          $hostPath = Join-Path $qtRoot "macos"
+          $iosPath = Join-Path $qtRoot "ios"
 
-          $iosPath = $null
-          $roots = @(
-            "${{ runner.temp }}/qt-ios",
-            $env:GITHUB_WORKSPACE,
-            (Split-Path $env:GITHUB_WORKSPACE -Parent),
-            $env:RUNNER_TEMP,
-            $env:RUNNER_TOOL_CACHE
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-          foreach ($root in $roots) {
-            $iosPath = Get-ChildItem $root -Directory -Recurse -Filter ios -ErrorAction SilentlyContinue |
-              Where-Object { Test-Path (Join-Path $_.FullName 'lib/cmake/Qt6/qt.toolchain.cmake') } |
-              Select-Object -First 1
-            if ($iosPath) { break }
+          if (-not (Test-Path (Join-Path $hostPath 'bin/qt-cmake')) -or
+              -not (Test-Path (Join-Path $hostPath 'lib/cmake/Qt6/Qt6Config.cmake'))) {
+            throw "Could not find host Qt installation at $hostPath"
           }
-          if (-not $iosPath) { throw "Could not find iOS Qt installation" }
 
-          "host_path=$($hostPath.FullName)" >> $env:GITHUB_OUTPUT
-          "ios_path=$($iosPath.FullName)" >> $env:GITHUB_OUTPUT
+          if (-not (Test-Path (Join-Path $iosPath 'lib/cmake/Qt6/qt.toolchain.cmake'))) {
+            throw "Could not find iOS Qt installation at $iosPath"
+          }
+
+          "host_path=$hostPath" >> $env:GITHUB_OUTPUT
+          "ios_path=$iosPath" >> $env:GITHUB_OUTPUT
 
       - name: Read SentryObjC cache key
         id: sentryobjc-cache-key

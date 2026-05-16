@@ -2,7 +2,7 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$IsCocoa = $env:SENTRY_QML_E2E_SDK -eq 'Cocoa'
+$IsCocoa = $env:SENTRY_QML_E2E_BACKEND -eq 'Cocoa'
 
 BeforeAll {
     function Add-AndroidBuildToolsToPath {

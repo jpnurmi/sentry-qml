@@ -30,39 +30,64 @@ set(QML_IMPORT_PATH "${SENTRY_QML_OUTPUT_DIRECTORY}" CACHE STRING
     "QML import paths for Qt Creator and other QML tooling"
 )
 
-set(SENTRY_QML_SDK_SUPPORTED native cocoa ios android wasm)
-list(JOIN SENTRY_QML_SDK_SUPPORTED ", " SENTRY_QML_SDK_SUPPORTED_TEXT)
+set(sentry_qml_backend_supported native cocoa android wasm)
+set(sentry_native_backend_supported crashpad breakpad inproc native none)
+set(sentry_backend_supported
+    ${sentry_qml_backend_supported}
+    ${sentry_native_backend_supported}
+)
+list(REMOVE_DUPLICATES sentry_backend_supported)
+list(JOIN sentry_backend_supported ", " sentry_backend_supported_text)
 
-set(SENTRY_QML_DEFAULT_SDK native)
-if(EMSCRIPTEN)
-    set(SENTRY_QML_DEFAULT_SDK wasm)
+set(sentry_default_backend native)
+if(ANDROID)
+    set(sentry_default_backend android)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(sentry_default_backend cocoa)
+elseif(EMSCRIPTEN)
+    set(sentry_default_backend wasm)
 endif()
 
-set(SENTRY_QML_SDK "${SENTRY_QML_DEFAULT_SDK}" CACHE STRING "Sentry SDK implementation")
-set_property(CACHE SENTRY_QML_SDK PROPERTY STRINGS ${SENTRY_QML_SDK_SUPPORTED})
+set(SENTRY_BACKEND "${sentry_default_backend}" CACHE STRING "Sentry backend implementation")
+set_property(CACHE SENTRY_BACKEND PROPERTY STRINGS ${sentry_backend_supported})
 
-string(TOLOWER "${SENTRY_QML_SDK}" SENTRY_QML_SDK)
-if(EMSCRIPTEN AND SENTRY_QML_SDK STREQUAL "native")
-    message(STATUS "Switching Sentry QML SDK from native to wasm for Emscripten.")
-    set(SENTRY_QML_SDK wasm CACHE STRING "Sentry SDK implementation" FORCE)
-    set(SENTRY_QML_SDK wasm)
-    set_property(CACHE SENTRY_QML_SDK PROPERTY STRINGS ${SENTRY_QML_SDK_SUPPORTED})
+string(TOLOWER "${SENTRY_BACKEND}" SENTRY_BACKEND)
+set(sentry_qml_backend "${SENTRY_BACKEND}")
+if(sentry_qml_backend STREQUAL "ios")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        message(FATAL_ERROR
+            "SENTRY_BACKEND=ios is deprecated and only accepted when building for iOS. "
+            "Use SENTRY_BACKEND=cocoa for Sentry Cocoa."
+        )
+    endif()
+    message(DEPRECATION
+        "SENTRY_BACKEND=ios is deprecated. Use SENTRY_BACKEND=cocoa; "
+        "the iOS target platform is inferred from CMAKE_SYSTEM_NAME."
+    )
+    set(sentry_qml_backend cocoa)
+elseif(SENTRY_BACKEND IN_LIST sentry_native_backend_supported)
+    set(sentry_qml_backend native)
 endif()
-if(NOT SENTRY_QML_SDK IN_LIST SENTRY_QML_SDK_SUPPORTED)
+
+if(NOT sentry_qml_backend IN_LIST sentry_qml_backend_supported)
     message(FATAL_ERROR
-        "Unsupported SENTRY_QML_SDK value '${SENTRY_QML_SDK}' "
-        "(supported values: ${SENTRY_QML_SDK_SUPPORTED_TEXT})."
+        "Unsupported SENTRY_BACKEND value '${SENTRY_BACKEND}' "
+        "(supported values: ${sentry_backend_supported_text})."
     )
 endif()
-message(STATUS "Sentry QML SDK: ${SENTRY_QML_SDK}")
+if(sentry_qml_backend STREQUAL "native" AND NOT SENTRY_BACKEND STREQUAL "native")
+    message(STATUS "Sentry backend: native (${SENTRY_BACKEND})")
+else()
+    message(STATUS "Sentry backend: ${sentry_qml_backend}")
+endif()
 
-set(SENTRY_QML_SDK_SOURCES)
-set(SENTRY_QML_SDK_LIBRARIES)
-set(SENTRY_QML_SDK_INCLUDE_DIRECTORIES)
-set(SENTRY_QML_SDK_DEPENDENCIES)
-set(SENTRY_QML_SDK_LINK_OPTIONS)
+set(sentry_qml_backend_sources)
+set(sentry_qml_backend_libraries)
+set(sentry_qml_backend_include_directories)
+set(sentry_qml_backend_dependencies)
+set(sentry_qml_backend_link_options)
 
-include("${PROJECT_SOURCE_DIR}/cmake/${SENTRY_QML_SDK}.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/${sentry_qml_backend}.cmake")
 
 add_subdirectory(src)
 

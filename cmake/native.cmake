@@ -39,9 +39,9 @@ if(NOT DEFINED SENTRY_SDK_NAME)
     set(SENTRY_SDK_NAME "sentry.native.qml" CACHE STRING "SDK name reported by sentry-native")
 endif()
 
-list(APPEND SENTRY_QML_SDK_SOURCES "${PROJECT_SOURCE_DIR}/src/native/sentrynativesdk.cpp")
-list(APPEND SENTRY_QML_SDK_LIBRARIES sentry::sentry)
-list(APPEND SENTRY_QML_SDK_INCLUDE_DIRECTORIES "${SENTRY_NATIVE_DIR}")
+list(APPEND sentry_qml_backend_sources "${PROJECT_SOURCE_DIR}/src/native/sentrynativesdk.cpp")
+list(APPEND sentry_qml_backend_libraries sentry::sentry)
+list(APPEND sentry_qml_backend_include_directories "${SENTRY_NATIVE_DIR}")
 
 add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 

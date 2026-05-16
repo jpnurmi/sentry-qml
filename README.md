@@ -23,9 +23,16 @@ ctest --test-dir build --output-on-failure
 
 The example runs from the build tree without installing the QML module.
 
+The default Sentry backend is inferred from the target platform: Android uses
+`android`, iOS uses `cocoa`, WebAssembly uses `wasm`, and other targets use
+`native`. Override it with `-DSENTRY_BACKEND=<backend>`. Native crash backend
+values such as `crashpad`, `breakpad`, `inproc`, and `none` select
+sentry-native.
+
 ## Android
 
-Configure Android builds with a Qt for Android toolchain and `-DSENTRY_QML_SDK=android`.
+Configure Android builds with a Qt for Android toolchain. The Android backend
+(`-DSENTRY_BACKEND=android`) is selected automatically.
 Android app targets that link `SentryQml` must also call:
 
 ```cmake
@@ -45,9 +52,9 @@ If your app already has a custom package source directory, copy
 ## WebAssembly
 
 Configure WebAssembly builds with a Qt for WebAssembly toolchain. The
-WebAssembly backend is selected automatically for Emscripten builds. The
-generated page must load the Sentry JavaScript SDK before calling
-`Sentry.init(...)` from QML and expose it as `globalThis.Sentry`. If
+WebAssembly backend (`-DSENTRY_BACKEND=wasm`) is selected automatically for
+Emscripten builds. The generated page must load the Sentry JavaScript SDK before
+calling `Sentry.init(...)` from QML and expose it as `globalThis.Sentry`. If
 `globalThis.Sentry.wasmIntegration` is available, it is added during
 initialization.
 
@@ -58,9 +65,10 @@ is not supported by the browser JavaScript backend.
 
 ## iOS
 
-Configure iOS builds with a Qt for iOS toolchain, the Xcode generator, and
-`-DSENTRY_QML_SDK=ios`. Sentry Cocoa requires an iOS deployment target of
-15.0 or higher. iOS app targets that link `SentryQml` must also call:
+Configure iOS builds with a Qt for iOS toolchain and the Xcode generator. The
+Cocoa backend (`-DSENTRY_BACKEND=cocoa`) is selected automatically. Sentry
+Cocoa requires an iOS deployment target of 15.0 or higher. iOS app targets that
+link `SentryQml` must also call:
 
 ```cmake
 sentry_qml_configure_ios_target(your_app_target)

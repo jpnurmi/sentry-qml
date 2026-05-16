@@ -67,7 +67,7 @@ function(add_sentry_qml_test target)
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
     )
 
-    if(SENTRY_QML_SDK STREQUAL "cocoa" OR SENTRY_QML_SDK STREQUAL "ios")
+    if(sentry_qml_backend STREQUAL "cocoa")
         target_compile_definitions(${target} PRIVATE
             SENTRY_QML_TEST_SDK_COCOA
         )

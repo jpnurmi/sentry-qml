@@ -25,7 +25,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/private/sentryqmlengine_p.h
         ../include/SentryQml/private/sentrysdk_p.h
         ../include/SentryQml/private/sentryviewhierarchy_p.h
-        ${SENTRY_QML_SDK_SOURCES}
+        ${sentry_qml_backend_sources}
         sentry.cpp
         sentryattachment.cpp
         sentryevent.cpp
@@ -36,8 +36,8 @@ qt_add_qml_module(SentryQml
         sentryviewhierarchy.cpp
 )
 
-if(SENTRY_QML_SDK_DEPENDENCIES)
-    add_dependencies(SentryQml ${SENTRY_QML_SDK_DEPENDENCIES})
+if(sentry_qml_backend_dependencies)
+    add_dependencies(SentryQml ${sentry_qml_backend_dependencies})
 endif()
 
 get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
@@ -62,7 +62,7 @@ target_include_directories(SentryQml
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE
-        ${SENTRY_QML_SDK_INCLUDE_DIRECTORIES}
+        ${sentry_qml_backend_include_directories}
         "${PROJECT_SOURCE_DIR}/include/SentryQml"
 )
 
@@ -72,10 +72,10 @@ target_compile_definitions(SentryQml
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
 )
 
-if(SENTRY_QML_SDK_LINK_OPTIONS)
+if(sentry_qml_backend_link_options)
     target_link_options(SentryQml
         INTERFACE
-            ${SENTRY_QML_SDK_LINK_OPTIONS}
+            ${sentry_qml_backend_link_options}
     )
 endif()
 
@@ -111,7 +111,7 @@ target_link_libraries(SentryQml
         Qt6::Qml
     PRIVATE
         Qt6::Quick
-        ${SENTRY_QML_SDK_LIBRARIES}
+        ${sentry_qml_backend_libraries}
 )
 
 set_target_properties(SentryQml PROPERTIES

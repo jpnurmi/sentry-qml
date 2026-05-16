@@ -1,8 +1,26 @@
 if(NOT APPLE)
-    message(FATAL_ERROR "SENTRY_QML_SDK=cocoa is only supported on Apple platforms.")
+    message(FATAL_ERROR "SENTRY_BACKEND=cocoa is only supported on Apple platforms.")
 endif()
 
 enable_language(OBJCXX)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET "15.0" CACHE STRING
+        "Minimum iOS deployment target supported by Sentry Cocoa"
+    )
+
+    if(CMAKE_OSX_DEPLOYMENT_TARGET
+            AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET)
+        message(FATAL_ERROR
+            "SENTRY_BACKEND=cocoa requires CMAKE_OSX_DEPLOYMENT_TARGET "
+            "${SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET} or higher when building for iOS."
+        )
+    endif()
+
+    if(NOT CMAKE_XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET)
+        set(CMAKE_XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET}")
+    endif()
+endif()
 
 set(SENTRY_COCOA_DIR
     "${PROJECT_SOURCE_DIR}/modules/sentry-cocoa"
@@ -98,7 +116,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin"
         COMMENT "Preparing SentryObjC XCFramework"
         VERBATIM
     )
-    list(APPEND SENTRY_QML_SDK_DEPENDENCIES SentryObjCBuild)
+    list(APPEND sentry_qml_backend_dependencies SentryObjCBuild)
 else()
     set(SENTRY_COCOA_MISSING_FILES)
     foreach(SENTRY_COCOA_REQUIRED_FILE IN LISTS SENTRY_COCOA_REQUIRED_FILES)
@@ -149,11 +167,11 @@ if(NOT DEFINED SENTRY_SDK_NAME)
     set(SENTRY_SDK_NAME "sentry.cocoa.qml" CACHE STRING "SDK name reported by Sentry QML")
 endif()
 
-list(APPEND SENTRY_QML_SDK_SOURCES
+list(APPEND sentry_qml_backend_sources
     "${PROJECT_SOURCE_DIR}/src/cocoa/sentryobjcbridge.mm"
     "${PROJECT_SOURCE_DIR}/src/cocoa/sentrycocoasdk.cpp"
 )
-list(APPEND SENTRY_QML_SDK_LIBRARIES SentryObjC::SentryObjC)
+list(APPEND sentry_qml_backend_libraries SentryObjC::SentryObjC)
 
 set_source_files_properties("${PROJECT_SOURCE_DIR}/src/cocoa/sentryobjcbridge.mm" PROPERTIES
     COMPILE_OPTIONS "-fobjc-arc"

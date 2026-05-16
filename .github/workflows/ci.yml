@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   ci:
-    name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+    name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -31,27 +31,27 @@ jobs:
         #   pipx run aqtinstall aqt list-qt linux desktop --arch 6.11.0
         #   pipx run aqtinstall aqt list-qt all_os wasm --arch 6.11.0
         include:
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04, qt: latest, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04, qt: LTS, qt_host: linux, qt_arch: linux_gcc_64}
+          - {sentry_backend: Native, runner: ubuntu-24.04, qt: latest, qt_host: linux, qt_arch: linux_gcc_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: ubuntu-24.04-arm, qt: latest, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_backend: Inproc, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_backend: Crashpad, runner: ubuntu-24.04-arm, qt: LTS, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
+          - {sentry_backend: Native, runner: ubuntu-24.04-arm, qt: latest, qt_host: linux_arm64, qt_arch: linux_gcc_arm64}
 
-          - {sentry_sdk: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Cocoa, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Cocoa, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Cocoa, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Inproc, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Crashpad, runner: macos-15, qt: LTS, qt_host: mac, qt_arch: clang_64}
+          - {sentry_backend: Native, runner: macos-26, qt: latest, qt_host: mac, qt_arch: clang_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-2025, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_backend: Inproc, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_backend: Crashpad, runner: windows-2022, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_64}
+          - {sentry_backend: Native, runner: windows-2025, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_64}
 
-          - {sentry_sdk: Native, sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_sdk: Native, sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
-          - {sentry_sdk: Native, sentry_backend: Native, runner: windows-11-arm, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_backend: Inproc, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_backend: Crashpad, runner: windows-11-arm, qt: LTS, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
+          - {sentry_backend: Native, runner: windows-11-arm, qt: latest, qt_host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled}
 
     steps:
       - name: Check out sources
@@ -96,7 +96,7 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Restore Sentry Native cache
-        if: matrix.sentry_sdk == 'Native'
+        if: ${{ contains(fromJSON('["Native", "Inproc", "Crashpad", "Breakpad"]'), matrix.sentry_backend) }}
         id: sentry-native-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -106,7 +106,7 @@ jobs:
             sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-
 
       - name: Restore SentryObjC cache
-        if: matrix.sentry_sdk == 'Cocoa'
+        if: matrix.sentry_backend == 'Cocoa'
         id: sentryobjc-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -119,36 +119,26 @@ jobs:
         if: matrix.sentry_backend == 'Crashpad' && runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
 
-      - name: Configure Native
-        if: matrix.sentry_backend != ''
+      - name: Configure
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          ${{ matrix.sentry_backend && format('-DSENTRY_BACKEND={0}', matrix.sentry_backend) || '' }}
+          -DSENTRY_BACKEND=${{ matrix.sentry_backend }}
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
-          -DSENTRY_QML_TEST_JUNIT=ON
-
-      - name: Configure Cocoa
-        if: matrix.sentry_sdk == 'Cocoa'
-        run: >
-          cmake -S . -B build
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
-          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
 
       - name: Save Sentry Native cache
-        if: matrix.sentry_sdk == 'Native' && steps.sentry-native-cache.outputs.cache-hit != 'true'
+        if: ${{ contains(fromJSON('["Native", "Inproc", "Crashpad", "Breakpad"]'), matrix.sentry_backend) && steps.sentry-native-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build/sentry-native
           key: ${{ steps.sentry-native-cache.outputs.cache-primary-key }}
 
       - name: Save SentryObjC cache
-        if: matrix.sentry_sdk == 'Cocoa' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
+        if: matrix.sentry_backend == 'Cocoa' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build/sentry-cocoa
@@ -158,7 +148,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           lipo build/src/libSentryQml.dylib -verify_arch arm64 x86_64
-          if [ "${{ matrix.sentry_sdk }}" = "Cocoa" ]; then
+          if [ "${{ matrix.sentry_backend }}" = "Cocoa" ]; then
             lipo \
               build/sentry-cocoa/SentryObjC-Dynamic.xcframework/macos-arm64_x86_64/SentryObjC.framework/SentryObjC \
               -verify_arch arm64 x86_64
@@ -178,7 +168,7 @@ jobs:
         if: always()
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         with:
-          name: ${{ matrix.sentry_backend ||  matrix.sentry_sdk }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
+          name: ${{ matrix.sentry_backend }} (Qt ${{ matrix.qt }}, ${{ matrix.runner }})
           path: build/tests/test-results/*.xml
           reporter: java-junit
 
@@ -319,7 +309,6 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DCMAKE_TOOLCHAIN_FILE="${{ steps.wasm-qt-paths.outputs.wasm_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
           -DQT_HOST_PATH="${{ steps.wasm-qt-paths.outputs.host_path }}"
-          -DSENTRY_QML_SDK=wasm
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
           -DSENTRY_QML_TEST_JUNIT=ON
 
@@ -474,7 +463,6 @@ jobs:
           -DQT_HOST_PATH="${{ steps.android-qt-paths.outputs.host_path }}"
           -DANDROID_ABI=x86_64
           -DANDROID_PLATFORM=android-28
-          -DSENTRY_QML_SDK=android
           -DSENTRY_QML_TEST_JUNIT=ON
 
       - name: Build Android test APKs
@@ -664,7 +652,6 @@ jobs:
           -DCMAKE_OSX_SYSROOT=iphonesimulator
           -DCMAKE_OSX_ARCHITECTURES=x86_64
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
-          -DSENTRY_QML_SDK=ios
           -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"
           -DSENTRY_QML_TEST_JUNIT=ON
 

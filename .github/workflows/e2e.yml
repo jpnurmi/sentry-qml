@@ -25,34 +25,31 @@ jobs:
       matrix:
         include:
           - name: Inproc (Qt LTS, ubuntu-24.04)
-            sentry_sdk: Native
             sentry_backend: Inproc
             runner: ubuntu-24.04
             qt: LTS
             qt_host: linux
             qt_arch: linux_gcc_64
           - name: Crashpad (Qt LTS, ubuntu-24.04)
-            sentry_sdk: Native
             sentry_backend: Crashpad
             runner: ubuntu-24.04
             qt: LTS
             qt_host: linux
             qt_arch: linux_gcc_64
           - name: Native (Qt latest, ubuntu-24.04)
-            sentry_sdk: Native
             sentry_backend: Native
             runner: ubuntu-24.04
             qt: latest
             qt_host: linux
             qt_arch: linux_gcc_64
           - name: Cocoa (Qt LTS, macos-15)
-            sentry_sdk: Cocoa
+            sentry_backend: Cocoa
             runner: macos-15
             qt: LTS
             qt_host: mac
             qt_arch: clang_64
           - name: WebAssembly (Qt LTS, single-threaded)
-            sentry_sdk: Wasm
+            sentry_backend: Wasm
             runner: ubuntu-24.04
             qt: LTS
             qt_host: all_os
@@ -62,7 +59,7 @@ jobs:
             host_qt_arch: linux_gcc_64
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
           - name: Android (Qt LTS, API 35)
-            sentry_sdk: Android
+            sentry_backend: Android
             runner: ubuntu-24.04
             qt: LTS
             android_api: 35
@@ -72,7 +69,7 @@ jobs:
             cmake_toolchain_file: lib/cmake/Qt6/qt.toolchain.cmake
             cmake_target_args: -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-28
           - name: iOS (Qt LTS, simulator)
-            sentry_sdk: iOS
+            sentry_backend: Cocoa
             runner: macos-15-intel
             qt: LTS
             qt_host: mac
@@ -88,7 +85,7 @@ jobs:
       SENTRY_ORG: ${{ vars.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
       SENTRY_TEST_URL: https://sentry.io
-      SENTRY_QML_E2E_SDK: ${{ matrix.qt_target == 'ios' && 'Cocoa' || matrix.sentry_sdk || 'Native' }}
+      SENTRY_QML_E2E_BACKEND: ${{ matrix.sentry_backend }}
 
     steps:
       - name: Check out sources
@@ -215,7 +212,7 @@ jobs:
           }
 
       - name: Restore Sentry Native cache
-        if: matrix.sentry_sdk == 'Native'
+        if: ${{ contains(fromJSON('["Native", "Inproc", "Crashpad", "Breakpad"]'), matrix.sentry_backend) }}
         id: sentry-native-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -225,7 +222,7 @@ jobs:
             sentry-native-${{ matrix.runner }}-${{ matrix.qt_arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-
 
       - name: Restore Gradle cache
-        if: matrix.sentry_sdk == 'Android'
+        if: matrix.sentry_backend == 'Android'
         id: gradle-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -238,7 +235,7 @@ jobs:
             gradle-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Restore SentryObjC macOS cache
-        if: matrix.sentry_sdk == 'Cocoa'
+        if: ${{ matrix.sentry_backend == 'Cocoa' && !matrix.qt_target }}
         id: sentryobjc-macos-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -248,7 +245,7 @@ jobs:
             sentryobjc-${{ matrix.runner }}-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}-
 
       - name: Check out emsdk
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: emscripten-core/emsdk
@@ -256,7 +253,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Emscripten cache
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         id: emsdk-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -271,7 +268,7 @@ jobs:
           key: emsdk-${{ runner.os }}-${{ steps.qt-target-paths.outputs.emscripten_version }}
 
       - name: Install Emscripten
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         run: |
           "$GITHUB_WORKSPACE/emsdk/emsdk" install "${{ steps.qt-target-paths.outputs.emscripten_version }}"
           "$GITHUB_WORKSPACE/emsdk/emsdk" activate "${{ steps.qt-target-paths.outputs.emscripten_version }}"
@@ -280,7 +277,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
 
       - name: Save Emscripten cache
-        if: matrix.sentry_sdk == 'Wasm' && steps.emsdk-cache.outputs.cache-hit != 'true'
+        if: matrix.sentry_backend == 'Wasm' && steps.emsdk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
@@ -321,20 +318,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Configure Sentry QML
-        if: matrix.sentry_sdk == 'Native'
+        if: ${{ !matrix.qt_target }}
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DSENTRY_BACKEND=${{ matrix.sentry_backend }}
-          -DSENTRY_QML_BUILD_E2E_TESTS=ON
-
-      - name: Configure Sentry QML for Cocoa
-        if: matrix.sentry_sdk == 'Cocoa'
-        run: >
-          cmake -S . -B build
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
-          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          ${{ matrix.sentry_backend == 'Cocoa' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
 
       - name: Configure Sentry QML for target platform
@@ -345,7 +334,6 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DCMAKE_TOOLCHAIN_FILE="${{ steps.qt-target-paths.outputs.target_path }}/${{ matrix.cmake_toolchain_file }}"
           -DQT_HOST_PATH="${{ steps.qt-target-paths.outputs.host_path }}"
-          -DSENTRY_QML_SDK=${{ matrix.sentry_sdk }}
           ${{ matrix.qt_target == 'ios' && format('-DSENTRY_COCOA_XCFRAMEWORK="{0}/sentry-cocoa/SentryObjC-Dynamic.xcframework"', runner.temp) || '' }}
           ${{ matrix.cmake_target_args }}
           -DSENTRY_QML_BUILD_E2E_TESTS=ON
@@ -359,7 +347,7 @@ jobs:
           cmake --build build --target "$target" --config RelWithDebInfo --parallel
 
       - name: Save Gradle cache
-        if: matrix.sentry_sdk == 'Android' && steps.gradle-cache.outputs.cache-hit != 'true'
+        if: matrix.sentry_backend == 'Android' && steps.gradle-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
@@ -368,7 +356,7 @@ jobs:
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
       - name: Restore WebAssembly npm cache
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         id: wasm-npm-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -376,24 +364,24 @@ jobs:
           key: wasm-npm-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
 
       - name: Install WebAssembly E2E dependencies
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm ci
 
       - name: Save WebAssembly npm cache
-        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-npm-cache.outputs.cache-hit != 'true'
+        if: matrix.sentry_backend == 'Wasm' && steps.wasm-npm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.npm
           key: ${{ steps.wasm-npm-cache.outputs.cache-primary-key }}
 
       - name: Build WebAssembly Sentry browser bundle
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npm run build:sentry
 
       - name: Restore WebAssembly browser cache
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         id: wasm-browser-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -401,12 +389,12 @@ jobs:
           key: wasm-playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
 
       - name: Install WebAssembly browser
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         working-directory: tests/e2e/wasm
         run: npx playwright install --with-deps chromium
 
       - name: Save WebAssembly browser cache
-        if: matrix.sentry_sdk == 'Wasm' && steps.wasm-browser-cache.outputs.cache-hit != 'true'
+        if: matrix.sentry_backend == 'Wasm' && steps.wasm-browser-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/ms-playwright
@@ -463,12 +451,12 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
+          SENTRY_QML_E2E_BACKEND: ${{ matrix.sentry_backend }}
           SENTRY_QML_E2E_APP_PATH: ${{ github.workspace }}/build/tests/sentry_qml_e2e_app
           SENTRY_QML_E2E_DATABASE_PATH: ${{ runner.temp }}/sentry-qml-e2e-db
 
       - name: Run Sentry QML WebAssembly tests
-        if: matrix.sentry_sdk == 'Wasm'
+        if: matrix.sentry_backend == 'Wasm'
         shell: pwsh
         run: Invoke-Pester tests/e2e/Integration.Tests.ps1 -CI
         env:
@@ -476,7 +464,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
+          SENTRY_QML_E2E_BACKEND: ${{ matrix.sentry_backend }}
           SENTRY_QML_E2E_APP_PATH: ${{ github.workspace }}/build/tests/sentry_qml_e2e_app.html
           SENTRY_QML_E2E_DATABASE_PATH: sentry-qml-e2e-db
           SENTRY_QML_E2E_PLATFORM: WasmBrowser
@@ -503,7 +491,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_QML_E2E_DSN: ${{ secrets.SENTRY_QML_E2E_DSN }}
           SENTRY_QML_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-          SENTRY_QML_E2E_SDK: ${{ matrix.sentry_sdk }}
+          SENTRY_QML_E2E_BACKEND: ${{ matrix.sentry_backend }}
           SENTRY_QML_E2E_APP_PACKAGE_PATH: ${{ steps.android-apk.outputs.path }}
           SENTRY_QML_E2E_APP_PATH: io.sentry.qml.e2e/org.qtproject.qt.android.bindings.QtActivity
           SENTRY_QML_E2E_DATABASE_PATH: /data/data/io.sentry.qml.e2e/cache/sentry-qml-e2e-db
@@ -541,6 +529,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sentry-qml-e2e-output-${{ matrix.sentry_backend || matrix.sentry_sdk }}-${{ matrix.qt_target || 'desktop' }}
+          name: sentry-qml-e2e-output-${{ matrix.sentry_backend }}-${{ matrix.qt_target || 'desktop' }}
           path: tests/e2e/output/
           if-no-files-found: ignore

@@ -1,5 +1,5 @@
 if(NOT ANDROID)
-    message(FATAL_ERROR "SENTRY_QML_SDK=android is only supported when building for Android.")
+    message(FATAL_ERROR "SENTRY_BACKEND=android is only supported when building for Android.")
 endif()
 
 set(QT_USE_TARGET_ANDROID_BUILD_DIR ON CACHE BOOL
@@ -15,7 +15,7 @@ set(SENTRY_ANDROID_GRADLE_COORDINATE "io.sentry:sentry-android:${SENTRY_ANDROID_
 )
 
 set(SENTRY_SDK_NAME "sentry.android.qml")
-list(APPEND SENTRY_QML_SDK_SOURCES
+list(APPEND sentry_qml_backend_sources
     "${PROJECT_SOURCE_DIR}/src/android/sentryandroidsdk.cpp"
 )
 

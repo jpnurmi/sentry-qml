@@ -75,8 +75,9 @@ sentry_qml_configure_ios_target(your_app_target)
 ```
 
 This embeds and signs the selected `SentryObjC-Dynamic.xcframework` slice from
-Sentry Cocoa. Build or unpack `SentryObjC-Dynamic.xcframework` from sentry-cocoa,
-then pass it with:
+Sentry Cocoa. By default, the build uses `modules/sentry-cocoa` and prepares the
+XCFramework in the CMake build directory. To use a prebuilt XCFramework instead,
+pass it with:
 
 ```sh
 -DSENTRY_COCOA_XCFRAMEWORK=/path/to/SentryObjC-Dynamic.xcframework

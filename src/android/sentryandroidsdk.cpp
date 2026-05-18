@@ -9,6 +9,7 @@
 #include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
+#include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
 #include <QtCore/qcoreapplication.h>
@@ -16,6 +17,7 @@
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsonarray.h>
 #include <QtCore/qjsondocument.h>
+#include <QtCore/qjsonobject.h>
 #include <QtCore/qjsonvalue.h>
 #include <QtCore/qjnienvironment.h>
 #include <QtCore/qjniobject.h>
@@ -61,6 +63,12 @@ struct SentrySdkAttachmentState
     QString filename;
     QString contentType;
     QString attachmentType;
+};
+
+struct SentrySdkSpanState
+{
+    qint64 handle = 0;
+    bool transaction = false;
 };
 
 namespace {
@@ -248,6 +256,12 @@ QByteArray jsonFromVariant(const QVariant &value)
 QString jsonStringFromVariant(const QVariant &value)
 {
     return QString::fromUtf8(jsonFromVariant(value));
+}
+
+QVariantMap variantMapFromJsonString(const QString &json)
+{
+    const QJsonDocument document = QJsonDocument::fromJson(json.toUtf8());
+    return document.object().toVariantMap();
 }
 
 QString generatedEventId()
@@ -530,6 +544,125 @@ bool metricBridge(const char *method,
         == JNI_TRUE;
 }
 
+qint64 startTransactionBridge(const QString &name,
+                              const QString &operation,
+                              const QString &description,
+                              bool bindToScope,
+                              const QVariantMap &customSamplingContext,
+                              double sampleRate)
+{
+    const QJniObject nameString = QJniObject::fromString(name);
+    const QJniObject operationString = QJniObject::fromString(operation);
+    const QJniObject descriptionString = QJniObject::fromString(description);
+    const QJniObject samplingContextJson = QJniObject::fromString(jsonStringFromVariant(customSamplingContext));
+    return QJniObject::callStaticMethod<jlong>(bridgeClassName,
+                                               "startTransaction",
+                                               "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;D)J",
+                                               nameString.object<jstring>(),
+                                               operationString.object<jstring>(),
+                                               descriptionString.object<jstring>(),
+                                               bindToScope ? JNI_TRUE : JNI_FALSE,
+                                               samplingContextJson.object<jstring>(),
+                                               jdouble(sampleRate));
+}
+
+qint64 startSpanBridge(qint64 parentHandle, const QString &operation, const QString &description, bool bindToScope)
+{
+    const QJniObject operationString = QJniObject::fromString(operation);
+    const QJniObject descriptionString = QJniObject::fromString(description);
+    return QJniObject::callStaticMethod<jlong>(bridgeClassName,
+                                               "startSpan",
+                                               "(JLjava/lang/String;Ljava/lang/String;Z)J",
+                                               jlong(parentHandle),
+                                               operationString.object<jstring>(),
+                                               descriptionString.object<jstring>(),
+                                               bindToScope ? JNI_TRUE : JNI_FALSE);
+}
+
+bool finishSpanBridge(qint64 handle, const QString &status)
+{
+    const QJniObject statusString = QJniObject::fromString(status);
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "finishSpan",
+                                                  "(JLjava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  statusString.object<jstring>())
+        == JNI_TRUE;
+}
+
+bool setSpanStatusBridge(qint64 handle, const QString &status)
+{
+    const QJniObject statusString = QJniObject::fromString(status);
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "setSpanStatus",
+                                                  "(JLjava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  statusString.object<jstring>())
+        == JNI_TRUE;
+}
+
+bool setSpanDataBridge(qint64 handle, const QString &key, const QVariant &value)
+{
+    const QJniObject keyString = QJniObject::fromString(key);
+    const QJniObject valueJson = QJniObject::fromString(jsonStringFromVariant(value));
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "setSpanData",
+                                                  "(JLjava/lang/String;Ljava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  keyString.object<jstring>(),
+                                                  valueJson.object<jstring>())
+        == JNI_TRUE;
+}
+
+bool removeSpanDataBridge(qint64 handle, const QString &key)
+{
+    const QJniObject keyString = QJniObject::fromString(key);
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "removeSpanData",
+                                                  "(JLjava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  keyString.object<jstring>())
+        == JNI_TRUE;
+}
+
+bool setSpanTagBridge(qint64 handle, const QString &key, const QString &value)
+{
+    const QJniObject keyString = QJniObject::fromString(key);
+    const QJniObject valueString = QJniObject::fromString(value);
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "setSpanTag",
+                                                  "(JLjava/lang/String;Ljava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  keyString.object<jstring>(),
+                                                  valueString.object<jstring>())
+        == JNI_TRUE;
+}
+
+bool removeSpanTagBridge(qint64 handle, const QString &key)
+{
+    const QJniObject keyString = QJniObject::fromString(key);
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                                  "removeSpanTag",
+                                                  "(JLjava/lang/String;)Z",
+                                                  jlong(handle),
+                                                  keyString.object<jstring>())
+        == JNI_TRUE;
+}
+
+QVariantMap spanTraceHeadersBridge(qint64 handle)
+{
+    const QJniObject result = QJniObject::callStaticObjectMethod(bridgeClassName,
+                                                                "spanTraceHeaders",
+                                                                "(J)Ljava/lang/String;",
+                                                                jlong(handle));
+    return variantMapFromJsonString(result.toString());
+}
+
+void releaseSpanBridge(qint64 handle)
+{
+    QJniObject::callStaticMethod<void>(bridgeClassName, "releaseSpan", "(J)V", jlong(handle));
+}
+
 bool hasConsent(bool requireUserConsent, int userConsent)
 {
     return !requireUserConsent || userConsent == 1;
@@ -590,6 +723,13 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    const double tracesSampleRate = options->tracesSampleRate();
+    if (!qFuzzyCompare(tracesSampleRate, -1.0)
+        && (!std::isfinite(tracesSampleRate) || tracesSampleRate < 0.0 || tracesSampleRate > 1.0)) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry tracesSampleRate must be between 0.0 and 1.0."));
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
@@ -622,6 +762,28 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    std::unique_ptr<SentrySdkEventHookState> beforeSendTransactionState;
+    if (!createEventHookState(sentry,
+                              options,
+                              options->beforeSendTransaction(),
+                              QStringLiteral("beforeSendTransaction"),
+                              true,
+                              &beforeSendTransactionState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> beforeSendSpanState;
+    if (!createEventHookState(
+            sentry, options, options->beforeSendSpan(), QStringLiteral("beforeSendSpan"), true, &beforeSendSpanState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> tracesSamplerState;
+    if (!createEventHookState(
+            sentry, options, options->tracesSampler(), QStringLiteral("tracesSampler"), true, &tracesSamplerState)) {
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> onCrashState;
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
@@ -635,6 +797,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
+    m_beforeSendTransactionState = std::move(beforeSendTransactionState);
+    m_beforeSendSpanState = std::move(beforeSendSpanState);
+    m_tracesSamplerState = std::move(tracesSamplerState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
     m_applyHooksLocally = true;
@@ -664,6 +829,10 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("enableMetrics"), options->enableMetrics()},
         {QStringLiteral("autoSessionTracking"), options->autoSessionTracking()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
+        {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},
+        {QStringLiteral("tracePropagationTargets"), options->tracePropagationTargets()},
+        {QStringLiteral("orgId"), options->orgId()},
+        {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},
         {QStringLiteral("maxBreadcrumbs"), options->maxBreadcrumbs()},
         {QStringLiteral("shutdownTimeout"), options->shutdownTimeout()},
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
@@ -679,6 +848,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         m_beforeSendLogState.reset();
         m_beforeSendMetricState.reset();
         m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
         m_onCrashState.reset();
         m_crashHookState.reset();
         emit sentry->errorOccurred(QStringLiteral("Sentry Android could not be initialized."));
@@ -723,11 +895,15 @@ bool SentrySdk::close()
     m_beforeSendLogState.reset();
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
+    m_beforeSendTransactionState.reset();
+    m_beforeSendSpanState.reset();
+    m_tracesSamplerState.reset();
     m_onCrashState.reset();
     m_crashHookState.reset();
     m_applyHooksLocally = false;
     clearLocalScope();
     invalidateAttachments();
+    invalidateSpans();
     setInitialized(false);
     if (didChangeUserConsentRequired) {
         emit userConsentRequiredChanged();
@@ -770,6 +946,9 @@ void SentrySdk::detachSentry(Sentry *sentry)
     detach(m_beforeSendLogState);
     detach(m_beforeSendMetricState);
     detach(m_onCrashState);
+    detach(m_beforeSendTransactionState);
+    detach(m_beforeSendSpanState);
+    detach(m_tracesSamplerState);
 }
 
 bool SentrySdk::ensureCanCall(Sentry *sentry,
@@ -1393,6 +1572,230 @@ bool SentrySdk::distribution(Sentry *sentry,
                         metric.value(QStringLiteral("value"), value).toDouble(),
                         metric.value(QStringLiteral("unit"), unit).toString(),
                         metric.value(QStringLiteral("attributes")).toMap());
+}
+
+SentrySpan *SentrySdk::startTransaction(Sentry *sentry,
+                                        const QString &name,
+                                        const QString &operation,
+                                        const QString &description,
+                                        bool bindToScope,
+                                        const QVariantMap &customSamplingContext)
+{
+    if (!ensureInitialized(sentry, "starting transactions")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction name must not be empty."));
+        return nullptr;
+    }
+
+    double sampleRate = -1.0;
+    if (m_tracesSamplerState) {
+        QVariantMap transactionContext;
+        transactionContext.insert(QStringLiteral("name"), name);
+        transactionContext.insert(QStringLiteral("operation"), operation);
+        QVariantMap samplingContext;
+        samplingContext.insert(QStringLiteral("transactionContext"), transactionContext);
+        samplingContext.insert(QStringLiteral("customSamplingContext"), customSamplingContext);
+
+        const HookResult result = invokeValueHook(samplingContext, m_tracesSamplerState.get());
+        if (result.action == HookResult::Drop) {
+            sampleRate = 0.0;
+        } else if (result.action == HookResult::Replace) {
+            sampleRate = result.value.toDouble();
+        }
+        if (sampleRate >= 0.0 && (!std::isfinite(sampleRate) || sampleRate > 1.0)) {
+            emit sentry->errorOccurred(QStringLiteral("SentryOptions.tracesSampler must return a number between 0.0 and 1.0."));
+            return nullptr;
+        }
+    }
+
+    qint64 handle = 0;
+    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+        handle = startTransactionBridge(name, operation, description, bindToScope, customSamplingContext, sampleRate);
+        if (!handle) {
+            return nullptr;
+        }
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->handle = handle;
+    state->transaction = true;
+    auto *span = new SentrySpan(state, true, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+SentrySpan *SentrySdk::startSpan(Sentry *sentry,
+                                 const QString &name,
+                                 const QString &operation,
+                                 const QString &description,
+                                 SentrySpan *parentSpan,
+                                 bool bindToScope)
+{
+    if (!ensureInitialized(sentry, "starting spans")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry span name must not be empty."));
+        return nullptr;
+    }
+
+    auto *parent = parentSpan ? static_cast<SentrySdkSpanState *>(parentSpan->handle()) : nullptr;
+    if (parentSpan && !parent) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a valid parent span."));
+        return nullptr;
+    }
+
+    qint64 handle = 0;
+    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+        handle = startSpanBridge(parent ? parent->handle : 0, operation, description, bindToScope);
+        if (!handle) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a parent or active span."));
+            return nullptr;
+        }
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->handle = handle;
+    auto *span = new SentrySpan(state, false, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+bool SentrySdk::finishSpan(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state) {
+        return false;
+    }
+
+    if (!status.isEmpty()) {
+        setSpanStatus(span, status);
+        span->setStatusLocally(status);
+    }
+
+    SentrySdkEventHookState *hookState =
+        span->isTransaction() ? m_beforeSendTransactionState.get() : m_beforeSendSpanState.get();
+    const HookResult result = invokeValueHook(span->toVariantMap(), hookState);
+    if (result.action == HookResult::Drop) {
+        detachSpan(span);
+        return true;
+    }
+    if (result.action == HookResult::Replace) {
+        const QVariantMap replacement = result.value.toMap();
+        if (replacement.contains(QStringLiteral("status"))) {
+            const QString replacementStatus = replacement.value(QStringLiteral("status")).toString();
+            setSpanStatus(span, replacementStatus);
+            span->setStatusLocally(replacementStatus);
+        }
+        const QVariantMap data = replacement.value(QStringLiteral("data")).toMap();
+        for (auto it = data.cbegin(); it != data.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                setSpanData(span, it.key(), it.value());
+                span->setDataLocally(it.key(), it.value());
+            }
+        }
+        const QVariantMap tags = replacement.value(QStringLiteral("tags")).toMap();
+        for (auto it = tags.cbegin(); it != tags.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                setSpanTag(span, it.key(), it.value().toString());
+                span->setTagLocally(it.key(), it.value().toString());
+            }
+        }
+    }
+
+    if (state->handle && !finishSpanBridge(state->handle, span->status())) {
+        return false;
+    }
+    state->handle = 0;
+    detachSpan(span);
+    return true;
+}
+
+bool SentrySdk::setSpanStatus(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanStatusBridge(state->handle, status));
+}
+
+bool SentrySdk::setSpanData(SentrySpan *span, const QString &key, const QVariant &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanDataBridge(state->handle, key, value));
+}
+
+bool SentrySdk::removeSpanData(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || removeSpanDataBridge(state->handle, key));
+}
+
+bool SentrySdk::setSpanTag(SentrySpan *span, const QString &key, const QString &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanTagBridge(state->handle, key, value));
+}
+
+bool SentrySdk::removeSpanTag(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || removeSpanTagBridge(state->handle, key));
+}
+
+QVariantMap SentrySdk::spanTraceHeaders(const SentrySpan *span) const
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->handle) {
+        return {};
+    }
+
+    return spanTraceHeadersBridge(state->handle);
+}
+
+void SentrySdk::trackSpan(SentrySpan *span)
+{
+    if (span) {
+        m_spans.append(span);
+    }
+}
+
+void SentrySdk::detachSpan(SentrySpan *span)
+{
+    if (!span) {
+        return;
+    }
+
+    m_spans.removeAll(span);
+    auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+    if (state) {
+        if (state->handle) {
+            releaseSpanBridge(state->handle);
+        }
+        delete state;
+    }
+    span->invalidate();
+}
+
+void SentrySdk::invalidateSpans()
+{
+    const QList<SentrySpan *> spans = m_spans;
+    m_spans.clear();
+    for (SentrySpan *span : spans) {
+        if (!span) {
+            continue;
+        }
+        auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+        if (state) {
+            if (state->handle) {
+                releaseSpanBridge(state->handle);
+            }
+            delete state;
+        }
+        span->invalidate();
+    }
 }
 
 QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)

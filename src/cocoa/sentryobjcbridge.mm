@@ -295,6 +295,63 @@ SentryObjCLogLevel logLevelFromVariant(const QVariant &level)
     return logLevelFromInt(level.toInt());
 }
 
+SentryObjCSpanStatus spanStatusFromString(const QString &status)
+{
+    const QString normalized = status.trimmed().toLower().replace(QLatin1Char('-'), QLatin1Char('_'));
+    if (normalized == QLatin1String("ok")) {
+        return SentryObjCSpanStatusOk;
+    }
+    if (normalized == QLatin1String("deadline_exceeded")) {
+        return SentryObjCSpanStatusDeadlineExceeded;
+    }
+    if (normalized == QLatin1String("unauthenticated")) {
+        return SentryObjCSpanStatusUnauthenticated;
+    }
+    if (normalized == QLatin1String("permission_denied")) {
+        return SentryObjCSpanStatusPermissionDenied;
+    }
+    if (normalized == QLatin1String("not_found")) {
+        return SentryObjCSpanStatusNotFound;
+    }
+    if (normalized == QLatin1String("resource_exhausted")) {
+        return SentryObjCSpanStatusResourceExhausted;
+    }
+    if (normalized == QLatin1String("invalid_argument")) {
+        return SentryObjCSpanStatusInvalidArgument;
+    }
+    if (normalized == QLatin1String("unimplemented")) {
+        return SentryObjCSpanStatusUnimplemented;
+    }
+    if (normalized == QLatin1String("unavailable")) {
+        return SentryObjCSpanStatusUnavailable;
+    }
+    if (normalized == QLatin1String("internal_error")) {
+        return SentryObjCSpanStatusInternalError;
+    }
+    if (normalized == QLatin1String("unknown_error")) {
+        return SentryObjCSpanStatusUnknownError;
+    }
+    if (normalized == QLatin1String("cancelled") || normalized == QLatin1String("canceled")) {
+        return SentryObjCSpanStatusCancelled;
+    }
+    if (normalized == QLatin1String("already_exists")) {
+        return SentryObjCSpanStatusAlreadyExists;
+    }
+    if (normalized == QLatin1String("failed_precondition")) {
+        return SentryObjCSpanStatusFailedPrecondition;
+    }
+    if (normalized == QLatin1String("aborted")) {
+        return SentryObjCSpanStatusAborted;
+    }
+    if (normalized == QLatin1String("out_of_range")) {
+        return SentryObjCSpanStatusOutOfRange;
+    }
+    if (normalized == QLatin1String("data_loss")) {
+        return SentryObjCSpanStatusDataLoss;
+    }
+    return SentryObjCSpanStatusUndefined;
+}
+
 NSDictionary<NSString *, NSString *> *stringDictionaryFromVariantMap(const QVariantMap &map)
 {
     NSMutableDictionary<NSString *, NSString *> *dictionary = [NSMutableDictionary dictionaryWithCapacity:map.size()];
@@ -945,6 +1002,26 @@ SentryObjCBridge::HookResult runHook(const SentryObjCBridge::Hook &hook, const Q
     return hook(value);
 }
 
+SentryObjCSpan *spanFromHandle(void *handle)
+{
+    return handle ? (__bridge SentryObjCSpan *)handle : nil;
+}
+
+void *retainedHandleFromSpan(SentryObjCSpan *span)
+{
+    return span ? [span retain] : nullptr;
+}
+
+QVariantMap samplingContextMap(SentryObjCSamplingContext *context)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("transactionContext"), variantFromObject(context.transactionContext));
+    if (context.customSamplingContext) {
+        map.insert(QStringLiteral("customSamplingContext"), variantFromObject(context.customSamplingContext));
+    }
+    return map;
+}
+
 SentryObjCEvent *runEventHook(SentryObjCEvent *event, const SentryObjCBridge::Hook &hook)
 {
     if (!currentRelease.isEmpty()) {
@@ -1074,6 +1151,14 @@ bool start(const Options &options)
         nativeOptions.attachScreenshot = options.attachScreenshot;
 #endif
         nativeOptions.sampleRate = @(options.sampleRate);
+        if (options.tracesSampleRate >= 0.0) {
+            nativeOptions.tracesSampleRate = @(options.tracesSampleRate);
+        }
+        if (!options.tracePropagationTargets.isEmpty()) {
+            nativeOptions.tracePropagationTargets = stringArrayFromStringList(options.tracePropagationTargets);
+        }
+        nativeOptions.strictTraceContinuation = options.strictTraceContinuation;
+        nativeOptions.orgId = nsStringOrNil(options.orgId);
         nativeOptions.maxBreadcrumbs = static_cast<NSUInteger>(options.maxBreadcrumbs);
         nativeOptions.shutdownTimeInterval = static_cast<NSTimeInterval>(options.shutdownTimeout) / 1000.0;
 
@@ -1100,6 +1185,21 @@ bool start(const Options &options)
             Hook beforeSendMetric = options.beforeSendMetric;
             nativeOptions.beforeSendMetric = ^SentryObjCMetric *_Nullable(SentryObjCMetric *metric) {
                 return runMetricHook(metric, beforeSendMetric);
+            };
+        }
+
+        if (options.tracesSampler) {
+            Hook tracesSampler = options.tracesSampler;
+            nativeOptions.tracesSampler = ^NSNumber *_Nullable(SentryObjCSamplingContext *context) {
+                const HookResult result = runHook(tracesSampler, samplingContextMap(context));
+                if (result.action == HookResult::Drop) {
+                    return @0;
+                }
+                if (result.action == HookResult::Replace) {
+                    const double sampleRate = result.value.toDouble();
+                    return std::isfinite(sampleRate) ? @(sampleRate) : nil;
+                }
+                return nil;
             };
         }
 
@@ -1335,6 +1435,142 @@ void distribution(const QString &name, double value, const QString &unit, const 
                                            value:value
                                             unit:unitFromString(unit)
                                       attributes:metricAttributesFromVariantMap(attributes)];
+    }
+}
+
+void *startTransaction(const QString &name,
+                       const QString &operation,
+                       const QString &description,
+                       bool bindToScope,
+                       const QVariantMap &customSamplingContext)
+{
+    @autoreleasepool {
+        SentryObjCTransactionContext *context =
+            [[SentryObjCTransactionContext alloc] initWithName:nsString(name) operation:nsString(operation)];
+        SentryObjCSpan *span = [SentryObjCSDK startTransactionWithContext:context
+                                                               bindToScope:bindToScope
+                                                     customSamplingContext:dictionaryFromVariantMap(customSamplingContext)];
+        if (!description.isEmpty()) {
+            span.spanDescription = nsString(description);
+        }
+        return retainedHandleFromSpan(span);
+    }
+}
+
+void *startSpan(void *parentSpan, const QString &operation, const QString &description, bool bindToScope)
+{
+    @autoreleasepool {
+        SentryObjCSpan *parent = spanFromHandle(parentSpan);
+        if (!parent) {
+            parent = [SentryObjCSDK span];
+        }
+        if (!parent) {
+            return nullptr;
+        }
+
+        SentryObjCSpan *span = [parent startChildWithOperation:nsString(operation)
+                                                   description:nsStringOrNil(description)];
+        if (bindToScope) {
+            [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
+                scope.span = span;
+            }];
+        }
+        return retainedHandleFromSpan(span);
+    }
+}
+
+void finishSpan(void *spanHandle, const QString &status)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (!span) {
+            return;
+        }
+        if (status.isEmpty()) {
+            [span finish];
+        } else {
+            [span finishWithStatus:spanStatusFromString(status)];
+        }
+    }
+}
+
+void setSpanStatus(void *spanHandle, const QString &status)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (span) {
+            span.status = spanStatusFromString(status);
+        }
+    }
+}
+
+void setSpanData(void *spanHandle, const QString &key, const QVariant &value)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (span) {
+            [span setDataValue:objectFromVariant(value) forKey:nsString(key)];
+        }
+    }
+}
+
+void removeSpanData(void *spanHandle, const QString &key)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (span) {
+            [span removeDataForKey:nsString(key)];
+        }
+    }
+}
+
+void setSpanTag(void *spanHandle, const QString &key, const QString &value)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (span) {
+            [span setTagValue:nsString(value) forKey:nsString(key)];
+        }
+    }
+}
+
+void removeSpanTag(void *spanHandle, const QString &key)
+{
+    @autoreleasepool {
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (span) {
+            [span removeTagForKey:nsString(key)];
+        }
+    }
+}
+
+QVariantMap spanTraceHeaders(void *spanHandle)
+{
+    @autoreleasepool {
+        QVariantMap headers;
+        SentryObjCSpan *span = spanFromHandle(spanHandle);
+        if (!span) {
+            return headers;
+        }
+
+        SentryObjCTraceHeader *traceHeader = [span toTraceHeader];
+        NSString *traceHeaderValue = [traceHeader value];
+        if (traceHeaderValue) {
+            headers.insert(QStringLiteral("sentry-trace"), qtString(traceHeaderValue));
+        }
+
+        NSString *baggage = [span baggageHttpHeader];
+        if (baggage) {
+            headers.insert(QStringLiteral("baggage"), qtString(baggage));
+        }
+        return headers;
+    }
+}
+
+void releaseSpan(void *spanHandle)
+{
+    if (spanHandle) {
+        [(id)spanHandle release];
     }
 }
 

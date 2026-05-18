@@ -19,6 +19,7 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/sentryhint.h
         ../include/SentryQml/sentryoptions.h
         ../include/SentryQml/sentryqmlglobal.h
+        ../include/SentryQml/sentryspan.h
         ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
         ../include/SentryQml/private/sentryhint_p.h
@@ -33,6 +34,7 @@ qt_add_qml_module(SentryQml
         sentryhint.cpp
         sentryoptions.cpp
         sentryqmlengine.cpp
+        sentryspan.cpp
         sentryscreenshot.cpp
         sentryuser.cpp
         sentryviewhierarchy.cpp

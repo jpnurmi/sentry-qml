@@ -11,6 +11,7 @@
 #include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
+#include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
 #include <QtCore/qcoreapplication.h>
@@ -43,6 +44,11 @@ struct SentrySdkCrashHookState
 struct SentrySdkAttachmentState
 {
     SentryObjCBridge::Attachment attachment;
+};
+
+struct SentrySdkSpanState
+{
+    void *nativeSpan = nullptr;
 };
 
 namespace {
@@ -279,6 +285,13 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    const double tracesSampleRate = options->tracesSampleRate();
+    if (!qFuzzyCompare(tracesSampleRate, -1.0)
+        && (!std::isfinite(tracesSampleRate) || tracesSampleRate < 0.0 || tracesSampleRate > 1.0)) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry tracesSampleRate must be between 0.0 and 1.0."));
+        return false;
+    }
+
     if (options->maxBreadcrumbs() < 0) {
         emit sentry->errorOccurred(QStringLiteral("Sentry maxBreadcrumbs must not be negative."));
         return false;
@@ -326,6 +339,28 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    std::unique_ptr<SentrySdkEventHookState> beforeSendTransactionState;
+    if (!createEventHookState(sentry,
+                              options,
+                              options->beforeSendTransaction(),
+                              QStringLiteral("beforeSendTransaction"),
+                              true,
+                              &beforeSendTransactionState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> beforeSendSpanState;
+    if (!createEventHookState(
+            sentry, options, options->beforeSendSpan(), QStringLiteral("beforeSendSpan"), true, &beforeSendSpanState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> tracesSamplerState;
+    if (!createEventHookState(
+            sentry, options, options->tracesSampler(), QStringLiteral("tracesSampler"), true, &tracesSamplerState)) {
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> onCrashState;
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
@@ -335,6 +370,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
+    m_beforeSendTransactionState = std::move(beforeSendTransactionState);
+    m_beforeSendSpanState = std::move(beforeSendSpanState);
+    m_tracesSamplerState = std::move(tracesSamplerState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
     m_applyHooksLocally = options->dsn().isEmpty();
@@ -354,6 +392,10 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.autoSessionTracking = options->autoSessionTracking();
     nativeOptions.attachScreenshot = options->attachScreenshot();
     nativeOptions.sampleRate = options->sampleRate();
+    nativeOptions.tracesSampleRate = options->tracesSampleRate();
+    nativeOptions.tracePropagationTargets = options->tracePropagationTargets();
+    nativeOptions.orgId = options->orgId();
+    nativeOptions.strictTraceContinuation = options->strictTraceContinuation();
     nativeOptions.maxBreadcrumbs = options->maxBreadcrumbs();
     nativeOptions.shutdownTimeout = options->shutdownTimeout();
     nativeOptions.beforeBreadcrumb = m_applyHooksLocally ? SentryObjCBridge::Hook {}
@@ -361,6 +403,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.beforeSendLog = hookFromState(m_beforeSendLogState.get());
     nativeOptions.beforeSendMetric = hookFromState(m_beforeSendMetricState.get());
     nativeOptions.beforeSend = m_applyHooksLocally ? SentryObjCBridge::Hook {} : hookFromState(m_beforeSendState.get());
+    nativeOptions.tracesSampler = hookFromState(m_tracesSamplerState.get());
     nativeOptions.onCrash = hookFromState(m_onCrashState.get());
     m_release = nativeOptions.release;
     m_environment = nativeOptions.environment;
@@ -380,6 +423,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         m_beforeSendLogState.reset();
         m_beforeSendMetricState.reset();
         m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
         m_onCrashState.reset();
         m_crashHookState.reset();
         emit sentry->errorOccurred(QStringLiteral("SentryObjC could not be initialized."));
@@ -418,11 +464,15 @@ bool SentrySdk::close()
     m_beforeSendLogState.reset();
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
+    m_beforeSendTransactionState.reset();
+    m_beforeSendSpanState.reset();
+    m_tracesSamplerState.reset();
     m_onCrashState.reset();
     m_crashHookState.reset();
     m_applyHooksLocally = false;
     clearLocalScope();
     invalidateAttachments();
+    invalidateSpans();
     setInitialized(false);
     return true;
 }
@@ -460,6 +510,9 @@ void SentrySdk::detachSentry(Sentry *sentry)
     detach(m_beforeBreadcrumbState);
     detach(m_beforeSendLogState);
     detach(m_beforeSendMetricState);
+    detach(m_beforeSendTransactionState);
+    detach(m_beforeSendSpanState);
+    detach(m_tracesSamplerState);
     detach(m_onCrashState);
 }
 
@@ -977,6 +1030,220 @@ bool SentrySdk::distribution(Sentry *sentry,
 
     SentryObjCBridge::distribution(name, value, unit, attributes);
     return true;
+}
+
+SentrySpan *SentrySdk::startTransaction(Sentry *sentry,
+                                        const QString &name,
+                                        const QString &operation,
+                                        const QString &description,
+                                        bool bindToScope,
+                                        const QVariantMap &customSamplingContext)
+{
+    if (!ensureInitialized(sentry, "starting transactions")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction name must not be empty."));
+        return nullptr;
+    }
+
+    void *nativeSpan = SentryObjCBridge::startTransaction(
+        name, operation, description, bindToScope, customSamplingContext);
+    if (!nativeSpan) {
+        return nullptr;
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->nativeSpan = nativeSpan;
+    auto *span = new SentrySpan(state, true, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+SentrySpan *SentrySdk::startSpan(Sentry *sentry,
+                                 const QString &name,
+                                 const QString &operation,
+                                 const QString &description,
+                                 SentrySpan *parentSpan,
+                                 bool bindToScope)
+{
+    if (!ensureInitialized(sentry, "starting spans")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry span name must not be empty."));
+        return nullptr;
+    }
+
+    void *nativeSpan = SentryObjCBridge::startSpan(parentSpan ? static_cast<SentrySdkSpanState *>(parentSpan->handle())->nativeSpan : nullptr,
+                                                  operation,
+                                                  description,
+                                                  bindToScope);
+    if (!nativeSpan) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a parent or active span."));
+        return nullptr;
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->nativeSpan = nativeSpan;
+    auto *span = new SentrySpan(state, false, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+bool SentrySdk::finishSpan(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    if (!status.isEmpty()) {
+        SentryObjCBridge::setSpanStatus(state->nativeSpan, status);
+        span->setStatusLocally(status);
+    }
+
+    SentrySdkEventHookState *hookState =
+        span->isTransaction() ? m_beforeSendTransactionState.get() : m_beforeSendSpanState.get();
+    const SentryObjCBridge::HookResult hookResult = invokeValueHook(span->toVariantMap(), hookState);
+    if (hookResult.action == SentryObjCBridge::HookResult::Drop) {
+        detachSpan(span);
+        return true;
+    }
+    if (hookResult.action == SentryObjCBridge::HookResult::Replace) {
+        const QVariantMap replacement = hookResult.value.toMap();
+        if (replacement.contains(QStringLiteral("status"))) {
+            const QString replacementStatus = replacement.value(QStringLiteral("status")).toString();
+            SentryObjCBridge::setSpanStatus(state->nativeSpan, replacementStatus);
+            span->setStatusLocally(replacementStatus);
+        }
+        const QVariantMap data = replacement.value(QStringLiteral("data")).toMap();
+        for (auto it = data.cbegin(); it != data.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                SentryObjCBridge::setSpanData(state->nativeSpan, it.key(), it.value());
+                span->setDataLocally(it.key(), it.value());
+            }
+        }
+        const QVariantMap tags = replacement.value(QStringLiteral("tags")).toMap();
+        for (auto it = tags.cbegin(); it != tags.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                SentryObjCBridge::setSpanTag(state->nativeSpan, it.key(), it.value().toString());
+                span->setTagLocally(it.key(), it.value().toString());
+            }
+        }
+    }
+
+    SentryObjCBridge::finishSpan(state->nativeSpan, span->status());
+    detachSpan(span);
+    return true;
+}
+
+bool SentrySdk::setSpanStatus(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    SentryObjCBridge::setSpanStatus(state->nativeSpan, status);
+    return true;
+}
+
+bool SentrySdk::setSpanData(SentrySpan *span, const QString &key, const QVariant &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    SentryObjCBridge::setSpanData(state->nativeSpan, key, value);
+    return true;
+}
+
+bool SentrySdk::removeSpanData(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    SentryObjCBridge::removeSpanData(state->nativeSpan, key);
+    return true;
+}
+
+bool SentrySdk::setSpanTag(SentrySpan *span, const QString &key, const QString &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    SentryObjCBridge::setSpanTag(state->nativeSpan, key, value);
+    return true;
+}
+
+bool SentrySdk::removeSpanTag(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return false;
+    }
+
+    SentryObjCBridge::removeSpanTag(state->nativeSpan, key);
+    return true;
+}
+
+QVariantMap SentrySdk::spanTraceHeaders(const SentrySpan *span) const
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->nativeSpan) {
+        return {};
+    }
+
+    return SentryObjCBridge::spanTraceHeaders(state->nativeSpan);
+}
+
+void SentrySdk::trackSpan(SentrySpan *span)
+{
+    if (!span) {
+        return;
+    }
+
+    m_spans.append(span);
+}
+
+void SentrySdk::detachSpan(SentrySpan *span)
+{
+    if (!span) {
+        return;
+    }
+
+    m_spans.removeAll(span);
+    auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+    if (state) {
+        SentryObjCBridge::releaseSpan(state->nativeSpan);
+        delete state;
+    }
+    span->invalidate();
+}
+
+void SentrySdk::invalidateSpans()
+{
+    const QList<SentrySpan *> spans = m_spans;
+    m_spans.clear();
+    for (SentrySpan *span : spans) {
+        if (!span) {
+            continue;
+        }
+        auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+        if (state) {
+            SentryObjCBridge::releaseSpan(state->nativeSpan);
+            delete state;
+        }
+        span->invalidate();
+    }
 }
 
 QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)

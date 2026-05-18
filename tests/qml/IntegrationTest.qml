@@ -39,6 +39,16 @@ QtObject {
     property bool beforeSendCalled: false
     property bool beforeSendLogCalled: false
     property bool beforeSendMetricCalled: false
+    property bool beforeSendTransactionCalled: false
+    property bool beforeSendSpanCalled: false
+    property bool transactionStarted: false
+    property bool childSpanStarted: false
+    property bool spanDataSet: false
+    property bool spanTagSet: false
+    property bool traceHeadersReady: false
+    property bool spanFinished: false
+    property bool transactionFinished: false
+    property bool traceFlushed: false
     property bool genericMetricCaptured: false
     property bool countCaptured: false
     property bool gaugeCaptured: false
@@ -57,6 +67,8 @@ QtObject {
     property int feedbackAttachmentCount: 0
     property var fileAttachment: null
     property var bytesAttachment: null
+    property var transaction: null
+    property var childSpan: null
     property SentryHint feedbackHint: SentryHint {}
     property SentryOptions options: SentryOptions {
         dsn: testDsn
@@ -68,6 +80,10 @@ QtObject {
         requireUserConsent: true
         enableLogs: true
         enableMetrics: true
+        tracesSampleRate: 1.0
+        tracePropagationTargets: ["localhost", "127.0.0.1"]
+        orgId: "42"
+        strictTraceContinuation: true
         maxBreadcrumbs: 10
         shutdownTimeout: 2000
         user: SentryUser {
@@ -104,6 +120,28 @@ QtObject {
             }
             return metric
         }
+        tracesSampler: function(context) {
+            return 1.0
+        }
+        beforeSendTransaction: function(transaction) {
+            beforeSendTransactionCalled = true
+            transaction.tags = transaction.tags || {}
+            transaction.tags["qml.integration.transaction_hook"] = "yes"
+            return transaction
+        }
+        beforeSendSpan: function(span) {
+            beforeSendSpanCalled = true
+            span.data = span.data || {}
+            span.data["qml.integration.span_hook"] = true
+            return span
+        }
+    }
+
+    function hasTraceHeaders(span) {
+        return !!span
+            && !!span.traceHeaders
+            && span.traceHeaders["sentry-trace"] !== undefined
+            && span.traceHeaders["baggage"] !== undefined
     }
 
     Component.onCompleted: {
@@ -185,6 +223,26 @@ QtObject {
         })
         gaugeCaptured = Sentry.gauge("qml.integration.active_items", 4, "item", {})
         distributionCaptured = Sentry.distribution("qml.integration.duration", 12.5, "millisecond", {})
+        transaction = Sentry.startTransaction(
+            "Integration transaction",
+            "qml.integration.transaction",
+            "integration trace",
+            true,
+            { scenario: "integration" }
+        )
+        transactionStarted = !!transaction && transaction.valid && transaction.transaction
+        childSpan = Sentry.startSpan("Integration database span", "qml.integration.db", "select integration", transaction)
+        childSpanStarted = !!childSpan && childSpan.valid && !childSpan.transaction
+        if (childSpan) {
+            spanDataSet = childSpan.setData("qml.integration.rows", 3)
+            spanTagSet = childSpan.setTag("qml.integration.source", "qml")
+            traceHeadersReady = hasTraceHeaders(childSpan) || hasTraceHeaders(transaction)
+            spanFinished = childSpan.finish("ok")
+        }
+        if (transaction) {
+            transactionFinished = transaction.finish("ok")
+        }
+        traceFlushed = Sentry.flush(2000)
         sessionEnded = Sentry.endSession(Sentry.SessionExited)
     }
 

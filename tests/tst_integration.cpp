@@ -381,6 +381,16 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("beforeSendCalled").toBool(), true);
     QCOMPARE(object->property("beforeSendLogCalled").toBool(), true);
     QCOMPARE(object->property("beforeSendMetricCalled").toBool(), true);
+    QCOMPARE(object->property("transactionStarted").toBool(), true);
+    QCOMPARE(object->property("childSpanStarted").toBool(), true);
+    QCOMPARE(object->property("spanDataSet").toBool(), true);
+    QCOMPARE(object->property("spanTagSet").toBool(), true);
+    QCOMPARE(object->property("traceHeadersReady").toBool(), true);
+    QCOMPARE(object->property("spanFinished").toBool(), true);
+    QCOMPARE(object->property("transactionFinished").toBool(), true);
+    QCOMPARE(object->property("traceFlushed").toBool(), true);
+    QCOMPARE(object->property("beforeSendTransactionCalled").toBool(), true);
+    QCOMPARE(object->property("beforeSendSpanCalled").toBool(), true);
 
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Declarative options integration message"), 5000);
     if (!waitUntilContains(server, QByteArrayLiteral("Integration message"), 5000)) {
@@ -394,6 +404,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration log"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("qml.integration.duration"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("\"type\":\"session\""), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration transaction"), 5000);
 
     const QByteArray allBodies = server.combinedBody();
     QVERIFY(allBodies.contains("Integration enum log"));
@@ -408,6 +419,9 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(allBodies.contains("millisecond"));
     QVERIFY(allBodies.contains("qml.integration.before_send_metric"));
     QVERIFY(allBodies.contains("\"status\":\"exited\""));
+    QVERIFY(allBodies.contains("qml.integration.transaction_hook"));
+    QVERIFY(allBodies.contains("qml.integration.span_hook"));
+    QVERIFY(allBodies.contains("qml.integration.db"));
     QVERIFY(!allBodies.contains("Integration consent blocked before user consent"));
 
     const QList<EnvelopeItem> declarativeItems =

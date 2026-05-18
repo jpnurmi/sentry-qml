@@ -4,15 +4,24 @@ import android.content.Context;
 import android.util.Base64;
 import android.util.Log;
 import io.sentry.Attachment;
+import io.sentry.BaggageHeader;
 import io.sentry.Breadcrumb;
+import io.sentry.CustomSamplingContext;
 import io.sentry.Hint;
 import io.sentry.ISerializer;
+import io.sentry.ISpan;
+import io.sentry.ITransaction;
 import io.sentry.Sentry;
 import io.sentry.SentryAttribute;
 import io.sentry.SentryAttributes;
 import io.sentry.SentryEvent;
 import io.sentry.SentryLevel;
 import io.sentry.SentryLogLevel;
+import io.sentry.SentryTraceHeader;
+import io.sentry.SpanStatus;
+import io.sentry.TransactionContext;
+import io.sentry.TransactionOptions;
+import io.sentry.TracesSamplingDecision;
 import io.sentry.android.core.SentryAndroid;
 import io.sentry.logger.SentryLogParameters;
 import io.sentry.metrics.SentryMetricsParameters;
@@ -22,10 +31,14 @@ import io.sentry.protocol.User;
 import java.io.File;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -33,6 +46,8 @@ import org.json.JSONTokener;
 public final class SentryQmlBridge {
     private static final String TAG = "SentryQml";
     private static final String VIEW_HIERARCHY_ATTACHMENT_TYPE = "event.view_hierarchy";
+    private static final AtomicLong NEXT_SPAN_HANDLE = new AtomicLong(1);
+    private static final Map<Long, ISpan> SPANS = new ConcurrentHashMap<>();
 
     private SentryQmlBridge() {
     }
@@ -60,6 +75,17 @@ public final class SentryQmlBridge {
                 }
                 if (json.has("sampleRate") && !json.isNull("sampleRate")) {
                     options.setSampleRate(json.optDouble("sampleRate"));
+                }
+                if (json.has("tracesSampleRate") && !json.isNull("tracesSampleRate") && json.optDouble("tracesSampleRate") >= 0.0) {
+                    options.setTracesSampleRate(json.optDouble("tracesSampleRate"));
+                }
+                JSONArray tracePropagationTargets = json.optJSONArray("tracePropagationTargets");
+                if (tracePropagationTargets != null) {
+                    options.setTracePropagationTargets(stringList(tracePropagationTargets));
+                }
+                setStringOption(json, "orgId", options::setOrgId);
+                if (json.has("strictTraceContinuation")) {
+                    options.setStrictTraceContinuation(json.optBoolean("strictTraceContinuation"));
                 }
                 if (json.has("maxBreadcrumbs")) {
                     options.setMaxBreadcrumbs(json.optInt("maxBreadcrumbs"));
@@ -101,6 +127,7 @@ public final class SentryQmlBridge {
     }
 
     public static void close() {
+        SPANS.clear();
         Sentry.close();
     }
 
@@ -322,6 +349,176 @@ public final class SentryQmlBridge {
         }
     }
 
+    public static long startTransaction(
+            String name,
+            String operation,
+            String description,
+            boolean bindToScope,
+            String customSamplingContextJson,
+            double sampleRate) {
+        try {
+            TransactionOptions options = new TransactionOptions();
+            options.setBindToScope(bindToScope);
+            options.setCustomSamplingContext(customSamplingContext(customSamplingContextJson));
+
+            TransactionContext context;
+            if (sampleRate >= 0.0) {
+                boolean sampled = Math.random() < sampleRate;
+                context = new TransactionContext(
+                    name,
+                    nullToEmpty(operation),
+                    new TracesSamplingDecision(Boolean.valueOf(sampled), Double.valueOf(sampleRate))
+                );
+            } else {
+                context = new TransactionContext(name, nullToEmpty(operation));
+            }
+
+            ITransaction transaction = Sentry.startTransaction(context, options);
+            if (description != null && !description.isEmpty()) {
+                transaction.setDescription(description);
+            }
+            return registerSpan(transaction);
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not start transaction.", t);
+            return 0;
+        }
+    }
+
+    public static long startSpan(long parentHandle, String operation, String description, boolean bindToScope) {
+        try {
+            ISpan parent = parentHandle == 0 ? Sentry.getSpan() : SPANS.get(Long.valueOf(parentHandle));
+            if (parent == null) {
+                return 0;
+            }
+
+            ISpan span = parent.startChild(nullToEmpty(operation), emptyToNull(description));
+            if (bindToScope) {
+                Sentry.configureScope(scope -> scope.setActiveSpan(span));
+            }
+            return registerSpan(span);
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not start span.", t);
+            return 0;
+        }
+    }
+
+    public static boolean finishSpan(long handle, String status) {
+        try {
+            ISpan span = SPANS.remove(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+
+            SpanStatus spanStatus = spanStatus(status);
+            if (spanStatus != null) {
+                span.finish(spanStatus);
+            } else {
+                span.finish();
+            }
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not finish span.", t);
+            return false;
+        }
+    }
+
+    public static boolean setSpanStatus(long handle, String status) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+            span.setStatus(spanStatus(status));
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not set span status.", t);
+            return false;
+        }
+    }
+
+    public static boolean setSpanData(long handle, String key, String valueJson) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+            span.setData(key, parseJsonValue(valueJson));
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not set span data.", t);
+            return false;
+        }
+    }
+
+    public static boolean removeSpanData(long handle, String key) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+            span.getSpanContext().getData().remove(key);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not remove span data.", t);
+            return false;
+        }
+    }
+
+    public static boolean setSpanTag(long handle, String key, String value) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+            span.setTag(key, value);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not set span tag.", t);
+            return false;
+        }
+    }
+
+    public static boolean removeSpanTag(long handle, String key) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return false;
+            }
+            span.getSpanContext().getTags().remove(key);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not remove span tag.", t);
+            return false;
+        }
+    }
+
+    public static String spanTraceHeaders(long handle) {
+        try {
+            ISpan span = SPANS.get(Long.valueOf(handle));
+            if (span == null) {
+                return "{}";
+            }
+
+            JSONObject headers = new JSONObject();
+            SentryTraceHeader trace = span.toSentryTrace();
+            if (trace != null) {
+                headers.put(trace.getName(), trace.getValue());
+            }
+            BaggageHeader baggage = span.toBaggageHeader(Collections.emptyList());
+            if (baggage != null) {
+                headers.put(baggage.getName(), baggage.getValue());
+            }
+            return headers.toString();
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not get span trace headers.", t);
+            return "{}";
+        }
+    }
+
+    public static void releaseSpan(long handle) {
+        SPANS.remove(Long.valueOf(handle));
+    }
+
     public static String captureEvent(String eventJson, String attachmentsJson) {
         try {
             ISerializer serializer = Sentry.getCurrentScopes().getOptions().getSerializer();
@@ -374,11 +571,34 @@ public final class SentryQmlBridge {
         void set(String value);
     }
 
+    private static long registerSpan(ISpan span) {
+        if (span == null) {
+            return 0;
+        }
+        long handle = NEXT_SPAN_HANDLE.getAndIncrement();
+        SPANS.put(Long.valueOf(handle), span);
+        return handle;
+    }
+
     private static void setStringOption(JSONObject json, String key, StringSetter setter) {
         String value = optString(json, key);
         if (value != null) {
             setter.set(value);
         }
+    }
+
+    private static CustomSamplingContext customSamplingContext(String json) throws Exception {
+        CustomSamplingContext context = new CustomSamplingContext();
+        Object value = parseJsonValue(json);
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    context.set(entry.getKey().toString(), entry.getValue());
+                }
+            }
+        }
+        return context;
     }
 
     private static SentryMetricsParameters metricsParameters(String attributesJson) throws Exception {
@@ -420,11 +640,29 @@ public final class SentryQmlBridge {
         }
     }
 
-    private static List<String> stringList(JSONArray array) throws Exception {
+    private static SpanStatus spanStatus(String status) {
+        if (status == null || status.trim().isEmpty()) {
+            return null;
+        }
+
+        SpanStatus value = SpanStatus.fromApiNameSafely(status);
+        if (value != null) {
+            return value;
+        }
+
+        try {
+            return SpanStatus.valueOf(status.trim().replace('-', '_').toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return SpanStatus.UNKNOWN_ERROR;
+        }
+    }
+
+    private static List<String> stringList(JSONArray array) {
         List<String> values = new ArrayList<>(array.length());
         for (int i = 0; i < array.length(); ++i) {
-            if (!array.isNull(i)) {
-                values.add(array.get(i).toString());
+            Object value = array.opt(i);
+            if (value != null && value != JSONObject.NULL) {
+                values.add(value.toString());
             }
         }
         return values;
@@ -543,5 +781,9 @@ public final class SentryQmlBridge {
 
     private static String emptyToNull(String value) {
         return value == null || value.isEmpty() ? null : value;
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

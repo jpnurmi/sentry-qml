@@ -27,6 +27,14 @@ Item {
         return true;
     }
 
+    function tracePropagationTargets() {
+        return AppState.tracePropagationTargets.split(",").map(function(target) {
+            return target.trim();
+        }).filter(function(target) {
+            return target.length > 0;
+        });
+    }
+
     SentryOptions {
         id: options
 
@@ -43,6 +51,10 @@ Item {
         attachScreenshot: AppState.screenshotEnabled
         attachViewHierarchy: AppState.viewHierarchyEnabled
         sampleRate: AppState.sampleRate
+        tracesSampleRate: AppState.tracingEnabled ? AppState.tracesSampleRate : -1.0
+        tracePropagationTargets: page.tracePropagationTargets()
+        orgId: AppState.orgId
+        strictTraceContinuation: AppState.strictTraceContinuation
         maxBreadcrumbs: AppState.maxBreadcrumbs
         shutdownTimeout: AppState.shutdownTimeout
         user: SentryUser {
@@ -56,6 +68,22 @@ Item {
             event.extra = event.extra || {};
             event.extra.example = "sentry-qml";
             return event;
+        }
+        tracesSampler: function (context) {
+            console.log("### tracesSampler");
+            return AppState.tracingEnabled ? AppState.tracesSampleRate : 0.0;
+        }
+        beforeSendTransaction: function (transaction) {
+            console.log("### beforeSendTransaction");
+            transaction.tags = transaction.tags || {};
+            transaction.tags.example = "sentry-qml";
+            return transaction;
+        }
+        beforeSendSpan: function (span) {
+            console.log("### beforeSendSpan");
+            span.data = span.data || {};
+            span.data.example = true;
+            return span;
         }
         onCrash: function (event) {
             console.log("### onCrash");
@@ -200,6 +228,42 @@ Item {
 
                     GridLayout {
                         Layout.fillWidth: true
+                        columns: AppTheme.compact ? 1 : 3
+                        uniformCellWidths: true
+                        rowSpacing: AppTheme.formSpacing
+                        columnSpacing: AppTheme.formSpacing
+
+                        LabeledDoubleSpinBox {
+                            label: qsTr("Traces sample rate")
+                            value: AppState.tracesSampleRate
+                            from: 0.0
+                            to: 1.0
+                            stepSize: 0.1
+                            decimals: 1
+                            locale: Qt.locale("en_US")
+                            Layout.fillWidth: true
+                            onValueModified: AppState.tracesSampleRate = value
+                        }
+
+                        LabeledTextField {
+                            label: qsTr("Trace targets")
+                            text: AppState.tracePropagationTargets
+                            placeholderText: qsTr("localhost,api.example.com")
+                            Layout.fillWidth: true
+                            onTextEdited: AppState.tracePropagationTargets = text
+                        }
+
+                        LabeledTextField {
+                            label: qsTr("Org ID")
+                            text: AppState.orgId
+                            placeholderText: qsTr("12345")
+                            Layout.fillWidth: true
+                            onTextEdited: AppState.orgId = text
+                        }
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
                         columns: AppTheme.compact ? 1 : 4
                         flow: GridLayout.LeftToRight
                         uniformCellWidths: !AppTheme.compact
@@ -225,6 +289,20 @@ Item {
                             checked: AppState.metricsEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.metricsEnabled = checked
+                        }
+
+                        CheckBox {
+                            text: qsTr("Tracing")
+                            checked: AppState.tracingEnabled
+                            Layout.fillWidth: true
+                            onToggled: AppState.tracingEnabled = checked
+                        }
+
+                        CheckBox {
+                            text: qsTr("Strict trace continuation")
+                            checked: AppState.strictTraceContinuation
+                            Layout.fillWidth: true
+                            onToggled: AppState.strictTraceContinuation = checked
                         }
 
                         CheckBox {

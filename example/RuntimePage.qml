@@ -12,6 +12,7 @@ Item {
     property var attachmentHandles: []
     readonly property int actionWidth: Math.max(152, Math.ceil(Math.max(
         giveActionMetrics.width,
+        traceActionMetrics.width,
         revokeActionMetrics.width,
         crashActionMetrics.width
     ) + 28))
@@ -120,6 +121,34 @@ Item {
     function captureMessage() {
         const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
         AppState.setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
+    }
+
+    function captureTrace() {
+        const transaction = Sentry.startTransaction(
+            "Example runtime action",
+            "ui.action",
+            "Runtime trace",
+            true,
+            { source: "example" }
+        );
+        if (!transaction || !transaction.valid) {
+            AppState.setStatus(qsTr("Trace was not captured"), false);
+            return;
+        }
+
+        let ok = transaction.setTag("source", "runtime")
+            && transaction.setData("message.empty", AppState.messageText.trim().length === 0);
+        const span = Sentry.startSpan("Prepare payload", "qml.example.prepare", "Message metadata", transaction);
+        if (span && span.valid) {
+            ok = span.setData("message.length", AppState.messageText.length) && ok;
+            ok = span.setTag("source", "runtime") && ok;
+            ok = span.finish(ok ? "ok" : "internal_error") && ok;
+        } else {
+            ok = false;
+        }
+
+        ok = transaction.finish(ok ? "ok" : "internal_error") && ok;
+        AppState.setStatus(ok ? qsTr("Trace captured") : qsTr("Trace was not captured"), ok);
     }
 
     function applyScope() {
@@ -309,6 +338,14 @@ Item {
         font.pixelSize: 14
         font.weight: Font.DemiBold
         text: qsTr("Revoke")
+    }
+
+    TextMetrics {
+        id: traceActionMetrics
+
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        text: qsTr("Trace")
     }
 
     TextMetrics {
@@ -1223,9 +1260,35 @@ Item {
 
             GridLayout {
                 Layout.fillWidth: true
-                columns: AppTheme.compact ? 1 : 2
+                columns: AppTheme.compact ? 1 : 3
                 rowSpacing: AppTheme.pageSpacing
                 columnSpacing: AppTheme.pageSpacing
+
+                Panel {
+                    Layout.fillWidth: true
+                    Layout.row: 0
+                    Layout.column: AppTheme.compact ? 0 : 0
+                    title: qsTr("Trace")
+
+                    ColumnLayout {
+                        id: traceLayout
+
+                        anchors.fill: parent
+                        spacing: AppTheme.panelSpacing
+
+                        ActionButton {
+                            text: qsTr("Trace")
+                            enabled: Sentry.initialized
+                            Layout.alignment: Qt.AlignRight
+                            Layout.preferredWidth: page.actionWidth
+                            Layout.minimumWidth: page.actionWidth
+
+                            onClicked: {
+                                page.captureTrace();
+                            }
+                        }
+                    }
+                }
 
                 Panel {
                     Layout.fillWidth: true
@@ -1280,8 +1343,8 @@ Item {
 
                 Panel {
                     Layout.fillWidth: true
-                    Layout.row: 0
-                    Layout.column: 0
+                    Layout.row: AppTheme.compact ? 2 : 0
+                    Layout.column: AppTheme.compact ? 0 : 2
                     title: qsTr("Crash")
 
                     ColumnLayout {

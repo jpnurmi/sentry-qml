@@ -122,6 +122,19 @@ bool printCapturedEventResult(QObject *object, const QString &action)
     return success;
 }
 
+bool printTracingResult(QObject *object, const QString &action)
+{
+    const QString eventId = object->property("eventId").toString();
+    const QString traceId = object->property("traceId").toString();
+    const bool success = object->property("success").toBool() && !eventId.isEmpty() && !traceId.isEmpty();
+    if (success) {
+        printMarker(QStringLiteral("EVENT_CAPTURED"), eventId);
+        printMarker(QStringLiteral("TRACE_ID"), traceId);
+    }
+    printResult(action, success, eventId);
+    return success;
+}
+
 class CrashActions : public QObject
 {
     Q_OBJECT
@@ -180,7 +193,7 @@ int main(int argc, char *argv[])
     if (action.isEmpty()) {
         qCritical("usage: sentry_qml_e2e_app "
                   "<message-capture|consent-capture|feedback-capture|screenshot-capture|view-hierarchy-capture|"
-                  "attributes-capture|crash-capture|crash-send> "
+                  "attributes-capture|tracing-capture|crash-capture|crash-send> "
                   "[--dsn <dsn>] [--run-id <id>] [--database-path <path>] [--crash-id <id>]");
         return 64;
     }
@@ -272,6 +285,11 @@ int main(int argc, char *argv[])
     if (action == QLatin1String("attributes-capture")) {
         const bool success = object->property("success").toBool();
         printResult(action, success);
+        return success ? 0 : 1;
+    }
+
+    if (action == QLatin1String("tracing-capture")) {
+        const bool success = printTracingResult(object.get(), action);
         return success ? 0 : 1;
     }
 

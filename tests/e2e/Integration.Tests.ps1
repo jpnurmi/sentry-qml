@@ -254,6 +254,28 @@ BeforeAll {
         return $result
     }
 
+    function script:Get-TraceIds {
+        param(
+            [Parameter(Mandatory = $true)]
+            $AppOutput,
+
+            [int]$ExpectedCount = 1
+        )
+
+        $traceIdLines = @($AppOutput | Where-Object { $_ -match 'TRACE_ID:\s*[0-9a-f]{32}' })
+        if ($traceIdLines.Count -ne $ExpectedCount) {
+            throw "Expected $ExpectedCount TRACE_ID line(s) but found $($traceIdLines.Count)."
+        }
+
+        [array]$traceIds = @()
+        foreach ($traceIdLine in $traceIdLines) {
+            $traceIdLine -match 'TRACE_ID:\s*([0-9a-f]{32})' | Should -BeTrue
+            $traceIds += $matches[1]
+        }
+
+        return , $traceIds
+    }
+
     function script:Get-AndroidAppPackageName {
         if (-not $script:IsAndroid) {
             throw 'Android app package name is only available for Android tests.'
@@ -625,6 +647,41 @@ Describe 'Sentry QML E2E' {
             $metricsJson.Contains('sentry_qml_e2e_attributes') | Should -BeTrue
             $metricsJson.Contains($script:AttributesRunId) | Should -BeTrue
             $metricsJson.Contains('sentry_qml_e2e_local') | Should -BeTrue
+        }
+    }
+
+    Context 'Tracing capture' {
+        BeforeAll {
+            $script:TracingMessage = "Sentry QML E2E tracing $script:RunId"
+            $script:TracingResult = Invoke-E2EAction -Action 'tracing-capture'
+            $script:TracingEventIds = Get-EventIds -AppOutput $script:TracingResult.Output -ExpectedCount 1
+            $script:TracingTraceIds = Get-TraceIds -AppOutput $script:TracingResult.Output -ExpectedCount 1
+            $script:TracingEvent = Get-SentryTestEvent `
+                -EventId $script:TracingEventIds[0] `
+                -TimeoutSeconds 180
+            $script:TracingTransaction = Get-SentryTestTransaction `
+                -TraceId $script:TracingTraceIds[0] `
+                -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            Assert-CleanExit -Result $script:TracingResult
+        }
+
+        It 'captures a message event in Sentry' {
+            $script:TracingEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:TracingEvent -Name 'title' | Should -Be $script:TracingMessage
+            Get-TagValue -SentryEvent $script:TracingEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:TracingEvent -Key 'test.action' | Should -Be 'tracing-capture'
+        }
+
+        It 'captures the transaction and child span in Sentry' {
+            $script:TracingTransaction | Should -Not -BeNullOrEmpty
+            $transactionJson = $script:TracingTransaction | ConvertTo-Json -Depth 16 -Compress
+            $transactionJson.Contains("Sentry QML E2E transaction $script:RunId") | Should -BeTrue
+            $transactionJson.Contains('qml.e2e.transaction_hook') | Should -BeTrue
+            $transactionJson.Contains('qml.e2e.span_hook') | Should -BeTrue
+            $transactionJson.Contains('qml.e2e.db') | Should -BeTrue
         }
     }
 

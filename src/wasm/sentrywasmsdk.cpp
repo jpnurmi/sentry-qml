@@ -9,6 +9,7 @@
 #include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
+#include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
 #include <QtCore/qbytearray.h>
@@ -17,6 +18,7 @@
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsonarray.h>
 #include <QtCore/qjsondocument.h>
+#include <QtCore/qjsonobject.h>
 #include <QtCore/qjsonvalue.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qpointer.h>
@@ -63,6 +65,12 @@ struct SentrySdkAttachmentState
     QString filename;
     QString contentType;
     QString attachmentType;
+};
+
+struct SentrySdkSpanState
+{
+    int handle = 0;
+    bool transaction = false;
 };
 
 EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
@@ -198,9 +206,107 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         }
     }
 
+    function spanStatus(status) {
+        if (!status) {
+            return undefined;
+        }
+        return status;
+    }
+
+    function bindSpan(span) {
+        var current = scope();
+        if (current && current.setSpan) {
+            current.setSpan(span);
+            return true;
+        }
+        if (current && current.setActiveSpan) {
+            current.setActiveSpan(span);
+            return true;
+        }
+        return false;
+    }
+
+    function setSpanData(span, key, value) {
+        if (span.setData) {
+            span.setData(key, value);
+            return true;
+        }
+        if (span.setAttribute) {
+            span.setAttribute(key, value);
+            return true;
+        }
+        if (span.setAttributes) {
+            var attributes = {};
+            attributes[key] = value;
+            span.setAttributes(attributes);
+            return true;
+        }
+        return false;
+    }
+
+    function setSpanStatus(span, status) {
+        if (!status) {
+            return true;
+        }
+        if (!span.setStatus) {
+            return false;
+        }
+        try {
+            span.setStatus(status);
+        } catch (error) {
+            span.setStatus({ code: status === "ok" ? 1 : 2, message: status });
+        }
+        return true;
+    }
+
+    function finishSpan(span) {
+        if (span.end) {
+            span.end();
+            return true;
+        }
+        if (span.finish) {
+            span.finish();
+            return true;
+        }
+        return false;
+    }
+
+    function spanTraceHeaders(span) {
+        var headers = {};
+        if (!span) {
+            return headers;
+        }
+        if (span.toSentryTrace) {
+            headers["sentry-trace"] = span.toSentryTrace();
+        } else {
+            var S = sentry();
+            if (S && S.spanToTraceHeader) {
+                headers["sentry-trace"] = S.spanToTraceHeader(span);
+            } else if (span.toTraceparent) {
+                headers["sentry-trace"] = span.toTraceparent();
+            }
+        }
+        if (span.toBaggageHeader) {
+            headers.baggage = span.toBaggageHeader();
+        } else {
+            var SDK = sentry();
+            if (SDK && SDK.spanToBaggageHeader) {
+                headers.baggage = SDK.spanToBaggageHeader(span);
+            }
+        }
+        Object.keys(headers).forEach(function (key) {
+            if (!headers[key]) {
+                delete headers[key];
+            }
+        });
+        return headers;
+    }
+
     root.__sentryQmlWasmBridge = {
+        nextSpanHandle: 1,
         requireUserConsent: false,
         pending: Promise.resolve(true),
+        spans: {},
         userConsent: -1,
 
         enqueue: function (operation) {
@@ -266,6 +372,18 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (typeof options.sampleRate === "number") {
                 sentryOptions.sampleRate = options.sampleRate;
             }
+            if (typeof options.tracesSampleRate === "number" && options.tracesSampleRate >= 0) {
+                sentryOptions.tracesSampleRate = options.tracesSampleRate;
+            }
+            if (Array.isArray(options.tracePropagationTargets)) {
+                sentryOptions.tracePropagationTargets = options.tracePropagationTargets;
+            }
+            if (options.orgId) {
+                sentryOptions.orgId = options.orgId;
+            }
+            if (typeof options.strictTraceContinuation === "boolean") {
+                sentryOptions.strictTraceContinuation = options.strictTraceContinuation;
+            }
             if (typeof options.maxBreadcrumbs === "number") {
                 sentryOptions.maxBreadcrumbs = options.maxBreadcrumbs;
             }
@@ -297,6 +415,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
 
         close: function (timeoutMs) {
             var S = sentry();
+            this.spans = {};
             if (S && S.close) {
                 return this.enqueue(function () {
                     return S.close(timeoutMs);
@@ -487,6 +606,148 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             return true;
         },
 
+        registerSpan: function (span) {
+            if (!span) {
+                return 0;
+            }
+            var handle = this.nextSpanHandle++;
+            this.spans[handle] = span;
+            return handle;
+        },
+
+        startTransaction: function (name, operation, description, bindToScope, customSamplingContextJson, sampleRate) {
+            var S = sentry();
+            if (!S) {
+                return 0;
+            }
+
+            var options = {
+                name: name,
+                op: operation || undefined,
+                forceTransaction: true,
+            };
+            if (description) {
+                options.description = description;
+            }
+            if (sampleRate >= 0) {
+                options.sampled = Math.random() < sampleRate;
+            }
+
+            var span = null;
+            if (S.startInactiveSpan) {
+                span = S.startInactiveSpan(options);
+            } else if (S.startTransaction) {
+                var context = {
+                    name: name,
+                    op: operation || undefined,
+                    description: description || undefined,
+                };
+                if (sampleRate >= 0) {
+                    context.sampled = options.sampled;
+                }
+                span = S.startTransaction(context, parseJson(customSamplingContextJson, {}));
+            }
+            if (!span) {
+                return 0;
+            }
+            if (bindToScope) {
+                bindSpan(span);
+            }
+            return this.registerSpan(span);
+        },
+
+        startSpan: function (parentHandle, name, operation, description, bindToScope) {
+            var S = sentry();
+            var parent = parentHandle ? this.spans[parentHandle] : null;
+            var span = null;
+            if (parent && parent.startChild) {
+                try {
+                    span = parent.startChild(operation || undefined, description || undefined);
+                } catch (error) {
+                    span = parent.startChild({
+                        name: name,
+                        op: operation || undefined,
+                        description: description || undefined,
+                    });
+                }
+            } else if (S && S.startInactiveSpan) {
+                var options = {
+                    name: name,
+                    op: operation || undefined,
+                    description: description || undefined,
+                };
+                if (parent) {
+                    options.parentSpan = parent;
+                }
+                span = S.startInactiveSpan(options);
+            }
+            if (!span) {
+                return 0;
+            }
+            if (bindToScope) {
+                bindSpan(span);
+            }
+            return this.registerSpan(span);
+        },
+
+        finishSpan: function (handle, status) {
+            var span = this.spans[handle];
+            if (!span) {
+                return false;
+            }
+            delete this.spans[handle];
+            setSpanStatus(span, spanStatus(status));
+            return finishSpan(span);
+        },
+
+        setSpanStatus: function (handle, status) {
+            var span = this.spans[handle];
+            return !!span && setSpanStatus(span, spanStatus(status));
+        },
+
+        setSpanData: function (handle, key, valueJson) {
+            var span = this.spans[handle];
+            return !!span && setSpanData(span, key, parseJson(valueJson, null));
+        },
+
+        removeSpanData: function (handle, key) {
+            var span = this.spans[handle];
+            return !!span && setSpanData(span, key, undefined);
+        },
+
+        setSpanTag: function (handle, key, value) {
+            var span = this.spans[handle];
+            if (!span) {
+                return false;
+            }
+            if (span.setTag) {
+                span.setTag(key, value);
+                return true;
+            }
+            return setSpanData(span, key, value);
+        },
+
+        removeSpanTag: function (handle, key) {
+            var span = this.spans[handle];
+            if (!span) {
+                return false;
+            }
+            if (span.setTag) {
+                span.setTag(key, undefined);
+                return true;
+            }
+            return setSpanData(span, key, undefined);
+        },
+
+        spanTraceHeaders: function (handle) {
+            return JSON.stringify(spanTraceHeaders(this.spans[handle]));
+        },
+
+        releaseSpan: function (handle) {
+            delete this.spans[handle];
+            return true;
+        },
+
         captureEvent: function (eventJson, attachmentsJson) {
             var S = sentry();
             if (!S || !S.captureEvent) {
@@ -560,6 +821,68 @@ EM_JS(int,
               ? 1
               : 0;
       });
+
+EM_JS(int,
+      sentry_qml_wasm_start_transaction,
+      (const char *name,
+       const char *operation,
+       const char *description,
+       int bindToScope,
+       const char *customSamplingContextJson,
+       double sampleRate),
+      {
+          return globalThis.__sentryQmlWasmBridge.startTransaction(
+              UTF8ToString(name),
+              UTF8ToString(operation),
+              UTF8ToString(description),
+              !!bindToScope,
+              UTF8ToString(customSamplingContextJson),
+              sampleRate);
+      });
+
+EM_JS(int,
+      sentry_qml_wasm_start_span,
+      (int parentHandle, const char *name, const char *operation, const char *description, int bindToScope),
+      {
+          return globalThis.__sentryQmlWasmBridge.startSpan(
+              parentHandle,
+              UTF8ToString(name),
+              UTF8ToString(operation),
+              UTF8ToString(description),
+              !!bindToScope);
+      });
+
+EM_JS(int, sentry_qml_wasm_finish_span, (int handle, const char *status), {
+    return globalThis.__sentryQmlWasmBridge.finishSpan(handle, UTF8ToString(status)) ? 1 : 0;
+});
+
+EM_JS(int, sentry_qml_wasm_set_span_status, (int handle, const char *status), {
+    return globalThis.__sentryQmlWasmBridge.setSpanStatus(handle, UTF8ToString(status)) ? 1 : 0;
+});
+
+EM_JS(int, sentry_qml_wasm_set_span_data, (int handle, const char *key, const char *valueJson), {
+    return globalThis.__sentryQmlWasmBridge.setSpanData(handle, UTF8ToString(key), UTF8ToString(valueJson)) ? 1 : 0;
+});
+
+EM_JS(int, sentry_qml_wasm_remove_span_data, (int handle, const char *key), {
+    return globalThis.__sentryQmlWasmBridge.removeSpanData(handle, UTF8ToString(key)) ? 1 : 0;
+});
+
+EM_JS(int, sentry_qml_wasm_set_span_tag, (int handle, const char *key, const char *value), {
+    return globalThis.__sentryQmlWasmBridge.setSpanTag(handle, UTF8ToString(key), UTF8ToString(value)) ? 1 : 0;
+});
+
+EM_JS(int, sentry_qml_wasm_remove_span_tag, (int handle, const char *key), {
+    return globalThis.__sentryQmlWasmBridge.removeSpanTag(handle, UTF8ToString(key)) ? 1 : 0;
+});
+
+EM_JS(char *, sentry_qml_wasm_span_trace_headers, (int handle), {
+    return stringToNewUTF8(globalThis.__sentryQmlWasmBridge.spanTraceHeaders(handle) || "{}");
+});
+
+EM_JS(void, sentry_qml_wasm_release_span, (int handle), {
+    globalThis.__sentryQmlWasmBridge.releaseSpan(handle);
+});
 
 EM_JS(char *, sentry_qml_wasm_capture_event, (const char *eventJson, const char *attachmentsJson), {
     var eventId = globalThis.__sentryQmlWasmBridge.captureEvent(
@@ -758,6 +1081,12 @@ QByteArray jsonFromVariant(const QVariant &value)
 QString jsonStringFromVariant(const QVariant &value)
 {
     return QString::fromUtf8(jsonFromVariant(value));
+}
+
+QVariantMap variantMapFromJsonString(const QString &json)
+{
+    const QJsonDocument document = QJsonDocument::fromJson(json.toUtf8());
+    return document.object().toVariantMap();
 }
 
 QString generatedEventId()
@@ -1037,6 +1366,99 @@ bool metricBridge(const char *method,
         != 0;
 }
 
+int startTransactionBridge(const QString &name,
+                           const QString &operation,
+                           const QString &description,
+                           bool bindToScope,
+                           const QVariantMap &customSamplingContext,
+                           double sampleRate)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray nameUtf8 = utf8(name);
+    const QByteArray operationUtf8 = utf8(operation);
+    const QByteArray descriptionUtf8 = utf8(description);
+    const QByteArray customSamplingContextJson = jsonFromVariant(customSamplingContext);
+    return sentry_qml_wasm_start_transaction(nameUtf8.constData(),
+                                             operationUtf8.constData(),
+                                             descriptionUtf8.constData(),
+                                             bindToScope ? 1 : 0,
+                                             customSamplingContextJson.constData(),
+                                             sampleRate);
+}
+
+int startSpanBridge(int parentHandle,
+                    const QString &name,
+                    const QString &operation,
+                    const QString &description,
+                    bool bindToScope)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray nameUtf8 = utf8(name);
+    const QByteArray operationUtf8 = utf8(operation);
+    const QByteArray descriptionUtf8 = utf8(description);
+    return sentry_qml_wasm_start_span(
+        parentHandle, nameUtf8.constData(), operationUtf8.constData(), descriptionUtf8.constData(), bindToScope ? 1 : 0);
+}
+
+bool finishSpanBridge(int handle, const QString &status)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray statusUtf8 = utf8(status);
+    return sentry_qml_wasm_finish_span(handle, statusUtf8.constData()) != 0;
+}
+
+bool setSpanStatusBridge(int handle, const QString &status)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray statusUtf8 = utf8(status);
+    return sentry_qml_wasm_set_span_status(handle, statusUtf8.constData()) != 0;
+}
+
+bool setSpanDataBridge(int handle, const QString &key, const QVariant &value)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray keyUtf8 = utf8(key);
+    const QByteArray valueJson = jsonFromVariant(value);
+    return sentry_qml_wasm_set_span_data(handle, keyUtf8.constData(), valueJson.constData()) != 0;
+}
+
+bool removeSpanDataBridge(int handle, const QString &key)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray keyUtf8 = utf8(key);
+    return sentry_qml_wasm_remove_span_data(handle, keyUtf8.constData()) != 0;
+}
+
+bool setSpanTagBridge(int handle, const QString &key, const QString &value)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray keyUtf8 = utf8(key);
+    const QByteArray valueUtf8 = utf8(value);
+    return sentry_qml_wasm_set_span_tag(handle, keyUtf8.constData(), valueUtf8.constData()) != 0;
+}
+
+bool removeSpanTagBridge(int handle, const QString &key)
+{
+    sentry_qml_wasm_ensure_bridge();
+    const QByteArray keyUtf8 = utf8(key);
+    return sentry_qml_wasm_remove_span_tag(handle, keyUtf8.constData()) != 0;
+}
+
+QVariantMap spanTraceHeadersBridge(int handle)
+{
+    sentry_qml_wasm_ensure_bridge();
+    char *headersJson = sentry_qml_wasm_span_trace_headers(handle);
+    const QString json = headersJson ? QString::fromUtf8(headersJson) : QString();
+    std::free(headersJson);
+    return variantMapFromJsonString(json);
+}
+
+void releaseSpanBridge(int handle)
+{
+    sentry_qml_wasm_ensure_bridge();
+    sentry_qml_wasm_release_span(handle);
+}
+
 bool hasConsent(bool requireUserConsent, int userConsent)
 {
     return !requireUserConsent || userConsent == 1;
@@ -1097,6 +1519,13 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    const double tracesSampleRate = options->tracesSampleRate();
+    if (!qFuzzyCompare(tracesSampleRate, -1.0)
+        && (!std::isfinite(tracesSampleRate) || tracesSampleRate < 0.0 || tracesSampleRate > 1.0)) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry tracesSampleRate must be between 0.0 and 1.0."));
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> beforeBreadcrumbState;
     if (!createEventHookState(sentry,
                               options,
@@ -1129,6 +1558,28 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    std::unique_ptr<SentrySdkEventHookState> beforeSendTransactionState;
+    if (!createEventHookState(sentry,
+                              options,
+                              options->beforeSendTransaction(),
+                              QStringLiteral("beforeSendTransaction"),
+                              true,
+                              &beforeSendTransactionState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> beforeSendSpanState;
+    if (!createEventHookState(
+            sentry, options, options->beforeSendSpan(), QStringLiteral("beforeSendSpan"), true, &beforeSendSpanState)) {
+        return false;
+    }
+
+    std::unique_ptr<SentrySdkEventHookState> tracesSamplerState;
+    if (!createEventHookState(
+            sentry, options, options->tracesSampler(), QStringLiteral("tracesSampler"), true, &tracesSamplerState)) {
+        return false;
+    }
+
     std::unique_ptr<SentrySdkEventHookState> onCrashState;
     if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
         return false;
@@ -1143,6 +1594,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendMetricState = std::move(beforeSendMetricState);
     m_beforeSendState = std::move(beforeSendState);
+    m_beforeSendTransactionState = std::move(beforeSendTransactionState);
+    m_beforeSendSpanState = std::move(beforeSendSpanState);
+    m_tracesSamplerState = std::move(tracesSamplerState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
     m_applyHooksLocally = true;
@@ -1173,6 +1627,10 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("requireUserConsent"), options->requireUserConsent()},
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
+        {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},
+        {QStringLiteral("tracePropagationTargets"), options->tracePropagationTargets()},
+        {QStringLiteral("orgId"), options->orgId()},
+        {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},
         {QStringLiteral("maxBreadcrumbs"), options->maxBreadcrumbs()},
     };
     if (!m_user.isEmpty()) {
@@ -1185,6 +1643,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         m_beforeSendLogState.reset();
         m_beforeSendMetricState.reset();
         m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
         m_onCrashState.reset();
         m_crashHookState.reset();
         emit sentry->errorOccurred(QStringLiteral("Sentry JavaScript could not be initialized."));
@@ -1229,11 +1690,15 @@ bool SentrySdk::close()
     m_beforeSendLogState.reset();
     m_beforeSendMetricState.reset();
     m_beforeSendState.reset();
+    m_beforeSendTransactionState.reset();
+    m_beforeSendSpanState.reset();
+    m_tracesSamplerState.reset();
     m_onCrashState.reset();
     m_crashHookState.reset();
     m_applyHooksLocally = false;
     clearLocalScope();
     invalidateAttachments();
+    invalidateSpans();
     setInitialized(false);
     if (didChangeUserConsentRequired) {
         emit userConsentRequiredChanged();
@@ -1276,6 +1741,9 @@ void SentrySdk::detachSentry(Sentry *sentry)
     detach(m_beforeSendLogState);
     detach(m_beforeSendMetricState);
     detach(m_onCrashState);
+    detach(m_beforeSendTransactionState);
+    detach(m_beforeSendSpanState);
+    detach(m_tracesSamplerState);
 }
 
 bool SentrySdk::ensureCanCall(Sentry *sentry,
@@ -1900,6 +2368,230 @@ bool SentrySdk::distribution(Sentry *sentry,
                         metric.value(QStringLiteral("value"), value).toDouble(),
                         metric.value(QStringLiteral("unit"), unit).toString(),
                         metric.value(QStringLiteral("attributes")).toMap());
+}
+
+SentrySpan *SentrySdk::startTransaction(Sentry *sentry,
+                                        const QString &name,
+                                        const QString &operation,
+                                        const QString &description,
+                                        bool bindToScope,
+                                        const QVariantMap &customSamplingContext)
+{
+    if (!ensureInitialized(sentry, "starting transactions")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction name must not be empty."));
+        return nullptr;
+    }
+
+    double sampleRate = -1.0;
+    if (m_tracesSamplerState) {
+        QVariantMap transactionContext;
+        transactionContext.insert(QStringLiteral("name"), name);
+        transactionContext.insert(QStringLiteral("operation"), operation);
+        QVariantMap samplingContext;
+        samplingContext.insert(QStringLiteral("transactionContext"), transactionContext);
+        samplingContext.insert(QStringLiteral("customSamplingContext"), customSamplingContext);
+
+        const HookResult result = invokeValueHook(samplingContext, m_tracesSamplerState.get());
+        if (result.action == HookResult::Drop) {
+            sampleRate = 0.0;
+        } else if (result.action == HookResult::Replace) {
+            sampleRate = result.value.toDouble();
+        }
+        if (sampleRate >= 0.0 && (!std::isfinite(sampleRate) || sampleRate > 1.0)) {
+            emit sentry->errorOccurred(QStringLiteral("SentryOptions.tracesSampler must return a number between 0.0 and 1.0."));
+            return nullptr;
+        }
+    }
+
+    int handle = 0;
+    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+        handle = startTransactionBridge(name, operation, description, bindToScope, customSamplingContext, sampleRate);
+        if (!handle) {
+            return nullptr;
+        }
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->handle = handle;
+    state->transaction = true;
+    auto *span = new SentrySpan(state, true, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+SentrySpan *SentrySdk::startSpan(Sentry *sentry,
+                                 const QString &name,
+                                 const QString &operation,
+                                 const QString &description,
+                                 SentrySpan *parentSpan,
+                                 bool bindToScope)
+{
+    if (!ensureInitialized(sentry, "starting spans")) {
+        return nullptr;
+    }
+
+    if (name.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry span name must not be empty."));
+        return nullptr;
+    }
+
+    auto *parent = parentSpan ? static_cast<SentrySdkSpanState *>(parentSpan->handle()) : nullptr;
+    if (parentSpan && !parent) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a valid parent span."));
+        return nullptr;
+    }
+
+    int handle = 0;
+    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+        handle = startSpanBridge(parent ? parent->handle : 0, name, operation, description, bindToScope);
+        if (!handle) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a parent or active span."));
+            return nullptr;
+        }
+    }
+
+    auto *state = new SentrySdkSpanState;
+    state->handle = handle;
+    auto *span = new SentrySpan(state, false, name, operation, description, sentry);
+    trackSpan(span);
+    return span;
+}
+
+bool SentrySdk::finishSpan(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state) {
+        return false;
+    }
+
+    if (!status.isEmpty()) {
+        setSpanStatus(span, status);
+        span->setStatusLocally(status);
+    }
+
+    SentrySdkEventHookState *hookState =
+        span->isTransaction() ? m_beforeSendTransactionState.get() : m_beforeSendSpanState.get();
+    const HookResult result = invokeValueHook(span->toVariantMap(), hookState);
+    if (result.action == HookResult::Drop) {
+        detachSpan(span);
+        return true;
+    }
+    if (result.action == HookResult::Replace) {
+        const QVariantMap replacement = result.value.toMap();
+        if (replacement.contains(QStringLiteral("status"))) {
+            const QString replacementStatus = replacement.value(QStringLiteral("status")).toString();
+            setSpanStatus(span, replacementStatus);
+            span->setStatusLocally(replacementStatus);
+        }
+        const QVariantMap data = replacement.value(QStringLiteral("data")).toMap();
+        for (auto it = data.cbegin(); it != data.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                setSpanData(span, it.key(), it.value());
+                span->setDataLocally(it.key(), it.value());
+            }
+        }
+        const QVariantMap tags = replacement.value(QStringLiteral("tags")).toMap();
+        for (auto it = tags.cbegin(); it != tags.cend(); ++it) {
+            if (!it.key().isEmpty()) {
+                setSpanTag(span, it.key(), it.value().toString());
+                span->setTagLocally(it.key(), it.value().toString());
+            }
+        }
+    }
+
+    if (state->handle && !finishSpanBridge(state->handle, span->status())) {
+        return false;
+    }
+    state->handle = 0;
+    detachSpan(span);
+    return true;
+}
+
+bool SentrySdk::setSpanStatus(SentrySpan *span, const QString &status)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanStatusBridge(state->handle, status));
+}
+
+bool SentrySdk::setSpanData(SentrySpan *span, const QString &key, const QVariant &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanDataBridge(state->handle, key, value));
+}
+
+bool SentrySdk::removeSpanData(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || removeSpanDataBridge(state->handle, key));
+}
+
+bool SentrySdk::setSpanTag(SentrySpan *span, const QString &key, const QString &value)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || setSpanTagBridge(state->handle, key, value));
+}
+
+bool SentrySdk::removeSpanTag(SentrySpan *span, const QString &key)
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    return state && (!state->handle || removeSpanTagBridge(state->handle, key));
+}
+
+QVariantMap SentrySdk::spanTraceHeaders(const SentrySpan *span) const
+{
+    auto *state = span ? static_cast<SentrySdkSpanState *>(span->handle()) : nullptr;
+    if (!state || !state->handle) {
+        return {};
+    }
+
+    return spanTraceHeadersBridge(state->handle);
+}
+
+void SentrySdk::trackSpan(SentrySpan *span)
+{
+    if (span) {
+        m_spans.append(span);
+    }
+}
+
+void SentrySdk::detachSpan(SentrySpan *span)
+{
+    if (!span) {
+        return;
+    }
+
+    m_spans.removeAll(span);
+    auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+    if (state) {
+        if (state->handle) {
+            releaseSpanBridge(state->handle);
+        }
+        delete state;
+    }
+    span->invalidate();
+}
+
+void SentrySdk::invalidateSpans()
+{
+    const QList<SentrySpan *> spans = m_spans;
+    m_spans.clear();
+    for (SentrySpan *span : spans) {
+        if (!span) {
+            continue;
+        }
+        auto *state = static_cast<SentrySdkSpanState *>(span->handle());
+        if (state) {
+            if (state->handle) {
+                releaseSpanBridge(state->handle);
+            }
+            delete state;
+        }
+        span->invalidate();
+    }
 }
 
 QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const QString &level)

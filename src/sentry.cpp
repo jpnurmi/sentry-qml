@@ -276,6 +276,25 @@ bool Sentry::distribution(const QString &name, double value, const QString &unit
     return SentrySdk::instance()->distribution(this, name, value, unit, attributes);
 }
 
+SentrySpan *Sentry::startTransaction(const QString &name,
+                                     const QString &operation,
+                                     const QString &description,
+                                     bool bindToScope,
+                                     const QVariantMap &customSamplingContext)
+{
+    return SentrySdk::instance()->startTransaction(
+        this, name, operation, description, bindToScope, customSamplingContext);
+}
+
+SentrySpan *Sentry::startSpan(const QString &name,
+                              const QString &operation,
+                              const QString &description,
+                              SentrySpan *parentSpan,
+                              bool bindToScope)
+{
+    return SentrySdk::instance()->startSpan(this, name, operation, description, parentSpan, bindToScope);
+}
+
 QString Sentry::captureMessage(const QString &message, const QString &level)
 {
     return SentrySdk::instance()->captureMessage(this, message, level);

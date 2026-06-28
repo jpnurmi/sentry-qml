@@ -99,7 +99,7 @@ jobs:
       - name: Restore Sentry Native cache
         if: ${{ contains(fromJSON('["Native", "Inproc", "Crashpad", "Breakpad"]'), matrix.sentry_backend) }}
         id: sentry-native-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/sentry-native
           key: sentry-native-${{ matrix.runner }}-${{ matrix.qt.arch }}-${{ matrix.sentry_backend }}-${{ steps.sentry-module-cache.outputs.sentry-native-sha }}-${{ hashFiles('modules/qt-*.properties', 'cmake/native.cmake') }}
@@ -109,7 +109,7 @@ jobs:
       - name: Restore SentryObjC cache
         if: matrix.sentry_backend == 'Cocoa'
         id: sentryobjc-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/sentry-cocoa
           key: sentryobjc-${{ matrix.runner }}-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}-${{ hashFiles('cmake/cocoa.cmake', 'cmake/sentry-cocoa.cmake') }}
@@ -280,7 +280,7 @@ jobs:
 
       - name: Restore Emscripten cache
         id: emsdk-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             emsdk/.emscripten
@@ -337,7 +337,7 @@ jobs:
 
       - name: Restore WebAssembly npm cache
         id: wasm-npm-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
           key: wasm-npm-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
@@ -359,7 +359,7 @@ jobs:
 
       - name: Restore WebAssembly browser cache
         id: wasm-browser-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: wasm-playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/wasm/package-lock.json') }}
@@ -463,7 +463,7 @@ jobs:
 
       - name: Restore Gradle cache
         id: gradle-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
@@ -607,7 +607,7 @@ jobs:
 
       - name: Restore SentryObjC iOS XCFramework
         id: sentryobjc-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sentry-cocoa
           key: ${{ steps.sentryobjc-cache-key.outputs.key }}

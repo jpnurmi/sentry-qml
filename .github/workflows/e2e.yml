@@ -353,7 +353,7 @@ jobs:
         id: sentryobjc-cache-key
         run: |
           xcode_hash=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f1)
-          echo "key=sentryobjc-ios-${{ runner.os }}-${{ runner.arch }}-$xcode_hash-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}" >> "$GITHUB_OUTPUT"
+          echo "key=sentryobjc-ios-cmake7-${{ runner.os }}-${{ runner.arch }}-$xcode_hash-${{ steps.sentry-module-cache.outputs.sentry-cocoa-sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore SentryObjC iOS XCFramework
         if: matrix.qt.target == 'ios'
@@ -366,10 +366,9 @@ jobs:
       - name: Build SentryObjC iOS XCFramework
         if: matrix.qt.target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
         run: |
-          cd modules/sentry-cocoa
-          ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
-          mkdir -p "$RUNNER_TEMP/sentry-cocoa"
-          ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+          scripts/build-sentryobjc.sh \
+            --sdks iphoneos,iphonesimulator \
+            --output-dir "$RUNNER_TEMP/sentry-cocoa"
 
       - name: Save SentryObjC iOS XCFramework
         if: matrix.qt.target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'

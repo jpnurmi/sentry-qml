@@ -78,7 +78,7 @@ elseif(EXISTS "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}")
 endif()
 
 set(SENTRY_COCOA_DEPENDENCY_FRAMEWORKS)
-foreach(SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME IN ITEMS Sentry SentryObjCBridge SentryObjCTypes)
+foreach(SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME IN ITEMS Sentry SentryObjCCompat)
     set(SENTRY_COCOA_DEPENDENCY_FRAMEWORK
         "${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_DIR}/${SENTRY_COCOA_DEPENDENCY_FRAMEWORK_NAME}.framework"
     )
@@ -118,7 +118,7 @@ if(SENTRY_COCOA_BUILD_FROM_SOURCE)
                 "-DSENTRY_COCOA_LIPO=${SENTRY_COCOA_LIPO}"
                 "-DSENTRY_COCOA_SDKS=${SENTRY_COCOA_BUILD_SDKS_TEXT}"
                 "-DSENTRY_COCOA_IOS_DEPLOYMENT_TARGET=${SENTRY_IOS_MINIMUM_DEPLOYMENT_TARGET}"
-                "-DSENTRY_COCOA_BUILD_RECIPE=6"
+                "-DSENTRY_COCOA_BUILD_RECIPE=7"
                 -P "${PROJECT_SOURCE_DIR}/cmake/sentry-cocoa.cmake"
         BYPRODUCTS
             ${SENTRY_COCOA_REQUIRED_FILES}
@@ -167,8 +167,7 @@ target_link_libraries(SentryObjC::SentryObjC INTERFACE
 if(SENTRY_COCOA_DEPENDENCY_FRAMEWORKS)
     target_link_libraries(SentryObjC::SentryObjC INTERFACE
         "-framework Sentry"
-        "-framework SentryObjCBridge"
-        "-framework SentryObjCTypes"
+        "-framework SentryObjCCompat"
     )
 endif()
 

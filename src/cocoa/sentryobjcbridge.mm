@@ -1,29 +1,6 @@
 #include "sentryobjcbridge_p.h"
 
-#import <SentryObjC/SentryAttachment.h>
-#import <SentryObjC/SentryAttribute.h>
-#import <SentryObjC/SentryBreadcrumb.h>
-#import <SentryObjC/SentryEvent.h>
-#import <SentryObjC/SentryException.h>
-#import <SentryObjC/SentryFeedback.h>
-#import <SentryObjC/SentryFeedbackSource.h>
-#import <SentryObjC/SentryFrame.h>
-#import <SentryObjC/SentryId.h>
-#import <SentryObjC/SentryLevel.h>
-#import <SentryObjC/SentryLog.h>
-#import <SentryObjC/SentryLogLevel.h>
-#import <SentryObjC/SentryLogger.h>
-#import <SentryObjC/SentryMechanism.h>
-#import <SentryObjC/SentryMessage.h>
-#import <SentryObjC/SentryMetricsApi.h>
-#import <SentryObjC/SentryObjCAttributeContent.h>
-#import <SentryObjC/SentryObjCMetric.h>
-#import <SentryObjC/SentryObjCMetricValue.h>
-#import <SentryObjC/SentryOptions.h>
-#import <SentryObjC/SentrySDK.h>
-#import <SentryObjC/SentryScope.h>
-#import <SentryObjC/SentryStacktrace.h>
-#import <SentryObjC/SentryUser.h>
+#import <SentryObjC/SentryObjC.h>
 
 #include <QtCore/qdir.h>
 #include <QtCore/qfileinfo.h>
@@ -53,7 +30,7 @@ QString qtString(NSString *value)
     return value ? QString::fromUtf8(value.UTF8String) : QString();
 }
 
-QString qtSentryIdString(SentryId *eventId)
+QString qtSentryIdString(SentryObjCId *eventId)
 {
     QString value = qtString(eventId.sentryIdString);
     if (value.size() == 32) {
@@ -219,60 +196,103 @@ NSString *feedbackValue(const QVariantMap &feedback,
     return nil;
 }
 
-SentryLevel levelFromString(const QString &level)
+SentryObjCLevel levelFromString(const QString &level)
 {
     const QString normalized = level.trimmed().toLower();
     if (normalized == QLatin1String("debug") || normalized == QLatin1String("trace")) {
-        return kSentryLevelDebug;
+        return SentryObjCLevelDebug;
     }
     if (normalized == QLatin1String("warning") || normalized == QLatin1String("warn")) {
-        return kSentryLevelWarning;
+        return SentryObjCLevelWarning;
     }
     if (normalized == QLatin1String("error")) {
-        return kSentryLevelError;
+        return SentryObjCLevelError;
     }
     if (normalized == QLatin1String("fatal")) {
-        return kSentryLevelFatal;
+        return SentryObjCLevelFatal;
     }
-    return kSentryLevelInfo;
+    return SentryObjCLevelInfo;
 }
 
-SentryLogLevel logLevelFromInt(int level)
+SentryObjCLogLevel logLevelFromInt(int level)
 {
     switch (level) {
     case -2:
-        return SentryLogLevelTrace;
+        return SentryObjCLogLevelTrace;
     case -1:
-        return SentryLogLevelDebug;
+        return SentryObjCLogLevelDebug;
     case 1:
-        return SentryLogLevelWarn;
+        return SentryObjCLogLevelWarn;
     case 2:
-        return SentryLogLevelError;
+        return SentryObjCLogLevelError;
     case 3:
-        return SentryLogLevelFatal;
+        return SentryObjCLogLevelFatal;
     case 0:
     default:
-        return SentryLogLevelInfo;
+        return SentryObjCLogLevelInfo;
     }
 }
 
-QString logLevelName(SentryLogLevel level)
+QString logLevelName(SentryObjCLogLevel level)
 {
     switch (level) {
-    case SentryLogLevelTrace:
+    case SentryObjCLogLevelTrace:
         return QStringLiteral("trace");
-    case SentryLogLevelDebug:
+    case SentryObjCLogLevelDebug:
         return QStringLiteral("debug");
-    case SentryLogLevelWarn:
+    case SentryObjCLogLevelWarn:
         return QStringLiteral("warning");
-    case SentryLogLevelError:
+    case SentryObjCLogLevelError:
         return QStringLiteral("error");
-    case SentryLogLevelFatal:
+    case SentryObjCLogLevelFatal:
         return QStringLiteral("fatal");
-    case SentryLogLevelInfo:
+    case SentryObjCLogLevelInfo:
     default:
         return QStringLiteral("info");
     }
+}
+
+QString levelName(SentryObjCLevel level)
+{
+    switch (level) {
+    case SentryObjCLevelDebug:
+        return QStringLiteral("debug");
+    case SentryObjCLevelWarning:
+        return QStringLiteral("warning");
+    case SentryObjCLevelError:
+        return QStringLiteral("error");
+    case SentryObjCLevelFatal:
+        return QStringLiteral("fatal");
+    case SentryObjCLevelInfo:
+    case SentryObjCLevelNone:
+    default:
+        return QStringLiteral("info");
+    }
+}
+
+SentryObjCLogLevel logLevelFromVariant(const QVariant &level)
+{
+    if (level.metaType().id() == QMetaType::QString) {
+        const QString normalized = level.toString().trimmed().toLower();
+        if (normalized == QLatin1String("trace")) {
+            return SentryObjCLogLevelTrace;
+        }
+        if (normalized == QLatin1String("debug")) {
+            return SentryObjCLogLevelDebug;
+        }
+        if (normalized == QLatin1String("warning") || normalized == QLatin1String("warn")) {
+            return SentryObjCLogLevelWarn;
+        }
+        if (normalized == QLatin1String("error")) {
+            return SentryObjCLogLevelError;
+        }
+        if (normalized == QLatin1String("fatal")) {
+            return SentryObjCLogLevelFatal;
+        }
+        return SentryObjCLogLevelInfo;
+    }
+
+    return logLevelFromInt(level.toInt());
 }
 
 NSDictionary<NSString *, NSString *> *stringDictionaryFromVariantMap(const QVariantMap &map)
@@ -312,9 +332,9 @@ NSArray<NSString *> *stringArrayFromVariant(const QVariant &value)
     return array;
 }
 
-SentryFrame *frameFromVariantMap(const QVariantMap &map)
+SentryObjCFrame *frameFromVariantMap(const QVariantMap &map)
 {
-    SentryFrame *frame = [[SentryFrame alloc] init];
+    SentryObjCFrame *frame = [[SentryObjCFrame alloc] init];
     frame.function = stringValue(map, QStringLiteral("function"));
     frame.fileName = stringValue(map, QStringLiteral("filename"), map.value(QStringLiteral("abs_path")).toString());
     frame.platform = stringValue(map, QStringLiteral("platform"));
@@ -330,14 +350,14 @@ SentryFrame *frameFromVariantMap(const QVariantMap &map)
     return frame;
 }
 
-SentryStacktrace *stacktraceFromVariantMap(const QVariantMap &map)
+SentryObjCStacktrace *stacktraceFromVariantMap(const QVariantMap &map)
 {
     const QVariantList frameValues = map.value(QStringLiteral("frames")).toList();
     if (frameValues.isEmpty()) {
         return nil;
     }
 
-    NSMutableArray<SentryFrame *> *frames = [NSMutableArray arrayWithCapacity:frameValues.size()];
+    NSMutableArray<SentryObjCFrame *> *frames = [NSMutableArray arrayWithCapacity:frameValues.size()];
     for (const QVariant &frameValue : frameValues) {
         const QVariantMap frameMap = frameValue.toMap();
         if (!frameMap.isEmpty()) {
@@ -349,12 +369,12 @@ SentryStacktrace *stacktraceFromVariantMap(const QVariantMap &map)
         return nil;
     }
 
-    return [[SentryStacktrace alloc] initWithFrames:frames registers:@{}];
+    return [[SentryObjCStacktrace alloc] initWithFrames:frames registers:@{}];
 }
 
-SentryMechanism *mechanismFromVariantMap(const QVariantMap &map)
+SentryObjCMechanism *mechanismFromVariantMap(const QVariantMap &map)
 {
-    SentryMechanism *mechanism = [[SentryMechanism alloc]
+    SentryObjCMechanism *mechanism = [[SentryObjCMechanism alloc]
         initWithType:nsString(map.value(QStringLiteral("type"), QStringLiteral("generic")).toString())];
     if (map.contains(QStringLiteral("handled"))) {
         mechanism.handled = @(map.value(QStringLiteral("handled")).toBool());
@@ -365,10 +385,10 @@ SentryMechanism *mechanismFromVariantMap(const QVariantMap &map)
     return mechanism;
 }
 
-SentryException *exceptionFromVariantMap(const QVariantMap &map)
+SentryObjCException *exceptionFromVariantMap(const QVariantMap &map)
 {
-    SentryException *exception =
-        [[SentryException alloc] initWithValue:stringValue(map, QStringLiteral("value"))
+    SentryObjCException *exception =
+        [[SentryObjCException alloc] initWithValue:stringValue(map, QStringLiteral("value"))
                                           type:nsString(map.value(QStringLiteral("type"), QStringLiteral("Error")).toString())];
     const QVariantMap mechanismMap = map.value(QStringLiteral("mechanism")).toMap();
     if (!mechanismMap.isEmpty()) {
@@ -381,14 +401,14 @@ SentryException *exceptionFromVariantMap(const QVariantMap &map)
     return exception;
 }
 
-NSArray<SentryException *> *exceptionsFromVariant(const QVariant &value)
+NSArray<SentryObjCException *> *exceptionsFromVariant(const QVariant &value)
 {
     QVariantList values = value.toMap().value(QStringLiteral("values")).toList();
     if (values.isEmpty()) {
         values = value.toList();
     }
 
-    NSMutableArray<SentryException *> *exceptions = [NSMutableArray arrayWithCapacity:values.size()];
+    NSMutableArray<SentryObjCException *> *exceptions = [NSMutableArray arrayWithCapacity:values.size()];
     for (const QVariant &exceptionValue : values) {
         const QVariantMap exceptionMap = exceptionValue.toMap();
         if (!exceptionMap.isEmpty()) {
@@ -398,7 +418,7 @@ NSArray<SentryException *> *exceptionsFromVariant(const QVariant &value)
     return exceptions;
 }
 
-void applyVariantMapToBreadcrumb(SentryBreadcrumb *breadcrumb, const QVariantMap &map)
+void applyVariantMapToBreadcrumb(SentryObjCBreadcrumb *breadcrumb, const QVariantMap &map)
 {
     if (map.contains(QStringLiteral("level"))) {
         breadcrumb.level = levelFromString(map.value(QStringLiteral("level")).toString());
@@ -413,29 +433,29 @@ void applyVariantMapToBreadcrumb(SentryBreadcrumb *breadcrumb, const QVariantMap
     }
 }
 
-SentryBreadcrumb *breadcrumbFromVariantMap(const QVariantMap &map)
+SentryObjCBreadcrumb *breadcrumbFromVariantMap(const QVariantMap &map)
 {
-    SentryBreadcrumb *breadcrumb =
-        [[SentryBreadcrumb alloc] initWithLevel:levelFromString(map.value(QStringLiteral("level")).toString())
+    SentryObjCBreadcrumb *breadcrumb =
+        [[SentryObjCBreadcrumb alloc] initWithLevel:levelFromString(map.value(QStringLiteral("level")).toString())
                                        category:nsString(map.value(QStringLiteral("category")).toString())];
     applyVariantMapToBreadcrumb(breadcrumb, map);
     return breadcrumb;
 }
 
-SentryMessage *messageFromVariant(const QVariant &value)
+SentryObjCMessage *messageFromVariant(const QVariant &value)
 {
     if (value.metaType().id() == QMetaType::QVariantMap) {
         const QString formatted = value.toMap().value(QStringLiteral("formatted")).toString();
         if (!formatted.isEmpty()) {
-            return [[SentryMessage alloc] initWithFormatted:nsString(formatted)];
+            return [[SentryObjCMessage alloc] initWithFormatted:nsString(formatted)];
         }
     }
 
     const QString message = value.toString();
-    return message.isEmpty() ? nil : [[SentryMessage alloc] initWithFormatted:nsString(message)];
+    return message.isEmpty() ? nil : [[SentryObjCMessage alloc] initWithFormatted:nsString(message)];
 }
 
-void applyVariantMapToEvent(SentryEvent *event, const QVariantMap &map)
+void applyVariantMapToEvent(SentryObjCEvent *event, const QVariantMap &map)
 {
     if (map.contains(QStringLiteral("level"))) {
         event.level = levelFromString(map.value(QStringLiteral("level")).toString());
@@ -473,16 +493,160 @@ void applyVariantMapToEvent(SentryEvent *event, const QVariantMap &map)
     }
 }
 
-SentryEvent *eventFromVariantMap(const QVariantMap &map)
+SentryObjCEvent *eventFromVariantMap(const QVariantMap &map)
 {
-    SentryEvent *event = [[SentryEvent alloc] initWithLevel:levelFromString(map.value(QStringLiteral("level")).toString())];
+    SentryObjCEvent *event = [[SentryObjCEvent alloc] initWithLevel:levelFromString(map.value(QStringLiteral("level")).toString())];
     applyVariantMapToEvent(event, map);
     return event;
 }
 
-SentryUser *userFromVariantMap(const QVariantMap &map)
+QVariantMap frameToVariantMap(SentryObjCFrame *frame)
 {
-    SentryUser *user = [[SentryUser alloc] init];
+    QVariantMap map;
+    if (frame.function) {
+        map.insert(QStringLiteral("function"), qtString(frame.function));
+    }
+    if (frame.fileName) {
+        map.insert(QStringLiteral("filename"), qtString(frame.fileName));
+    }
+    if (frame.platform) {
+        map.insert(QStringLiteral("platform"), qtString(frame.platform));
+    }
+    if (frame.lineNumber) {
+        map.insert(QStringLiteral("lineno"), variantFromObject(frame.lineNumber));
+    }
+    if (frame.columnNumber) {
+        map.insert(QStringLiteral("colno"), variantFromObject(frame.columnNumber));
+    }
+    if (frame.inApp) {
+        map.insert(QStringLiteral("in_app"), variantFromObject(frame.inApp));
+    }
+    return map;
+}
+
+QVariantMap stacktraceToVariantMap(SentryObjCStacktrace *stacktrace)
+{
+    QVariantList frames;
+    for (SentryObjCFrame *frame in stacktrace.frames) {
+        frames.append(frameToVariantMap(frame));
+    }
+
+    QVariantMap map;
+    if (!frames.isEmpty()) {
+        map.insert(QStringLiteral("frames"), frames);
+    }
+    return map;
+}
+
+QVariantMap mechanismToVariantMap(SentryObjCMechanism *mechanism)
+{
+    QVariantMap map;
+    if (mechanism.type) {
+        map.insert(QStringLiteral("type"), qtString(mechanism.type));
+    }
+    if (mechanism.handled) {
+        map.insert(QStringLiteral("handled"), variantFromObject(mechanism.handled));
+    }
+    if (mechanism.data) {
+        map.insert(QStringLiteral("data"), variantFromObject(mechanism.data));
+    }
+    return map;
+}
+
+QVariantMap exceptionToVariantMap(SentryObjCException *exception)
+{
+    QVariantMap map;
+    if (exception.value) {
+        map.insert(QStringLiteral("value"), qtString(exception.value));
+    }
+    if (exception.type) {
+        map.insert(QStringLiteral("type"), qtString(exception.type));
+    }
+    if (exception.mechanism) {
+        map.insert(QStringLiteral("mechanism"), mechanismToVariantMap(exception.mechanism));
+    }
+    if (exception.stacktrace) {
+        map.insert(QStringLiteral("stacktrace"), stacktraceToVariantMap(exception.stacktrace));
+    }
+    return map;
+}
+
+QVariantList exceptionsToVariantList(NSArray<SentryObjCException *> *exceptions)
+{
+    QVariantList values;
+    for (SentryObjCException *exception in exceptions) {
+        values.append(exceptionToVariantMap(exception));
+    }
+    return values;
+}
+
+QVariantMap messageToVariantMap(SentryObjCMessage *message)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("formatted"), qtString(message.formatted));
+    if (message.message) {
+        map.insert(QStringLiteral("message"), qtString(message.message));
+    }
+    if (message.params) {
+        map.insert(QStringLiteral("params"), variantFromObject(message.params));
+    }
+    return map;
+}
+
+QVariantMap breadcrumbToVariantMap(SentryObjCBreadcrumb *breadcrumb)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("level"), levelName(breadcrumb.level));
+    map.insert(QStringLiteral("category"), qtString(breadcrumb.category));
+    if (breadcrumb.type) {
+        map.insert(QStringLiteral("type"), qtString(breadcrumb.type));
+    }
+    if (breadcrumb.message) {
+        map.insert(QStringLiteral("message"), qtString(breadcrumb.message));
+    }
+    if (breadcrumb.data) {
+        map.insert(QStringLiteral("data"), variantFromObject(breadcrumb.data));
+    }
+    return map;
+}
+
+QVariantMap eventToVariantMap(SentryObjCEvent *event)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("level"), levelName(event.level));
+    map.insert(QStringLiteral("platform"), qtString(event.platform));
+    if (event.logger) {
+        map.insert(QStringLiteral("logger"), qtString(event.logger));
+    }
+    if (event.message) {
+        map.insert(QStringLiteral("message"), messageToVariantMap(event.message));
+    }
+    if (event.exceptions.count > 0) {
+        map.insert(QStringLiteral("exception"), QVariantMap {
+            {QStringLiteral("values"), exceptionsToVariantList(event.exceptions)},
+        });
+    }
+    if (event.stacktrace) {
+        map.insert(QStringLiteral("stacktrace"), stacktraceToVariantMap(event.stacktrace));
+    }
+    if (event.extra) {
+        map.insert(QStringLiteral("extra"), variantFromObject(event.extra));
+    }
+    if (event.tags) {
+        map.insert(QStringLiteral("tags"), variantFromObject(event.tags));
+    }
+    if (event.context) {
+        map.insert(QStringLiteral("contexts"), variantFromObject(event.context));
+    }
+    if (event.fingerprint) {
+        map.insert(QStringLiteral("fingerprint"), variantFromObject(event.fingerprint));
+    }
+    return map;
+}
+
+SentryObjCUser *userFromVariantMap(const QVariantMap &map)
+{
+    SentryObjCUser *user = [[SentryObjCUser alloc] init];
     user.userId = stringValue(map, QStringLiteral("id"), map.value(QStringLiteral("userId")).toString());
     user.email = stringValue(map, QStringLiteral("email"));
     user.username = stringValue(map, QStringLiteral("username"));
@@ -503,7 +667,7 @@ SentryUser *userFromVariantMap(const QVariantMap &map)
     return user;
 }
 
-SentryAttribute *logAttributeFromVariant(const QVariant &value)
+SentryObjCAttribute *logAttributeFromVariant(const QVariant &value)
 {
     if (value.metaType().id() == QMetaType::QVariantMap) {
         const QVariantMap map = value.toMap();
@@ -514,26 +678,26 @@ SentryAttribute *logAttributeFromVariant(const QVariant &value)
 
     switch (value.metaType().id()) {
     case QMetaType::Bool:
-        return [[SentryAttribute alloc] initWithBoolean:value.toBool()];
+        return [[SentryObjCAttribute alloc] initWithBoolean:value.toBool()];
     case QMetaType::Float:
     case QMetaType::Double:
-        return [[SentryAttribute alloc] initWithDouble:value.toDouble()];
+        return [[SentryObjCAttribute alloc] initWithDouble:value.toDouble()];
     case QMetaType::QString:
-        return [[SentryAttribute alloc] initWithString:nsString(value.toString())];
+        return [[SentryObjCAttribute alloc] initWithString:nsString(value.toString())];
     default:
         break;
     }
 
     if (isSupportedInteger(value)) {
-        return [[SentryAttribute alloc] initWithInteger:static_cast<NSInteger>(value.toLongLong())];
+        return [[SentryObjCAttribute alloc] initWithInteger:static_cast<NSInteger>(value.toLongLong())];
     }
 
-    return [[SentryAttribute alloc] initWithString:nsString(value.toString())];
+    return [[SentryObjCAttribute alloc] initWithString:nsString(value.toString())];
 }
 
-NSDictionary<NSString *, SentryAttribute *> *logAttributesFromVariantMap(const QVariantMap &attributes)
+NSDictionary<NSString *, SentryObjCAttribute *> *logAttributesFromVariantMap(const QVariantMap &attributes)
 {
-    NSMutableDictionary<NSString *, SentryAttribute *> *dictionary =
+    NSMutableDictionary<NSString *, SentryObjCAttribute *> *dictionary =
         [NSMutableDictionary dictionaryWithCapacity:attributes.size()];
     for (auto it = attributes.cbegin(); it != attributes.cend(); ++it) {
         if (!it.key().isEmpty()) {
@@ -569,16 +733,16 @@ SentryObjCAttributeContent *metricAttributeFromVariant(const QVariant &value)
 
     switch (value.metaType().id()) {
     case QMetaType::Bool:
-        return [SentryObjCAttributeContent booleanWithValue:value.toBool()];
+        return [SentryObjCAttributeContent boolean:value.toBool()];
     case QMetaType::Float:
     case QMetaType::Double:
-        return [SentryObjCAttributeContent doubleWithValue:value.toDouble()];
+        return [SentryObjCAttributeContent double:value.toDouble()];
     case QMetaType::QString:
-        return [SentryObjCAttributeContent stringWithValue:nsString(value.toString())];
+        return [SentryObjCAttributeContent string:nsString(value.toString())];
     case QMetaType::QVariantList: {
         const QVariantList list = value.toList();
         if (list.isEmpty()) {
-            return [SentryObjCAttributeContent stringArrayWithValue:@[]];
+            return [SentryObjCAttributeContent stringArray:@[]];
         }
 
         const int firstType = list.first().metaType().id();
@@ -595,47 +759,47 @@ SentryObjCAttributeContent *metricAttributeFromVariant(const QVariant &value)
             for (const QVariant &item : list) {
                 [array addObject:nsString(item.toString())];
             }
-            return [SentryObjCAttributeContent stringArrayWithValue:array];
+            return [SentryObjCAttributeContent stringArray:array];
         }
         if (homogeneous && firstType == QMetaType::Bool) {
             NSMutableArray<NSNumber *> *array = [NSMutableArray arrayWithCapacity:list.size()];
             for (const QVariant &item : list) {
                 [array addObject:@(item.toBool())];
             }
-            return [SentryObjCAttributeContent booleanArrayWithValue:array];
+            return [SentryObjCAttributeContent booleanArray:array];
         }
         if (homogeneous && (firstType == QMetaType::Float || firstType == QMetaType::Double)) {
             NSMutableArray<NSNumber *> *array = [NSMutableArray arrayWithCapacity:list.size()];
             for (const QVariant &item : list) {
                 [array addObject:@(item.toDouble())];
             }
-            return [SentryObjCAttributeContent doubleArrayWithValue:array];
+            return [SentryObjCAttributeContent doubleArray:array];
         }
         if (homogeneous && isSupportedInteger(list.first())) {
             NSMutableArray<NSNumber *> *array = [NSMutableArray arrayWithCapacity:list.size()];
             for (const QVariant &item : list) {
                 [array addObject:@(item.toLongLong())];
             }
-            return [SentryObjCAttributeContent integerArrayWithValue:array];
+            return [SentryObjCAttributeContent integerArray:array];
         }
 
         NSString *json = jsonStringFromObject(arrayFromVariantList(list));
-        return json ? [SentryObjCAttributeContent stringWithValue:json] : nil;
+        return json ? [SentryObjCAttributeContent string:json] : nil;
     }
     default:
         break;
     }
 
     if (isSupportedInteger(value)) {
-        return [SentryObjCAttributeContent integerWithValue:static_cast<NSInteger>(value.toLongLong())];
+        return [SentryObjCAttributeContent integer:static_cast<NSInteger>(value.toLongLong())];
     }
 
     if (value.metaType().id() == QMetaType::QVariantMap) {
         NSString *json = jsonStringFromObject(dictionaryFromVariantMap(value.toMap()));
-        return json ? [SentryObjCAttributeContent stringWithValue:json] : nil;
+        return json ? [SentryObjCAttributeContent string:json] : nil;
     }
 
-    return [SentryObjCAttributeContent stringWithValue:nsString(value.toString())];
+    return [SentryObjCAttributeContent string:nsString(value.toString())];
 }
 
 NSDictionary<NSString *, SentryObjCAttributeContent *> *metricAttributesFromVariantMap(const QVariantMap &attributes)
@@ -654,19 +818,28 @@ NSDictionary<NSString *, SentryObjCAttributeContent *> *metricAttributesFromVari
     return dictionary;
 }
 
-QVariantMap logToVariantMap(SentryLog *log)
+QVariantMap logAttributesToVariantMap(NSDictionary<NSString *, SentryObjCAttribute *> *attributes)
+{
+    QVariantMap map;
+    for (NSString *key in attributes) {
+        map.insert(qtString(key), variantFromObject(attributes[key].value));
+    }
+    return map;
+}
+
+QVariantMap logToVariantMap(SentryObjCLog *log)
 {
     return {
         {QStringLiteral("level"), logLevelName(log.level)},
         {QStringLiteral("message"), qtString(log.body)},
-        {QStringLiteral("attributes"), variantFromObject(log.attributes)},
+        {QStringLiteral("attributes"), logAttributesToVariantMap(log.attributes)},
     };
 }
 
-void applyVariantMapToLog(SentryLog *log, const QVariantMap &map)
+void applyVariantMapToLog(SentryObjCLog *log, const QVariantMap &map)
 {
     if (map.contains(QStringLiteral("level"))) {
-        log.level = logLevelFromInt(map.value(QStringLiteral("level")).toInt());
+        log.level = logLevelFromVariant(map.value(QStringLiteral("level")));
     }
     if (map.contains(QStringLiteral("message"))) {
         log.body = nsString(map.value(QStringLiteral("message")).toString());
@@ -676,16 +849,71 @@ void applyVariantMapToLog(SentryLog *log, const QVariantMap &map)
     }
 }
 
+QVariantMap metricAttributesToVariantMap(NSDictionary<NSString *, SentryObjCAttributeContent *> *attributes)
+{
+    QVariantMap map;
+    for (NSString *key in attributes) {
+        map.insert(qtString(key), variantFromObject(attributes[key].value));
+    }
+    return map;
+}
+
+QString metricValueTypeName(SentryObjCMetricValue *value)
+{
+    if (value.isCounter) {
+        return QStringLiteral("counter");
+    }
+    if (value.isDistribution) {
+        return QStringLiteral("distribution");
+    }
+    return QStringLiteral("gauge");
+}
+
+QVariant metricValueToVariant(SentryObjCMetricValue *value)
+{
+    if (value.isCounter) {
+        return QVariant::fromValue(static_cast<qulonglong>(value.counterValue));
+    }
+    if (value.isDistribution) {
+        return QVariant(value.distributionValue);
+    }
+    return QVariant(value.gaugeValue);
+}
+
+SentryObjCMetricValue *metricValueFromVariant(const QVariant &value,
+                                              const QString &type,
+                                              SentryObjCMetricValue *currentValue)
+{
+    QString normalized = type.trimmed().toLower();
+    if (normalized.isEmpty() && currentValue) {
+        normalized = metricValueTypeName(currentValue);
+    }
+
+    if (normalized == QLatin1String("counter") || (normalized.isEmpty() && currentValue && currentValue.isCounter)) {
+        return [SentryObjCMetricValue counter:static_cast<NSUInteger>(value.toULongLong())];
+    }
+    if (normalized == QLatin1String("distribution")) {
+        return [SentryObjCMetricValue distribution:value.toDouble()];
+    }
+    return [SentryObjCMetricValue gauge:value.toDouble()];
+}
+
+SentryObjCUnit *unitFromString(const QString &unit)
+{
+    return unit.isEmpty() ? nil : [[SentryObjCUnit alloc] initWithRawValue:nsString(unit)];
+}
+
 QVariantMap metricToVariantMap(SentryObjCMetric *metric)
 {
     QVariantMap map = {
         {QStringLiteral("name"), qtString(metric.name)},
-        {QStringLiteral("unit"), qtString(metric.unit)},
-        {QStringLiteral("attributes"), variantFromObject(metric.attributes)},
+        {QStringLiteral("unit"), metric.unit ? qtString(metric.unit.rawValue) : QString()},
+        {QStringLiteral("attributes"), metricAttributesToVariantMap(metric.attributes)},
     };
 
     if (metric.value) {
-        map.insert(QStringLiteral("value"), variantFromObject(metric.value));
+        map.insert(QStringLiteral("type"), metricValueTypeName(metric.value));
+        map.insert(QStringLiteral("value"), metricValueToVariant(metric.value));
     }
 
     return map;
@@ -697,7 +925,12 @@ void applyVariantMapToMetric(SentryObjCMetric *metric, const QVariantMap &map)
         metric.name = nsString(map.value(QStringLiteral("name")).toString());
     }
     if (map.contains(QStringLiteral("unit"))) {
-        metric.unit = nsStringOrNil(map.value(QStringLiteral("unit")).toString());
+        metric.unit = unitFromString(map.value(QStringLiteral("unit")).toString());
+    }
+    if (map.contains(QStringLiteral("value"))) {
+        metric.value = metricValueFromVariant(map.value(QStringLiteral("value")),
+                                              map.value(QStringLiteral("type")).toString(),
+                                              metric.value);
     }
     if (map.contains(QStringLiteral("attributes"))) {
         metric.attributes = metricAttributesFromVariantMap(map.value(QStringLiteral("attributes")).toMap());
@@ -712,13 +945,13 @@ SentryObjCBridge::HookResult runHook(const SentryObjCBridge::Hook &hook, const Q
     return hook(value);
 }
 
-SentryEvent *runEventHook(SentryEvent *event, const SentryObjCBridge::Hook &hook)
+SentryObjCEvent *runEventHook(SentryObjCEvent *event, const SentryObjCBridge::Hook &hook)
 {
     if (!currentRelease.isEmpty()) {
         event.releaseName = nsString(currentRelease);
     }
 
-    const SentryObjCBridge::HookResult result = runHook(hook, variantFromObject([event serialize]));
+    const SentryObjCBridge::HookResult result = runHook(hook, eventToVariantMap(event));
     if (result.action == SentryObjCBridge::HookResult::Drop) {
         return nil;
     }
@@ -728,9 +961,9 @@ SentryEvent *runEventHook(SentryEvent *event, const SentryObjCBridge::Hook &hook
     return event;
 }
 
-SentryBreadcrumb *runBreadcrumbHook(SentryBreadcrumb *breadcrumb, const SentryObjCBridge::Hook &hook)
+SentryObjCBreadcrumb *runBreadcrumbHook(SentryObjCBreadcrumb *breadcrumb, const SentryObjCBridge::Hook &hook)
 {
-    const SentryObjCBridge::HookResult result = runHook(hook, variantFromObject([breadcrumb serialize]));
+    const SentryObjCBridge::HookResult result = runHook(hook, breadcrumbToVariantMap(breadcrumb));
     if (result.action == SentryObjCBridge::HookResult::Drop) {
         return nil;
     }
@@ -740,7 +973,7 @@ SentryBreadcrumb *runBreadcrumbHook(SentryBreadcrumb *breadcrumb, const SentryOb
     return breadcrumb;
 }
 
-SentryLog *runLogHook(SentryLog *log, const SentryObjCBridge::Hook &hook)
+SentryObjCLog *runLogHook(SentryObjCLog *log, const SentryObjCBridge::Hook &hook)
 {
     const SentryObjCBridge::HookResult result = runHook(hook, logToVariantMap(log));
     if (result.action == SentryObjCBridge::HookResult::Drop) {
@@ -764,24 +997,24 @@ SentryObjCMetric *runMetricHook(SentryObjCMetric *metric, const SentryObjCBridge
     return metric;
 }
 
-SentryAttachmentType nativeAttachmentType(const SentryObjCBridge::Attachment &attachment)
+SentryObjCAttachmentType nativeAttachmentType(const SentryObjCBridge::Attachment &attachment)
 {
     if (attachment.attachmentType == SentryObjCBridge::Attachment::ViewHierarchy) {
-        return kSentryAttachmentTypeViewHierarchy;
+        return SentryObjCAttachmentTypeViewHierarchy;
     }
-    return kSentryAttachmentTypeEventAttachment;
+    return SentryObjCAttachmentTypeEventAttachment;
 }
 
-SentryAttachment *nativeAttachment(const SentryObjCBridge::Attachment &attachment)
+SentryObjCAttachment *nativeAttachment(const SentryObjCBridge::Attachment &attachment)
 {
     NSString *filename = nsStringOrNil(attachment.filename);
     NSString *contentType = nsStringOrNil(attachment.contentType);
-    const SentryAttachmentType attachmentType = nativeAttachmentType(attachment);
+    const SentryObjCAttachmentType attachmentType = nativeAttachmentType(attachment);
 
     if (attachment.type == SentryObjCBridge::Attachment::Bytes) {
         NSData *data = [NSData dataWithBytes:attachment.bytes.constData()
                                       length:static_cast<NSUInteger>(attachment.bytes.size())];
-        return [[SentryAttachment alloc] initWithData:data
+        return [[SentryObjCAttachment alloc] initWithData:data
                                              filename:filename ?: @""
                                           contentType:contentType
                                        attachmentType:attachmentType];
@@ -791,17 +1024,17 @@ SentryAttachment *nativeAttachment(const SentryObjCBridge::Attachment &attachmen
     if (!filename) {
         filename = nsString(QFileInfo(nativePath).fileName());
     }
-    return [[SentryAttachment alloc] initWithPath:nsString(nativePath)
+    return [[SentryObjCAttachment alloc] initWithPath:nsString(nativePath)
                                         filename:filename
                                      contentType:contentType
                                   attachmentType:attachmentType];
 }
 
-NSArray<SentryAttachment *> *nativeAttachments(const QList<SentryObjCBridge::Attachment> &attachments)
+NSArray<SentryObjCAttachment *> *nativeAttachments(const QList<SentryObjCBridge::Attachment> &attachments)
 {
-    NSMutableArray<SentryAttachment *> *array = [NSMutableArray arrayWithCapacity:attachments.size()];
+    NSMutableArray<SentryObjCAttachment *> *array = [NSMutableArray arrayWithCapacity:attachments.size()];
     for (const SentryObjCBridge::Attachment &attachment : attachments) {
-        SentryAttachment *native = nativeAttachment(attachment);
+        SentryObjCAttachment *native = nativeAttachment(attachment);
         if (native) {
             [array addObject:native];
         }
@@ -816,7 +1049,7 @@ namespace SentryObjCBridge {
 bool isEnabled()
 {
     @autoreleasepool {
-        return [SentrySDK isEnabled];
+        return [SentryObjCSDK isEnabled];
     }
 }
 
@@ -825,7 +1058,7 @@ bool start(const Options &options)
     @autoreleasepool {
         currentRelease = options.release;
 
-        SentryOptions *nativeOptions = [[SentryOptions alloc] init];
+        SentryObjCOptions *nativeOptions = [[SentryObjCOptions alloc] init];
         nativeOptions.dsn = nsStringOrNil(options.dsn);
         nativeOptions.cacheDirectoryPath = nsStringOrNil(options.databasePath);
         nativeOptions.releaseName = nsStringOrNil(options.release);
@@ -837,7 +1070,7 @@ bool start(const Options &options)
         nativeOptions.enableLogs = options.enableLogs;
         nativeOptions.enableMetrics = options.enableMetrics;
         nativeOptions.enableAutoSessionTracking = options.autoSessionTracking;
-#if SENTRY_OBJC_UIKIT_AVAILABLE
+#if SENTRY_OBJC_HAS_UIKIT
         nativeOptions.attachScreenshot = options.attachScreenshot;
 #endif
         nativeOptions.sampleRate = @(options.sampleRate);
@@ -845,20 +1078,20 @@ bool start(const Options &options)
         nativeOptions.shutdownTimeInterval = static_cast<NSTimeInterval>(options.shutdownTimeout) / 1000.0;
 
         Hook beforeSend = options.beforeSend;
-        nativeOptions.beforeSend = ^SentryEvent *_Nullable(SentryEvent *event) {
+        nativeOptions.beforeSend = ^SentryObjCEvent *_Nullable(SentryObjCEvent *event) {
             return runEventHook(event, beforeSend);
         };
 
         if (options.beforeBreadcrumb) {
             Hook beforeBreadcrumb = options.beforeBreadcrumb;
-            nativeOptions.beforeBreadcrumb = ^SentryBreadcrumb *_Nullable(SentryBreadcrumb *breadcrumb) {
+            nativeOptions.beforeBreadcrumb = ^SentryObjCBreadcrumb *_Nullable(SentryObjCBreadcrumb *breadcrumb) {
                 return runBreadcrumbHook(breadcrumb, beforeBreadcrumb);
             };
         }
 
         if (options.beforeSendLog) {
             Hook beforeSendLog = options.beforeSendLog;
-            nativeOptions.beforeSendLog = ^SentryLog *_Nullable(SentryLog *log) {
+            nativeOptions.beforeSendLog = ^SentryObjCLog *_Nullable(SentryObjCLog *log) {
                 return runLogHook(log, beforeSendLog);
             };
         }
@@ -872,30 +1105,32 @@ bool start(const Options &options)
 
         if (options.onCrash) {
             Hook onCrash = options.onCrash;
-            nativeOptions.onCrashedLastRun = ^(SentryEvent *event) {
-                runEventHook(event, onCrash);
+            nativeOptions.onLastRunStatusDetermined = ^(SentryObjCLastRunStatus status, SentryObjCEvent *_Nullable event) {
+                if (status == SentryObjCLastRunStatusDidCrash && event) {
+                    runEventHook(event, onCrash);
+                }
             };
         }
 
-        [SentrySDK startWithOptions:nativeOptions];
+        [SentryObjCSDK startWithOptions:nativeOptions];
         if (!options.user.isEmpty()) {
-            [SentrySDK setUser:userFromVariantMap(options.user)];
+            [SentryObjCSDK setUser:userFromVariantMap(options.user)];
         }
-        return [SentrySDK isEnabled];
+        return [SentryObjCSDK isEnabled];
     }
 }
 
 void flush(int timeoutMs)
 {
     @autoreleasepool {
-        [SentrySDK flush:static_cast<NSTimeInterval>(timeoutMs < 0 ? 0 : timeoutMs) / 1000.0];
+        [SentryObjCSDK flush:static_cast<NSTimeInterval>(timeoutMs < 0 ? 0 : timeoutMs) / 1000.0];
     }
 }
 
 void close()
 {
     @autoreleasepool {
-        [SentrySDK close];
+        [SentryObjCSDK close];
     }
 }
 
@@ -907,7 +1142,7 @@ void setRelease(const QString &release)
 void setEnvironment(const QString &environment)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setEnvironment:nsStringOrNil(environment)];
         }];
     }
@@ -916,22 +1151,22 @@ void setEnvironment(const QString &environment)
 void setUser(const QVariantMap &user)
 {
     @autoreleasepool {
-        SentryUser *nativeUser = userFromVariantMap(user);
-        [SentrySDK setUser:nativeUser];
+        SentryObjCUser *nativeUser = userFromVariantMap(user);
+        [SentryObjCSDK setUser:nativeUser];
     }
 }
 
 void removeUser()
 {
     @autoreleasepool {
-        [SentrySDK setUser:nil];
+        [SentryObjCSDK setUser:nil];
     }
 }
 
 void setTag(const QString &key, const QString &value)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setTagValue:nsString(value) forKey:nsString(key)];
         }];
     }
@@ -940,7 +1175,7 @@ void setTag(const QString &key, const QString &value)
 void removeTag(const QString &key)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope removeTagForKey:nsString(key)];
         }];
     }
@@ -949,7 +1184,7 @@ void removeTag(const QString &key)
 void setContext(const QString &key, const QVariantMap &context)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setContextValue:dictionaryFromVariantMap(context) forKey:nsString(key)];
         }];
     }
@@ -958,7 +1193,7 @@ void setContext(const QString &key, const QVariantMap &context)
 void removeContext(const QString &key)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope removeContextForKey:nsString(key)];
         }];
     }
@@ -968,7 +1203,7 @@ void setAttribute(const QString &key, const QVariant &value)
 {
     @autoreleasepool {
         id nativeValue = objectFromVariant(value);
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setAttributeValue:nativeValue forKey:nsString(key)];
         }];
     }
@@ -977,7 +1212,7 @@ void setAttribute(const QString &key, const QVariant &value)
 void removeAttribute(const QString &key)
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope removeAttributeForKey:nsString(key)];
         }];
     }
@@ -987,7 +1222,7 @@ void setFingerprint(const QStringList &fingerprint)
 {
     @autoreleasepool {
         NSArray<NSString *> *nativeFingerprint = stringArrayFromStringList(fingerprint);
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setFingerprint:nativeFingerprint];
         }];
     }
@@ -996,7 +1231,7 @@ void setFingerprint(const QStringList &fingerprint)
 void clearFingerprint()
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope setFingerprint:nil];
         }];
     }
@@ -1005,10 +1240,10 @@ void clearFingerprint()
 void setAttachments(const QList<Attachment> &attachments)
 {
     @autoreleasepool {
-        NSArray<SentryAttachment *> *native = nativeAttachments(attachments);
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        NSArray<SentryObjCAttachment *> *native = nativeAttachments(attachments);
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope clearAttachments];
-            for (SentryAttachment *attachment in native) {
+            for (SentryObjCAttachment *attachment in native) {
                 [scope addAttachment:attachment];
             }
         }];
@@ -1018,7 +1253,7 @@ void setAttachments(const QList<Attachment> &attachments)
 void clearAttachments()
 {
     @autoreleasepool {
-        [SentrySDK configureScope:^(SentryScope *scope) {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
             [scope clearAttachments];
         }];
     }
@@ -1027,46 +1262,46 @@ void clearAttachments()
 void startSession()
 {
     @autoreleasepool {
-        [SentrySDK startSession];
+        [SentryObjCSDK startSession];
     }
 }
 
 void endSession()
 {
     @autoreleasepool {
-        [SentrySDK endSession];
+        [SentryObjCSDK endSession];
     }
 }
 
 void addBreadcrumb(const QVariantMap &breadcrumb)
 {
     @autoreleasepool {
-        [SentrySDK addBreadcrumb:breadcrumbFromVariantMap(breadcrumb)];
+        [SentryObjCSDK addBreadcrumb:breadcrumbFromVariantMap(breadcrumb)];
     }
 }
 
 void log(int level, const QString &message, const QVariantMap &attributes)
 {
     @autoreleasepool {
-        NSDictionary<NSString *, SentryAttribute *> *nativeAttributes = logAttributesFromVariantMap(attributes);
-        SentryLogger *logger = [SentrySDK logger];
+        NSDictionary<NSString *, SentryObjCAttribute *> *nativeAttributes = logAttributesFromVariantMap(attributes);
+        SentryObjCLogger *logger = [SentryObjCSDK logger];
         switch (logLevelFromInt(level)) {
-        case SentryLogLevelTrace:
+        case SentryObjCLogLevelTrace:
             [logger trace:nsString(message) attributes:nativeAttributes];
             break;
-        case SentryLogLevelDebug:
+        case SentryObjCLogLevelDebug:
             [logger debug:nsString(message) attributes:nativeAttributes];
             break;
-        case SentryLogLevelWarn:
+        case SentryObjCLogLevelWarn:
             [logger warn:nsString(message) attributes:nativeAttributes];
             break;
-        case SentryLogLevelError:
+        case SentryObjCLogLevelError:
             [logger error:nsString(message) attributes:nativeAttributes];
             break;
-        case SentryLogLevelFatal:
+        case SentryObjCLogLevelFatal:
             [logger fatal:nsString(message) attributes:nativeAttributes];
             break;
-        case SentryLogLevelInfo:
+        case SentryObjCLogLevelInfo:
         default:
             [logger info:nsString(message) attributes:nativeAttributes];
             break;
@@ -1077,7 +1312,7 @@ void log(int level, const QString &message, const QVariantMap &attributes)
 void count(const QString &name, quint64 value, const QVariantMap &attributes)
 {
     @autoreleasepool {
-        [[SentrySDK metrics] countWithKey:nsString(name)
+        [[SentryObjCSDK metrics] countWithKey:nsString(name)
                                     value:static_cast<NSUInteger>(value)
                                attributes:metricAttributesFromVariantMap(attributes)];
     }
@@ -1086,9 +1321,9 @@ void count(const QString &name, quint64 value, const QVariantMap &attributes)
 void gauge(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
 {
     @autoreleasepool {
-        [[SentrySDK metrics] gaugeWithKey:nsString(name)
+        [[SentryObjCSDK metrics] gaugeWithKey:nsString(name)
                                     value:value
-                                     unit:nsStringOrNil(unit)
+                                     unit:unitFromString(unit)
                                attributes:metricAttributesFromVariantMap(attributes)];
     }
 }
@@ -1096,9 +1331,9 @@ void gauge(const QString &name, double value, const QString &unit, const QVarian
 void distribution(const QString &name, double value, const QString &unit, const QVariantMap &attributes)
 {
     @autoreleasepool {
-        [[SentrySDK metrics] distributionWithKey:nsString(name)
+        [[SentryObjCSDK metrics] distributionWithKey:nsString(name)
                                            value:value
-                                            unit:nsStringOrNil(unit)
+                                            unit:unitFromString(unit)
                                       attributes:metricAttributesFromVariantMap(attributes)];
     }
 }
@@ -1113,19 +1348,19 @@ QString captureEvent(const QVariantMap &event,
                      const QList<Attachment> &attachments)
 {
     @autoreleasepool {
-        SentryEvent *nativeEvent = eventFromVariantMap(event);
-        SentryId *eventId = nil;
+        SentryObjCEvent *nativeEvent = eventFromVariantMap(event);
+        SentryObjCId *eventId = nil;
         if (fingerprint.isEmpty() && attachments.isEmpty()) {
-            eventId = [SentrySDK captureEvent:nativeEvent];
+            eventId = [SentryObjCSDK captureEvent:nativeEvent];
         } else {
             NSArray<NSString *> *nativeFingerprint = stringArrayFromStringList(fingerprint);
-            NSArray<SentryAttachment *> *nativeEventAttachments = nativeAttachments(attachments);
-            eventId = [SentrySDK captureEvent:nativeEvent
-                               withScopeBlock:^(SentryScope *scope) {
+            NSArray<SentryObjCAttachment *> *nativeEventAttachments = nativeAttachments(attachments);
+            eventId = [SentryObjCSDK captureEvent:nativeEvent
+                               withScopeBlock:^(SentryObjCScope *scope) {
                                    if (nativeFingerprint.count > 0) {
                                        [scope setFingerprint:nativeFingerprint];
                                    }
-                                   for (SentryAttachment *attachment in nativeEventAttachments) {
+                                   for (SentryObjCAttachment *attachment in nativeEventAttachments) {
                                        [scope addAttachment:attachment];
                                    }
                                }];
@@ -1147,15 +1382,14 @@ void captureFeedback(const QVariantMap &feedback, const QList<Attachment> &attac
                                                     QStringLiteral("associatedEventId"),
                                                     QStringLiteral("associated_event_id"),
                                                     QStringLiteral("eventId"));
-        SentryId *nativeAssociatedEventId =
-            associatedEventId ? [[SentryId alloc] initWithUUIDString:associatedEventId] : nil;
-        SentryFeedback *nativeFeedback = [[SentryFeedback alloc] initWithMessage:message ?: @""
-                                                                           name:name
-                                                                          email:email
-                                                                         source:SentryFeedbackSourceCustom
-                                                              associatedEventId:nativeAssociatedEventId
-                                                                    attachments:nativeAttachments(attachments)];
-        [SentrySDK captureFeedback:nativeFeedback];
+        SentryObjCId *nativeAssociatedEventId =
+            associatedEventId ? [[SentryObjCId alloc] initWithUUIDString:associatedEventId] : nil;
+        [SentryObjCSDK captureFeedbackWithMessage:message ?: @""
+                                             name:name
+                                            email:email
+                                           source:SentryObjCFeedbackSourceCustom
+                                associatedEventId:nativeAssociatedEventId
+                                      attachments:nativeAttachments(attachments)];
     }
 }
 

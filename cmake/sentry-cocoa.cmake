@@ -23,13 +23,11 @@ string(REPLACE "," ";" sentry_cocoa_sdks "${SENTRY_COCOA_SDKS}")
 set(sentry_cocoa_frameworks
     Sentry
     SentryObjC
-    SentryObjCBridge
-    SentryObjCTypes
+    SentryObjCCompat
 )
 set(sentry_cocoa_dependency_frameworks
     Sentry
-    SentryObjCBridge
-    SentryObjCTypes
+    SentryObjCCompat
 )
 
 function(configure_sentry_cocoa_sdk sdk out_slice out_architectures out_destination)
@@ -76,19 +74,11 @@ function(copy_sentry_cocoa_modules source_framework dest_framework)
     endif()
 endfunction()
 
-function(copy_sentry_cocoa_type_headers sentry_objc_framework)
-    if(EXISTS "${sentry_objc_framework}/Versions/A/Headers")
-        set(headers_dir "${sentry_objc_framework}/Versions/A/Headers")
-    else()
-        set(headers_dir "${sentry_objc_framework}/Headers")
-    endif()
-
-    file(GLOB sentry_cocoa_type_headers
-        "${SENTRY_COCOA_SOURCE_DIR}/Sources/SentryObjCTypes/Public/*.h"
+function(remove_sentry_cocoa_nested_frameworks framework_dir)
+    file(REMOVE_RECURSE
+        "${framework_dir}/Frameworks"
+        "${framework_dir}/Versions/A/Frameworks"
     )
-    if(sentry_cocoa_type_headers)
-        file(COPY ${sentry_cocoa_type_headers} DESTINATION "${headers_dir}")
-    endif()
 endfunction()
 
 set(sentry_cocoa_required_outputs)
@@ -300,9 +290,10 @@ foreach(sentry_cocoa_sdk IN LISTS sentry_cocoa_sdks)
             "${sentry_cocoa_slice_binary}"
             COPYONLY
         )
+        if(sentry_cocoa_framework_name STREQUAL "SentryObjC")
+            remove_sentry_cocoa_nested_frameworks("${sentry_cocoa_slice_framework}")
+        endif()
     endforeach()
-
-    copy_sentry_cocoa_type_headers("${sentry_cocoa_slice_build_dir}/SentryObjC.framework")
 
     list(APPEND sentry_cocoa_create_xcframework_args
         -framework "${sentry_cocoa_slice_build_dir}/SentryObjC.framework"

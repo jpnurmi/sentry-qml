@@ -538,7 +538,7 @@ jobs:
           reporter: java-junit
 
   ios:
-    name: iOS (Qt ${{ matrix.qt.track }})
+    name: iOS (Qt ${{ matrix.qt.track }}, simulator)
     runs-on: macos-15-intel
     timeout-minutes: 60
     strategy:
@@ -616,9 +616,9 @@ jobs:
         if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
         run: |
           cd modules/sentry-cocoa
-          ./scripts/build-xcframework-local.sh iOSOnly SentryObjCOnly
+          ./scripts/build-xcframework-sentryobjc.sh --sdks iphoneos,iphonesimulator --variant dynamic
           mkdir -p "$RUNNER_TEMP/sentry-cocoa"
-          ditto -x -k XCFrameworkBuildPath/SentryObjC-Dynamic.xcframework.zip "$RUNNER_TEMP/sentry-cocoa"
+          ditto SentryObjC-Dynamic.xcframework "$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework"
 
       - name: Save SentryObjC iOS XCFramework
         if: steps.sentryobjc-cache.outputs.cache-hit != 'true'

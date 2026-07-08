@@ -336,7 +336,7 @@ jobs:
 
       - name: Save Emscripten cache
         if: matrix.sentry_backend == 'Wasm' && steps.emsdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             emsdk/.emscripten
@@ -373,7 +373,7 @@ jobs:
 
       - name: Save SentryObjC iOS XCFramework
         if: matrix.qt.target == 'ios' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sentry-cocoa
           key: ${{ steps.sentryobjc-cache-key.outputs.key }}
@@ -413,7 +413,7 @@ jobs:
 
       - name: Save Gradle cache
         if: matrix.sentry_backend == 'Android' && steps.gradle-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
@@ -435,7 +435,7 @@ jobs:
 
       - name: Save WebAssembly npm cache
         if: matrix.sentry_backend == 'Wasm' && steps.wasm-npm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
           key: ${{ steps.wasm-npm-cache.outputs.cache-primary-key }}
@@ -460,7 +460,7 @@ jobs:
 
       - name: Save WebAssembly browser cache
         if: matrix.sentry_backend == 'Wasm' && steps.wasm-browser-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.wasm-browser-cache.outputs.cache-primary-key }}

@@ -133,14 +133,14 @@ jobs:
 
       - name: Save Sentry Native cache
         if: ${{ contains(fromJSON('["Native", "Inproc", "Crashpad", "Breakpad"]'), matrix.sentry_backend) && steps.sentry-native-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/sentry-native
           key: ${{ steps.sentry-native-cache.outputs.cache-primary-key }}
 
       - name: Save SentryObjC cache
         if: matrix.sentry_backend == 'Cocoa' && steps.sentryobjc-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/sentry-cocoa
           key: ${{ steps.sentryobjc-cache.outputs.cache-primary-key }}
@@ -302,7 +302,7 @@ jobs:
 
       - name: Save Emscripten cache
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             emsdk/.emscripten
@@ -348,7 +348,7 @@ jobs:
 
       - name: Save WebAssembly npm cache
         if: steps.wasm-npm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
           key: ${{ steps.wasm-npm-cache.outputs.cache-primary-key }}
@@ -370,7 +370,7 @@ jobs:
 
       - name: Save WebAssembly browser cache
         if: steps.wasm-browser-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.wasm-browser-cache.outputs.cache-primary-key }}
@@ -494,7 +494,7 @@ jobs:
 
       - name: Save Gradle cache
         if: steps.gradle-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
@@ -622,7 +622,7 @@ jobs:
 
       - name: Save SentryObjC iOS XCFramework
         if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/sentry-cocoa
           key: ${{ steps.sentryobjc-cache-key.outputs.key }}

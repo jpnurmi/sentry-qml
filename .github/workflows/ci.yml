@@ -615,18 +615,9 @@ jobs:
       - name: Build SentryObjC iOS XCFramework
         if: steps.sentryobjc-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p "$RUNNER_TEMP/sentry-cocoa"
-          cmake \
-            -DSENTRY_COCOA_SOURCE_DIR="$GITHUB_WORKSPACE/modules/sentry-cocoa" \
-            -DSENTRY_COCOA_BUILD_DIR="$RUNNER_TEMP/sentry-cocoa-build" \
-            -DSENTRY_COCOA_XCFRAMEWORK="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework" \
-            -DSENTRY_COCOA_STAMP_FILE="$RUNNER_TEMP/sentry-cocoa/SentryObjC-Dynamic.xcframework.stamp" \
-            -DSENTRY_COCOA_XCODEBUILD="$(xcrun -find xcodebuild)" \
-            -DSENTRY_COCOA_LIPO="$(xcrun -find lipo)" \
-            -DSENTRY_COCOA_SDKS=iphoneos,iphonesimulator \
-            -DSENTRY_COCOA_IOS_DEPLOYMENT_TARGET=15.0 \
-            -DSENTRY_COCOA_BUILD_RECIPE=7 \
-            -P cmake/sentry-cocoa.cmake
+          scripts/build-sentryobjc.sh \
+            --sdks iphoneos,iphonesimulator \
+            --output-dir "$RUNNER_TEMP/sentry-cocoa"
 
       - name: Save SentryObjC iOS XCFramework
         if: steps.sentryobjc-cache.outputs.cache-hit != 'true'

@@ -19,6 +19,11 @@ set_source_files_properties(AppTheme.qml
         QT_QML_SINGLETON_TYPE TRUE
 )
 
+set_source_files_properties(Tracing.qml
+    PROPERTIES
+        QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(sentry_qml_example
     URI SentryQmlExample
     VERSION 1.0
@@ -42,6 +47,7 @@ qt_add_qml_module(sentry_qml_example
         RuntimePage.qml
         ScopeEditorPopup.qml
         StatusBanner.qml
+        Tracing.qml
     RESOURCES
         sentry-glyph.svg
 )

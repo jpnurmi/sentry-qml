@@ -51,7 +51,7 @@ Item {
         attachScreenshot: AppState.screenshotEnabled
         attachViewHierarchy: AppState.viewHierarchyEnabled
         sampleRate: AppState.sampleRate
-        tracesSampleRate: AppState.tracingEnabled ? AppState.tracesSampleRate : -1.0
+        tracesSampleRate: AppState.tracesSampleRate
         tracePropagationTargets: page.tracePropagationTargets()
         orgId: AppState.orgId
         strictTraceContinuation: AppState.strictTraceContinuation
@@ -71,7 +71,7 @@ Item {
         }
         tracesSampler: function (context) {
             console.log("### tracesSampler");
-            return AppState.tracingEnabled ? AppState.tracesSampleRate : 0.0;
+            return AppState.tracesSampleRate;
         }
         beforeSendTransaction: function (transaction) {
             console.log("### beforeSendTransaction");
@@ -264,7 +264,7 @@ Item {
 
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: AppTheme.compact ? 1 : 4
+                        columns: AppTheme.compact ? 1 : 3
                         flow: GridLayout.LeftToRight
                         uniformCellWidths: !AppTheme.compact
                         rowSpacing: AppTheme.formSpacing
@@ -289,13 +289,6 @@ Item {
                             checked: AppState.metricsEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.metricsEnabled = checked
-                        }
-
-                        CheckBox {
-                            text: qsTr("Tracing")
-                            checked: AppState.tracingEnabled
-                            Layout.fillWidth: true
-                            onToggled: AppState.tracingEnabled = checked
                         }
 
                         CheckBox {

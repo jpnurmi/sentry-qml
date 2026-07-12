@@ -366,6 +366,9 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (typeof options.enableMetrics === "boolean") {
                 sentryOptions.enableMetrics = options.enableMetrics;
             }
+            if (typeof options.sendClientReports === "boolean") {
+                sentryOptions.sendClientReports = options.sendClientReports;
+            }
             if (typeof options.autoSessionTracking === "boolean") {
                 sentryOptions.autoSessionTracking = options.autoSessionTracking;
             }
@@ -1662,6 +1665,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("debug"), options->debug()},
         {QStringLiteral("enableLogs"), options->enableLogs()},
         {QStringLiteral("enableMetrics"), options->enableMetrics()},
+        {QStringLiteral("sendClientReports"), options->sendClientReports()},
         {QStringLiteral("autoSessionTracking"), options->autoSessionTracking()},
         {QStringLiteral("requireUserConsent"), options->requireUserConsent()},
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},

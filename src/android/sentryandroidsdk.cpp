@@ -833,6 +833,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("debug"), options->debug()},
         {QStringLiteral("enableLogs"), options->enableLogs()},
         {QStringLiteral("enableMetrics"), options->enableMetrics()},
+        {QStringLiteral("sendClientReports"), options->sendClientReports()},
         {QStringLiteral("autoSessionTracking"), options->autoSessionTracking()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
         {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},

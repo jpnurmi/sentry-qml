@@ -142,6 +142,21 @@ void SentryOptions::setEnableMetrics(bool enableMetrics)
     emit enableMetricsChanged();
 }
 
+bool SentryOptions::sendClientReports() const
+{
+    return m_sendClientReports;
+}
+
+void SentryOptions::setSendClientReports(bool sendClientReports)
+{
+    if (m_sendClientReports == sendClientReports) {
+        return;
+    }
+
+    m_sendClientReports = sendClientReports;
+    emit sendClientReportsChanged();
+}
+
 bool SentryOptions::autoSessionTracking() const
 {
     return m_autoSessionTracking;

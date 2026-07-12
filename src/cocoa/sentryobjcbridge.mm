@@ -1295,6 +1295,7 @@ bool start(const Options &options)
         nativeOptions.debug = options.debug;
         nativeOptions.enableLogs = options.enableLogs;
         nativeOptions.enableMetrics = options.enableMetrics;
+        nativeOptions.sendClientReports = options.sendClientReports;
         nativeOptions.enableAutoSessionTracking = options.autoSessionTracking;
 #if SENTRY_OBJC_HAS_UIKIT
         nativeOptions.attachScreenshot = options.attachScreenshot;

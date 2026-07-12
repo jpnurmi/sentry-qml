@@ -495,6 +495,28 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'Client reports disabled' {
+        BeforeAll {
+            $script:ClientReportsMessage = "Sentry QML E2E client reports $script:RunId"
+            $script:ClientReportsResult = Invoke-E2EAction -Action 'client-reports-disabled'
+            $script:ClientReportsEventIds = Get-EventIds -AppOutput $script:ClientReportsResult.Output -ExpectedCount 1
+            $script:ClientReportsEvent = Get-SentryTestEvent `
+                -EventId $script:ClientReportsEventIds[0] `
+                -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            Assert-CleanExit -Result $script:ClientReportsResult
+        }
+
+        It 'captures an event with client reports disabled' {
+            $script:ClientReportsEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:ClientReportsEvent -Name 'title' | Should -Be $script:ClientReportsMessage
+            Get-TagValue -SentryEvent $script:ClientReportsEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:ClientReportsEvent -Key 'test.action' | Should -Be 'client-reports-disabled'
+        }
+    }
+
     Context 'User consent' -Skip:$IsCocoa {
         BeforeAll {
             $script:ConsentMessage = "Sentry QML E2E consent $script:RunId"

@@ -30,6 +30,7 @@ QtObject {
     property bool debugEnabled: false
     property bool logsEnabled: true
     property bool metricsEnabled: true
+    property bool clientReportsEnabled: true
     property real tracesSampleRate: 1.0
     property string tracePropagationTargets: qsTr("localhost,127.0.0.1")
     property string orgId: ""
@@ -67,6 +68,7 @@ QtObject {
         property alias debug: state.debugEnabled
         property alias logs: state.logsEnabled
         property alias metrics: state.metricsEnabled
+        property alias clientReports: state.clientReportsEnabled
         property alias tracesSampleRate: state.tracesSampleRate
         property alias tracePropagationTargets: state.tracePropagationTargets
         property alias orgId: state.orgId

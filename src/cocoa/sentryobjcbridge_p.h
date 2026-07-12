@@ -58,6 +58,7 @@ struct Options
     bool debug = false;
     bool enableLogs = true;
     bool enableMetrics = true;
+    bool sendClientReports = true;
     bool autoSessionTracking = true;
     bool attachScreenshot = false;
     double sampleRate = 1.0;

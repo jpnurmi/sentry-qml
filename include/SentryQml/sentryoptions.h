@@ -23,6 +23,7 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool debug READ debug WRITE setDebug NOTIFY debugChanged)
     Q_PROPERTY(bool enableLogs READ enableLogs WRITE setEnableLogs NOTIFY enableLogsChanged)
     Q_PROPERTY(bool enableMetrics READ enableMetrics WRITE setEnableMetrics NOTIFY enableMetricsChanged)
+    Q_PROPERTY(bool sendClientReports READ sendClientReports WRITE setSendClientReports NOTIFY sendClientReportsChanged)
     Q_PROPERTY(bool autoSessionTracking READ autoSessionTracking WRITE setAutoSessionTracking NOTIFY autoSessionTrackingChanged)
     Q_PROPERTY(bool requireUserConsent READ requireUserConsent WRITE setRequireUserConsent NOTIFY requireUserConsentChanged)
     Q_PROPERTY(bool attachScreenshot READ attachScreenshot WRITE setAttachScreenshot NOTIFY attachScreenshotChanged)
@@ -72,6 +73,9 @@ public:
 
     bool enableMetrics() const;
     void setEnableMetrics(bool enableMetrics);
+
+    bool sendClientReports() const;
+    void setSendClientReports(bool sendClientReports);
 
     bool autoSessionTracking() const;
     void setAutoSessionTracking(bool autoSessionTracking);
@@ -140,6 +144,7 @@ signals:
     void debugChanged();
     void enableLogsChanged();
     void enableMetricsChanged();
+    void sendClientReportsChanged();
     void autoSessionTrackingChanged();
     void requireUserConsentChanged();
     void attachScreenshotChanged();
@@ -170,6 +175,7 @@ private:
     bool m_debug = false;
     bool m_enableLogs = true;
     bool m_enableMetrics = true;
+    bool m_sendClientReports = true;
     bool m_autoSessionTracking = true;
     bool m_requireUserConsent = false;
     bool m_attachScreenshot = false;

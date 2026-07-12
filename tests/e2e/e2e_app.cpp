@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     if (action.isEmpty()) {
         qCritical("usage: sentry_qml_e2e_app "
                   "<message-capture|consent-capture|feedback-capture|screenshot-capture|view-hierarchy-capture|"
-                  "attributes-capture|tracing-capture|crash-capture|crash-send> "
+                  "client-reports-disabled|attributes-capture|tracing-capture|crash-capture|crash-send> "
                   "[--dsn <dsn>] [--run-id <id>] [--database-path <path>] [--crash-id <id>]");
         return 64;
     }
@@ -266,7 +266,8 @@ int main(int argc, char *argv[])
 
     if (action == QLatin1String("message-capture") || action == QLatin1String("consent-capture")
         || action == QLatin1String("feedback-capture") || action == QLatin1String("screenshot-capture")
-        || action == QLatin1String("view-hierarchy-capture")) {
+        || action == QLatin1String("view-hierarchy-capture")
+        || action == QLatin1String("client-reports-disabled")) {
 #if defined(Q_OS_WASM)
         if (action == QLatin1String("screenshot-capture")) {
             ActionResultReporter reporter(object.get(), action, &app);

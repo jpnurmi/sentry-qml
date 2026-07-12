@@ -49,6 +49,7 @@ Window {
     property string screenshotMessage: "Sentry QML E2E screenshot " + testRunId
     property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
     property string tracingMessage: "Sentry QML E2E tracing " + testRunId
+    property string clientReportsMessage: "Sentry QML E2E client reports " + testRunId
     property SentryHint feedbackHint: SentryHint {}
     property var transaction: null
     property var span: null
@@ -61,6 +62,7 @@ Window {
         environment: "ci"
         shutdownTimeout: 5000
         autoSessionTracking: false
+        sendClientReports: testAction !== "client-reports-disabled"
         requireUserConsent: testAction === "consent-capture"
         enableLogs: testAction === "attributes-capture"
         enableMetrics: testAction === "attributes-capture"
@@ -159,6 +161,11 @@ Window {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && eventId !== "" && flushed && closed
+        } else if (testAction === "client-reports-disabled") {
+            eventId = Sentry.captureMessage(clientReportsMessage, "info")
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized && !options.sendClientReports && eventId !== "" && flushed && closed
         } else if (testAction === "consent-capture") {
             consentRequired = Sentry.userConsentRequired
             consentInitiallyUnknown = Sentry.userConsent === Sentry.UserConsentUnknown

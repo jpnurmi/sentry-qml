@@ -70,6 +70,9 @@ public final class SentryQmlBridge {
                 if (json.has("enableMetrics")) {
                     options.getMetrics().setEnabled(json.optBoolean("enableMetrics"));
                 }
+                if (json.has("sendClientReports")) {
+                    options.setSendClientReports(json.optBoolean("sendClientReports"));
+                }
                 if (json.has("autoSessionTracking")) {
                     options.setEnableAutoSessionTracking(json.optBoolean("autoSessionTracking"));
                 }

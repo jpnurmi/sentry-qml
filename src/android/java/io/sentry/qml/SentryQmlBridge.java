@@ -7,6 +7,7 @@ import io.sentry.Attachment;
 import io.sentry.BaggageHeader;
 import io.sentry.Breadcrumb;
 import io.sentry.CustomSamplingContext;
+import io.sentry.DataCategory;
 import io.sentry.Hint;
 import io.sentry.ISerializer;
 import io.sentry.ISpan;
@@ -23,6 +24,7 @@ import io.sentry.TransactionContext;
 import io.sentry.TransactionOptions;
 import io.sentry.TracesSamplingDecision;
 import io.sentry.android.core.SentryAndroid;
+import io.sentry.clientreport.DiscardReason;
 import io.sentry.logger.SentryLogParameters;
 import io.sentry.metrics.SentryMetricsParameters;
 import io.sentry.protocol.Feedback;
@@ -535,6 +537,19 @@ public final class SentryQmlBridge {
         } catch (Throwable t) {
             Log.e(TAG, "Could not capture event.", t);
             return "";
+        }
+    }
+
+    public static boolean recordBeforeSendError() {
+        try {
+            Sentry.getCurrentScopes()
+                    .getOptions()
+                    .getClientReportRecorder()
+                    .recordLostEvent(DiscardReason.BEFORE_SEND, DataCategory.Error);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not record beforeSend client report.", t);
+            return false;
         }
     }
 

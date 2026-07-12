@@ -61,12 +61,17 @@ struct Options
     bool autoSessionTracking = true;
     bool attachScreenshot = false;
     double sampleRate = 1.0;
+    double tracesSampleRate = -1.0;
+    QStringList tracePropagationTargets;
+    QString orgId;
+    bool strictTraceContinuation = false;
     int maxBreadcrumbs = 100;
     int shutdownTimeout = 2000;
     Hook beforeBreadcrumb;
     Hook beforeSendLog;
     Hook beforeSendMetric;
     Hook beforeSend;
+    Hook tracesSampler;
     Hook onCrash;
 };
 
@@ -96,6 +101,23 @@ void log(int level, const QString &message, const QVariantMap &attributes);
 void count(const QString &name, quint64 value, const QVariantMap &attributes);
 void gauge(const QString &name, double value, const QString &unit, const QVariantMap &attributes);
 void distribution(const QString &name, double value, const QString &unit, const QVariantMap &attributes);
+void *startTransaction(const QString &name,
+                       const QString &operation,
+                       const QString &description,
+                       bool bindToScope,
+                       const QVariantMap &customSamplingContext);
+void *startSpan(void *parentSpan,
+                const QString &operation,
+                const QString &description,
+                bool bindToScope);
+void finishSpan(void *span, const QString &status);
+void setSpanStatus(void *span, const QString &status);
+void setSpanData(void *span, const QString &key, const QVariant &value);
+void removeSpanData(void *span, const QString &key);
+void setSpanTag(void *span, const QString &key, const QString &value);
+void removeSpanTag(void *span, const QString &key);
+QVariantMap spanTraceHeaders(void *span);
+void releaseSpan(void *span);
 QString captureEvent(const QVariantMap &event, const QStringList &fingerprint);
 QString captureEvent(const QVariantMap &event,
                      const QStringList &fingerprint,

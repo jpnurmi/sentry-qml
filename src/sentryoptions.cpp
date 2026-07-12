@@ -217,6 +217,66 @@ void SentryOptions::setSampleRate(double sampleRate)
     emit sampleRateChanged();
 }
 
+double SentryOptions::tracesSampleRate() const
+{
+    return m_tracesSampleRate;
+}
+
+void SentryOptions::setTracesSampleRate(double tracesSampleRate)
+{
+    if (qFuzzyCompare(m_tracesSampleRate, tracesSampleRate)) {
+        return;
+    }
+
+    m_tracesSampleRate = tracesSampleRate;
+    emit tracesSampleRateChanged();
+}
+
+QStringList SentryOptions::tracePropagationTargets() const
+{
+    return m_tracePropagationTargets;
+}
+
+void SentryOptions::setTracePropagationTargets(const QStringList &tracePropagationTargets)
+{
+    if (m_tracePropagationTargets == tracePropagationTargets) {
+        return;
+    }
+
+    m_tracePropagationTargets = tracePropagationTargets;
+    emit tracePropagationTargetsChanged();
+}
+
+QString SentryOptions::orgId() const
+{
+    return m_orgId;
+}
+
+void SentryOptions::setOrgId(const QString &orgId)
+{
+    if (m_orgId == orgId) {
+        return;
+    }
+
+    m_orgId = orgId;
+    emit orgIdChanged();
+}
+
+bool SentryOptions::strictTraceContinuation() const
+{
+    return m_strictTraceContinuation;
+}
+
+void SentryOptions::setStrictTraceContinuation(bool strictTraceContinuation)
+{
+    if (m_strictTraceContinuation == strictTraceContinuation) {
+        return;
+    }
+
+    m_strictTraceContinuation = strictTraceContinuation;
+    emit strictTraceContinuationChanged();
+}
+
 int SentryOptions::maxBreadcrumbs() const
 {
     return m_maxBreadcrumbs;
@@ -289,6 +349,39 @@ void SentryOptions::setBeforeSend(const QJSValue &beforeSend)
 {
     m_beforeSend = beforeSend;
     emit beforeSendChanged();
+}
+
+QJSValue SentryOptions::beforeSendTransaction() const
+{
+    return m_beforeSendTransaction;
+}
+
+void SentryOptions::setBeforeSendTransaction(const QJSValue &beforeSendTransaction)
+{
+    m_beforeSendTransaction = beforeSendTransaction;
+    emit beforeSendTransactionChanged();
+}
+
+QJSValue SentryOptions::beforeSendSpan() const
+{
+    return m_beforeSendSpan;
+}
+
+void SentryOptions::setBeforeSendSpan(const QJSValue &beforeSendSpan)
+{
+    m_beforeSendSpan = beforeSendSpan;
+    emit beforeSendSpanChanged();
+}
+
+QJSValue SentryOptions::tracesSampler() const
+{
+    return m_tracesSampler;
+}
+
+void SentryOptions::setTracesSampler(const QJSValue &tracesSampler)
+{
+    m_tracesSampler = tracesSampler;
+    emit tracesSamplerChanged();
 }
 
 QJSValue SentryOptions::onCrash() const

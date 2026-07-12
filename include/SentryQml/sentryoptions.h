@@ -5,6 +5,7 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qstringlist.h>
 #include <QtQml/qjsvalue.h>
 #include <QtQml/qqmlengine.h>
 
@@ -27,12 +28,19 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool attachScreenshot READ attachScreenshot WRITE setAttachScreenshot NOTIFY attachScreenshotChanged)
     Q_PROPERTY(bool attachViewHierarchy READ attachViewHierarchy WRITE setAttachViewHierarchy NOTIFY attachViewHierarchyChanged)
     Q_PROPERTY(double sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
+    Q_PROPERTY(double tracesSampleRate READ tracesSampleRate WRITE setTracesSampleRate NOTIFY tracesSampleRateChanged)
+    Q_PROPERTY(QStringList tracePropagationTargets READ tracePropagationTargets WRITE setTracePropagationTargets NOTIFY tracePropagationTargetsChanged)
+    Q_PROPERTY(QString orgId READ orgId WRITE setOrgId NOTIFY orgIdChanged)
+    Q_PROPERTY(bool strictTraceContinuation READ strictTraceContinuation WRITE setStrictTraceContinuation NOTIFY strictTraceContinuationChanged)
     Q_PROPERTY(int maxBreadcrumbs READ maxBreadcrumbs WRITE setMaxBreadcrumbs NOTIFY maxBreadcrumbsChanged)
     Q_PROPERTY(int shutdownTimeout READ shutdownTimeout WRITE setShutdownTimeout NOTIFY shutdownTimeoutChanged)
     Q_PROPERTY(QJSValue beforeBreadcrumb READ beforeBreadcrumb WRITE setBeforeBreadcrumb NOTIFY beforeBreadcrumbChanged)
     Q_PROPERTY(QJSValue beforeSendLog READ beforeSendLog WRITE setBeforeSendLog NOTIFY beforeSendLogChanged)
     Q_PROPERTY(QJSValue beforeSendMetric READ beforeSendMetric WRITE setBeforeSendMetric NOTIFY beforeSendMetricChanged)
     Q_PROPERTY(QJSValue beforeSend READ beforeSend WRITE setBeforeSend NOTIFY beforeSendChanged)
+    Q_PROPERTY(QJSValue beforeSendTransaction READ beforeSendTransaction WRITE setBeforeSendTransaction NOTIFY beforeSendTransactionChanged)
+    Q_PROPERTY(QJSValue beforeSendSpan READ beforeSendSpan WRITE setBeforeSendSpan NOTIFY beforeSendSpanChanged)
+    Q_PROPERTY(QJSValue tracesSampler READ tracesSampler WRITE setTracesSampler NOTIFY tracesSamplerChanged)
     Q_PROPERTY(QJSValue onCrash READ onCrash WRITE setOnCrash NOTIFY onCrashChanged)
 
 public:
@@ -80,6 +88,18 @@ public:
     double sampleRate() const;
     void setSampleRate(double sampleRate);
 
+    double tracesSampleRate() const;
+    void setTracesSampleRate(double tracesSampleRate);
+
+    QStringList tracePropagationTargets() const;
+    void setTracePropagationTargets(const QStringList &tracePropagationTargets);
+
+    QString orgId() const;
+    void setOrgId(const QString &orgId);
+
+    bool strictTraceContinuation() const;
+    void setStrictTraceContinuation(bool strictTraceContinuation);
+
     int maxBreadcrumbs() const;
     void setMaxBreadcrumbs(int maxBreadcrumbs);
 
@@ -97,6 +117,15 @@ public:
 
     QJSValue beforeSend() const;
     void setBeforeSend(const QJSValue &beforeSend);
+
+    QJSValue beforeSendTransaction() const;
+    void setBeforeSendTransaction(const QJSValue &beforeSendTransaction);
+
+    QJSValue beforeSendSpan() const;
+    void setBeforeSendSpan(const QJSValue &beforeSendSpan);
+
+    QJSValue tracesSampler() const;
+    void setTracesSampler(const QJSValue &tracesSampler);
 
     QJSValue onCrash() const;
     void setOnCrash(const QJSValue &onCrash);
@@ -116,12 +145,19 @@ signals:
     void attachScreenshotChanged();
     void attachViewHierarchyChanged();
     void sampleRateChanged();
+    void tracesSampleRateChanged();
+    void tracePropagationTargetsChanged();
+    void orgIdChanged();
+    void strictTraceContinuationChanged();
     void maxBreadcrumbsChanged();
     void shutdownTimeoutChanged();
     void beforeBreadcrumbChanged();
     void beforeSendLogChanged();
     void beforeSendMetricChanged();
     void beforeSendChanged();
+    void beforeSendTransactionChanged();
+    void beforeSendSpanChanged();
+    void tracesSamplerChanged();
     void onCrashChanged();
 
 private:
@@ -139,11 +175,18 @@ private:
     bool m_attachScreenshot = false;
     bool m_attachViewHierarchy = false;
     double m_sampleRate = 1.0;
+    double m_tracesSampleRate = -1.0;
+    QStringList m_tracePropagationTargets;
+    QString m_orgId;
+    bool m_strictTraceContinuation = false;
     int m_maxBreadcrumbs = 100;
     int m_shutdownTimeout = 2000;
     QJSValue m_beforeBreadcrumb;
     QJSValue m_beforeSendLog;
     QJSValue m_beforeSendMetric;
     QJSValue m_beforeSend;
+    QJSValue m_beforeSendTransaction;
+    QJSValue m_beforeSendSpan;
+    QJSValue m_tracesSampler;
     QJSValue m_onCrash;
 };

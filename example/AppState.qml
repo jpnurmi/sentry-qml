@@ -30,6 +30,10 @@ QtObject {
     property bool debugEnabled: false
     property bool logsEnabled: true
     property bool metricsEnabled: true
+    property real tracesSampleRate: 1.0
+    property string tracePropagationTargets: qsTr("localhost,127.0.0.1")
+    property string orgId: ""
+    property bool strictTraceContinuation: false
     property bool autoSessionTrackingEnabled: true
     property bool requireUserConsentEnabled: false
     property bool screenshotEnabled: false
@@ -63,6 +67,10 @@ QtObject {
         property alias debug: state.debugEnabled
         property alias logs: state.logsEnabled
         property alias metrics: state.metricsEnabled
+        property alias tracesSampleRate: state.tracesSampleRate
+        property alias tracePropagationTargets: state.tracePropagationTargets
+        property alias orgId: state.orgId
+        property alias strictTraceContinuation: state.strictTraceContinuation
         property alias autoSessionTracking: state.autoSessionTrackingEnabled
         property alias requireUserConsent: state.requireUserConsentEnabled
         property alias screenshot: state.screenshotEnabled

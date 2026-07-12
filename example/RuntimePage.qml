@@ -68,100 +68,141 @@ Item {
         return bytes >= 0 ? Qt.locale().formattedDataSize(bytes) : qsTr("Unknown");
     }
 
+    function trace(name, callback) {
+        return Tracing.withSpan("RuntimePage." + name, callback);
+    }
+
     function addAttachment(path) {
-        const localPath = AppState.toLocalPath(path);
-        const attachment = Sentry.attachFile(localPath);
-        const ok = attachment && attachment.valid;
-        if (ok) {
-            const handles = attachmentHandles.slice();
-            handles.push(attachment);
-            attachmentHandles = handles;
-            const filename = String(attachment.filename || "");
-            attachmentEntries.append({
-                entryKey: filename.length > 0 ? filename : fileNameFromPath(localPath),
-                entrySize: formattedAttachmentSize(attachment.size)
-            });
-        }
-        AppState.setStatus(ok ? qsTr("Attachment added") : qsTr("Attachment was not added"), ok);
+        return trace("addAttachment", function(span) {
+            const localPath = AppState.toLocalPath(path);
+            if (span)
+                span.setData("path", fileNameFromPath(localPath));
+
+            const attachment = Sentry.attachFile(localPath);
+            const ok = attachment && attachment.valid;
+            if (ok) {
+                const handles = attachmentHandles.slice();
+                handles.push(attachment);
+                attachmentHandles = handles;
+                const filename = String(attachment.filename || "");
+                attachmentEntries.append({
+                    entryKey: filename.length > 0 ? filename : fileNameFromPath(localPath),
+                    entrySize: formattedAttachmentSize(attachment.size)
+                });
+            }
+            AppState.setStatus(ok ? qsTr("Attachment added") : qsTr("Attachment was not added"), ok);
+        });
     }
 
     function removeAttachmentAt(index) {
-        const attachment = attachmentHandles[index];
-        const ok = attachment && Sentry.removeAttachment(attachment);
-        if (ok) {
-            const handles = attachmentHandles.slice();
-            handles.splice(index, 1);
-            attachmentHandles = handles;
-            attachmentEntries.remove(index);
-        }
-        AppState.setStatus(ok ? qsTr("Attachment removed") : qsTr("Attachment was not removed"), ok);
+        return trace("removeAttachmentAt", function(span) {
+            if (span)
+                span.setData("index", index);
+
+            const attachment = attachmentHandles[index];
+            const ok = attachment && Sentry.removeAttachment(attachment);
+            if (ok) {
+                const handles = attachmentHandles.slice();
+                handles.splice(index, 1);
+                attachmentHandles = handles;
+                attachmentEntries.remove(index);
+            }
+            AppState.setStatus(ok ? qsTr("Attachment removed") : qsTr("Attachment was not removed"), ok);
+        });
     }
 
     function removeScopeEntry(scopeTab, index, key, entryModel) {
-        const ok = scopeTab === 0 ? Sentry.removeTag(key) : Sentry.removeContext(key);
-        if (ok)
-            entryModel.remove(index);
+        return trace("removeScopeEntry", function(span) {
+            if (span) {
+                span.setData("scope.tab", scopeTab);
+                span.setData("key", key);
+            }
 
-        const successMessage = scopeTab === 0 ? qsTr("Tag removed") : qsTr("Context removed");
-        const failureMessage = scopeTab === 0 ? qsTr("Tag was not removed") : qsTr("Context was not removed");
-        AppState.setStatus(ok ? successMessage : failureMessage, ok);
+            const ok = scopeTab === 0 ? Sentry.removeTag(key) : Sentry.removeContext(key);
+            if (ok)
+                entryModel.remove(index);
+
+            const successMessage = scopeTab === 0 ? qsTr("Tag removed") : qsTr("Context removed");
+            const failureMessage = scopeTab === 0 ? qsTr("Tag was not removed") : qsTr("Context was not removed");
+            AppState.setStatus(ok ? successMessage : failureMessage, ok);
+        });
     }
 
     function capture() {
-        if (AppState.captureMode === 1) {
-            captureException();
-        } else if (AppState.captureMode === 2) {
-            addBreadcrumb();
-        } else {
-            captureMessage();
-        }
+        return trace("capture", function(span) {
+            if (span)
+                span.setData("mode", AppState.captureMode);
+
+            if (AppState.captureMode === 1) {
+                captureException();
+            } else if (AppState.captureMode === 2) {
+                addBreadcrumb();
+            } else {
+                captureMessage();
+            }
+        });
     }
 
     function captureMessage() {
-        const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
-        AppState.setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
+        return trace("captureMessage", function(span) {
+            if (span) {
+                span.setData("message.empty", AppState.messageText.trim().length === 0);
+                span.setData("message.length", AppState.messageText.length);
+                span.setTag("level", AppState.captureLevel());
+            }
+
+            const eventId = Sentry.captureMessage(AppState.messageText, AppState.captureLevel());
+            AppState.setStatus(eventId.length > 0 ? qsTr("Captured event %1").arg(eventId) : qsTr("Message was not captured"), eventId.length > 0);
+        });
     }
 
     function applyScope() {
-        if (AppState.scopeTab === 0) {
-            const tagKey = AppState.tagKey.trim();
-            if (tagKey.length === 0) {
-                AppState.setStatus(qsTr("Tag key is required"), false);
-                return;
-            }
+        return trace("applyScope", function(span) {
+            if (span)
+                span.setData("scope.tab", AppState.scopeTab);
 
-            const ok = Sentry.setTag(tagKey, AppState.tagValue);
-            if (ok)
-                upsertEntry(tagEntries, tagKey, AppState.tagValue);
-            AppState.setStatus(ok ? qsTr("Tag added") : qsTr("Tag was not added"), ok);
-        } else if (AppState.scopeTab === 1) {
-            const contextKey = AppState.contextKey.trim();
-            if (contextKey.length === 0) {
-                AppState.setStatus(qsTr("Context key is required"), false);
-                return;
-            }
+            if (AppState.scopeTab === 0) {
+                const tagKey = AppState.tagKey.trim();
+                if (tagKey.length === 0) {
+                    AppState.setStatus(qsTr("Tag key is required"), false);
+                    return;
+                }
 
-            const ok = Sentry.setContext(contextKey, {
-                value: AppState.contextValue,
-                messageLength: AppState.messageText.length
-            });
-            if (ok)
-                upsertEntry(contextEntries, contextKey, AppState.contextValue);
-            AppState.setStatus(ok ? qsTr("Context added") : qsTr("Context was not added"), ok);
-        }
+                const ok = Sentry.setTag(tagKey, AppState.tagValue);
+                if (ok)
+                    upsertEntry(tagEntries, tagKey, AppState.tagValue);
+                AppState.setStatus(ok ? qsTr("Tag added") : qsTr("Tag was not added"), ok);
+            } else if (AppState.scopeTab === 1) {
+                const contextKey = AppState.contextKey.trim();
+                if (contextKey.length === 0) {
+                    AppState.setStatus(qsTr("Context key is required"), false);
+                    return;
+                }
+
+                const ok = Sentry.setContext(contextKey, {
+                    value: AppState.contextValue,
+                    messageLength: AppState.messageText.length
+                });
+                if (ok)
+                    upsertEntry(contextEntries, contextKey, AppState.contextValue);
+                AppState.setStatus(ok ? qsTr("Context added") : qsTr("Context was not added"), ok);
+            }
+        });
     }
 
     function syncUser() {
-        if (!Sentry.initialized)
-            return;
-        const ok = Sentry.setUser({
-            id: AppState.userId,
-            username: AppState.username,
-            email: AppState.email,
-            ipAddress: AppState.ipAddress
+        return trace("syncUser", function() {
+            if (!Sentry.initialized)
+                return;
+            const ok = Sentry.setUser({
+                id: AppState.userId,
+                username: AppState.username,
+                email: AppState.email,
+                ipAddress: AppState.ipAddress
+            });
+            if (!ok)
+                AppState.setStatus(qsTr("User was not updated"), false);
         });
-        if (!ok)
-            AppState.setStatus(qsTr("User was not updated"), false);
     }
 
     function consentFooterColor() {
@@ -185,114 +226,148 @@ Item {
     }
 
     function toggleUserConsent() {
-        if (!Sentry.userConsentRequired) {
-            AppState.setStatus(qsTr("Consent is not required"), false);
-            return;
-        }
+        return trace("toggleUserConsent", function(span) {
+            if (!Sentry.userConsentRequired) {
+                AppState.setStatus(qsTr("Consent is not required"), false);
+                return;
+            }
 
-        const giveConsent = Sentry.userConsent !== Sentry.UserConsentGiven;
-        const ok = giveConsent ? Sentry.giveUserConsent() : Sentry.revokeUserConsent();
-        if (ok)
-            AppState.setStatus(giveConsent ? qsTr("User consent given") : qsTr("User consent revoked"), true, giveConsent ? 1 : 2);
-        else
-            AppState.setStatus(giveConsent ? qsTr("User consent was not given") : qsTr("User consent was not revoked"), false);
+            const giveConsent = Sentry.userConsent !== Sentry.UserConsentGiven;
+            if (span)
+                span.setData("give", giveConsent);
+
+            const ok = giveConsent ? Sentry.giveUserConsent() : Sentry.revokeUserConsent();
+            if (ok)
+                AppState.setStatus(giveConsent ? qsTr("User consent given") : qsTr("User consent revoked"), true, giveConsent ? 1 : 2);
+            else
+                AppState.setStatus(giveConsent ? qsTr("User consent was not given") : qsTr("User consent was not revoked"), false);
+        });
     }
 
     function sendFeedback(name, email, message) {
-        const feedbackMessage = message.trim();
-        if (feedbackMessage.length === 0) {
-            AppState.setStatus(qsTr("Feedback message is required"), false);
-            return false;
-        }
+        return trace("sendFeedback", function(span) {
+            const feedbackMessage = message.trim();
+            if (span)
+                span.setData("message.length", feedbackMessage.length);
+            if (feedbackMessage.length === 0) {
+                AppState.setStatus(qsTr("Feedback message is required"), false);
+                return false;
+            }
 
-        const feedback = {
-            message: feedbackMessage
-        };
-        const feedbackName = name.trim();
-        const feedbackEmail = email.trim();
-        if (feedbackName.length > 0)
-            feedback.name = feedbackName;
-        if (feedbackEmail.length > 0)
-            feedback.email = feedbackEmail;
+            const feedback = {
+                message: feedbackMessage
+            };
+            const feedbackName = name.trim();
+            const feedbackEmail = email.trim();
+            if (feedbackName.length > 0)
+                feedback.name = feedbackName;
+            if (feedbackEmail.length > 0)
+                feedback.email = feedbackEmail;
 
-        const ok = Sentry.captureFeedback(feedback);
-        AppState.setStatus(ok ? qsTr("Feedback sent") : qsTr("Feedback was not sent"), ok);
-        return ok;
+            const ok = Sentry.captureFeedback(feedback);
+            AppState.setStatus(ok ? qsTr("Feedback sent") : qsTr("Feedback was not sent"), ok);
+            return ok;
+        });
     }
 
     function startSession() {
-        let ok = true;
-        const release = AppState.sessionRelease.trim();
-        const environment = AppState.sessionEnvironment.trim();
+        return trace("startSession", function() {
+            let ok = true;
+            const release = AppState.sessionRelease.trim();
+            const environment = AppState.sessionEnvironment.trim();
 
-        if (release.length > 0)
-            ok = Sentry.setRelease(release) && ok;
-        if (environment.length > 0)
-            ok = Sentry.setEnvironment(environment) && ok;
+            if (release.length > 0)
+                ok = Sentry.setRelease(release) && ok;
+            if (environment.length > 0)
+                ok = Sentry.setEnvironment(environment) && ok;
 
-        ok = Sentry.startSession() && ok;
-        if (ok)
-            AppState.sessionActive = true;
-        AppState.setStatus(ok ? qsTr("Session started") : qsTr("Session was not started"), ok);
+            ok = Sentry.startSession() && ok;
+            if (ok)
+                AppState.sessionActive = true;
+            AppState.setStatus(ok ? qsTr("Session started") : qsTr("Session was not started"), ok);
+        });
     }
 
     function endSession() {
-        const ok = Sentry.endSession(Sentry.SessionExited);
-        if (ok)
-            AppState.sessionActive = false;
-        AppState.setStatus(ok ? qsTr("Session ended") : qsTr("Session was not ended"), ok);
+        return trace("endSession", function() {
+            const ok = Sentry.endSession(Sentry.SessionExited);
+            if (ok)
+                AppState.sessionActive = false;
+            AppState.setStatus(ok ? qsTr("Session ended") : qsTr("Session was not ended"), ok);
+        });
     }
 
     function toggleSession() {
-        if (AppState.sessionActive)
-            endSession();
-        else
-            startSession();
+        return trace("toggleSession", function() {
+            if (AppState.sessionActive)
+                endSession();
+            else
+                startSession();
+        });
     }
 
     function addBreadcrumb() {
-        const ok = Sentry.addBreadcrumb({
-            message: AppState.messageText,
-            category: AppState.breadcrumbCategory(),
-            type: "manual",
-            level: AppState.captureLevel(),
-            data: {
-                message: AppState.messageText
-            }
+        return trace("addBreadcrumb", function(span) {
+            if (span)
+                span.setTag("category", AppState.breadcrumbCategory());
+
+            const ok = Sentry.addBreadcrumb({
+                message: AppState.messageText,
+                category: AppState.breadcrumbCategory(),
+                type: "manual",
+                level: AppState.captureLevel(),
+                data: {
+                    message: AppState.messageText
+                }
+            });
+            AppState.setStatus(ok ? qsTr("Breadcrumb added") : qsTr("Breadcrumb was not added"), ok);
         });
-        AppState.setStatus(ok ? qsTr("Breadcrumb added") : qsTr("Breadcrumb was not added"), ok);
     }
 
     function captureException() {
-        if (AppState.exceptionKind() === "native") {
-            AppState.setStatus(qsTr("Native exception capture is not available"), false);
-            return;
-        }
+        return trace("captureException", function(span) {
+            if (span)
+                span.setTag("kind", AppState.exceptionKind());
 
-        try {
-            throw new Error(AppState.messageText);
-        } catch (exception) {
-            const eventId = Sentry.captureException(exception);
-            AppState.setStatus(eventId.length > 0 ? qsTr("Captured exception %1").arg(eventId) : qsTr("Exception was not captured"), eventId.length > 0);
-        }
+            if (AppState.exceptionKind() === "native") {
+                AppState.setStatus(qsTr("Native exception capture is not available"), false);
+                return;
+            }
+
+            try {
+                throw new Error(AppState.messageText);
+            } catch (exception) {
+                const eventId = Sentry.captureException(exception);
+                AppState.setStatus(eventId.length > 0 ? qsTr("Captured exception %1").arg(eventId) : qsTr("Exception was not captured"), eventId.length > 0);
+            }
+        });
     }
 
     function triggerQmlError() {
-        callMissingQmlFunction();
+        return trace("triggerQmlError", function() {
+            callMissingQmlFunction();
+        });
     }
 
     function triggerCrash() {
-        if (AppState.crashKindIndex === 0) {
-            AppState.setStatus(qsTr("Crashing..."), false);
-            Native.crash();
-        } else {
-            AppState.setStatus(qsTr("Triggering QML error..."), false);
-            triggerQmlError();
-        }
+        return trace("triggerCrash", function(span) {
+            if (span)
+                span.setData("kind", AppState.crashKindIndex === 0 ? "native" : "qml");
+
+            if (AppState.crashKindIndex === 0) {
+                AppState.setStatus(qsTr("Crashing..."), false);
+                Native.crash();
+            } else {
+                AppState.setStatus(qsTr("Triggering QML error..."), false);
+                triggerQmlError();
+            }
+        });
     }
 
     function callMissingQmlFunction() {
-        missingQmlFunction();
+        return trace("callMissingQmlFunction", function() {
+            missingQmlFunction();
+        });
     }
 
     TextMetrics {
@@ -1229,8 +1304,8 @@ Item {
 
                 Panel {
                     Layout.fillWidth: true
-                    Layout.row: AppTheme.compact ? 1 : 0
-                    Layout.column: AppTheme.compact ? 0 : 1
+                    Layout.row: 0
+                    Layout.column: 0
                     title: qsTr("Session")
                     actions: [
                         IconToolButton {
@@ -1280,8 +1355,8 @@ Item {
 
                 Panel {
                     Layout.fillWidth: true
-                    Layout.row: 0
-                    Layout.column: 0
+                    Layout.row: AppTheme.compact ? 1 : 0
+                    Layout.column: AppTheme.compact ? 0 : 1
                     title: qsTr("Crash")
 
                     ColumnLayout {

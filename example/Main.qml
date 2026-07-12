@@ -36,6 +36,7 @@ ApplicationWindow {
         initialItem: InitPage {
             onInitialized: {
                 AppState.setStatus(qsTr("Ready"), true);
+                Tracing.enabled = true;
                 stackView.push(runtimePage);
                 AppState.sessionActive = false;
             }
@@ -58,6 +59,8 @@ ApplicationWindow {
 
         RuntimePage {
             onBackRequested: {
+                Tracing.enabled = false;
+                Tracing.flush("ok");
                 statusBanner.reset();
                 stackView.pop();
             }

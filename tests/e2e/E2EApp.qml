@@ -16,6 +16,15 @@ Window {
     property bool attributeSet: false
     property bool logCaptured: false
     property bool metricCaptured: false
+    property bool beforeSendTransactionCalled: false
+    property bool beforeSendSpanCalled: false
+    property bool transactionStarted: false
+    property bool spanStarted: false
+    property bool spanDataSet: false
+    property bool spanTagSet: false
+    property bool traceHeadersReady: false
+    property bool spanFinished: false
+    property bool transactionFinished: false
     property bool consentRequired: false
     property bool consentInitiallyUnknown: false
     property bool consentGiven: false
@@ -26,6 +35,7 @@ Window {
     property bool consentAfterReset: false
     property bool flushedBeforeConsent: false
     property string eventId: ""
+    property string traceId: ""
     property string blockedEventId: ""
     property string revokedEventId: ""
     property string attributeRunId: testRunId.replace(/[^A-Za-z0-9_]/g, "_")
@@ -38,7 +48,10 @@ Window {
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
     property string screenshotMessage: "Sentry QML E2E screenshot " + testRunId
     property string viewHierarchyMessage: "Sentry QML E2E view hierarchy " + testRunId
+    property string tracingMessage: "Sentry QML E2E tracing " + testRunId
     property SentryHint feedbackHint: SentryHint {}
+    property var transaction: null
+    property var span: null
     signal actionFinished()
     signal crashSendFinished()
     property SentryOptions options: SentryOptions {
@@ -53,10 +66,29 @@ Window {
         enableMetrics: testAction === "attributes-capture"
         attachScreenshot: testAction === "screenshot-capture"
         attachViewHierarchy: testAction === "view-hierarchy-capture"
+        tracesSampleRate: testAction === "tracing-capture" ? 1.0 : -1.0
+        tracePropagationTargets: testAction === "tracing-capture" ? ["example.com", "127.0.0.1", "localhost"] : []
+        orgId: testAction === "tracing-capture" ? "42" : ""
+        strictTraceContinuation: testAction === "tracing-capture"
         user: SentryUser {
             userId: "e2e-user"
             username: "e2e"
             email: "e2e@example.com"
+        }
+        tracesSampler: function(context) {
+            return testAction === "tracing-capture" ? 1.0 : 0.0
+        }
+        beforeSendTransaction: function(transaction) {
+            beforeSendTransactionCalled = true
+            transaction.tags = transaction.tags || {}
+            transaction.tags["qml.e2e.transaction_hook"] = "yes"
+            return transaction
+        }
+        beforeSendSpan: function(span) {
+            beforeSendSpanCalled = true
+            span.data = span.data || {}
+            span.data["qml.e2e.span_hook"] = true
+            return span
         }
     }
 
@@ -107,6 +139,13 @@ Window {
         closed = Sentry.close()
         success = initialized && eventId !== "" && flushed && closed
         actionFinished()
+    }
+
+    function readTraceId(activeSpan) {
+        const headers = activeSpan ? activeSpan.traceHeaders : {}
+        const sentryTrace = headers ? headers["sentry-trace"] : ""
+        const parts = sentryTrace ? sentryTrace.split("-") : []
+        return parts.length > 0 ? parts[0] : ""
     }
 
     Component.onCompleted: {
@@ -184,6 +223,43 @@ Window {
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
             success = initialized && attributeSet && logCaptured && metricCaptured && flushed && closed
+        } else if (testAction === "tracing-capture") {
+            transaction = Sentry.startTransaction(
+                "Sentry QML E2E transaction " + testRunId,
+                "qml.e2e.transaction",
+                "E2E trace",
+                true,
+                { runId: testRunId }
+            )
+            transactionStarted = !!transaction && transaction.valid && transaction.transaction
+            span = Sentry.startSpan("Sentry QML E2E span " + testRunId, "qml.e2e.db", "E2E child span", transaction)
+            spanStarted = !!span && span.valid && !span.transaction
+            if (span) {
+                spanDataSet = span.setData("qml.e2e.run_id", testRunId)
+                spanTagSet = span.setTag("qml.e2e.source", "qml")
+                traceId = readTraceId(span) || readTraceId(transaction)
+                traceHeadersReady = traceId !== ""
+                spanFinished = span.finish("ok")
+            }
+            eventId = Sentry.captureMessage(tracingMessage, "info")
+            if (transaction) {
+                transactionFinished = transaction.finish("ok")
+            }
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized
+                && transactionStarted
+                && spanStarted
+                && spanDataSet
+                && spanTagSet
+                && traceHeadersReady
+                && spanFinished
+                && eventId !== ""
+                && transactionFinished
+                && beforeSendTransactionCalled
+                && beforeSendSpanCalled
+                && flushed
+                && closed
         } else if (testAction === "crash-send") {
             if (Qt.platform.os === "android") {
                 crashSendTimer.start()

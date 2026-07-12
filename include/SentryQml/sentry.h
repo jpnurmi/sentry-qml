@@ -4,6 +4,7 @@
 #include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
 #include <SentryQml/sentryqmlglobal.h>
+#include <SentryQml/sentryspan.h>
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qobject.h>
@@ -128,6 +129,16 @@ public:
                                   double value,
                                   const QString &unit = QString(),
                                   const QVariantMap &attributes = {});
+    Q_INVOKABLE SentrySpan *startTransaction(const QString &name,
+                                             const QString &operation,
+                                             const QString &description = QString(),
+                                             bool bindToScope = false,
+                                             const QVariantMap &customSamplingContext = {});
+    Q_INVOKABLE SentrySpan *startSpan(const QString &name,
+                                      const QString &operation = QString(),
+                                      const QString &description = QString(),
+                                      SentrySpan *parentSpan = nullptr,
+                                      bool bindToScope = false);
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
     Q_INVOKABLE QString captureException(const QJSValue &exception);
     Q_INVOKABLE bool captureFeedback(const QVariantMap &feedback, SentryHint *hint = nullptr);

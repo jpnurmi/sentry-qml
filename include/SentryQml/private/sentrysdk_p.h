@@ -15,6 +15,7 @@ class SentryHint;
 struct SentrySdkEventHookState;
 struct SentrySdkCrashHookState;
 class SentryOptions;
+class SentrySpan;
 
 enum class SentrySdkCaptureMode
 {
@@ -74,6 +75,18 @@ public:
                       double value,
                       const QString &unit,
                       const QVariantMap &attributes);
+    SentrySpan *startTransaction(Sentry *sentry,
+                                 const QString &name,
+                                 const QString &operation,
+                                 const QString &description,
+                                 bool bindToScope,
+                                 const QVariantMap &customSamplingContext);
+    SentrySpan *startSpan(Sentry *sentry,
+                          const QString &name,
+                          const QString &operation,
+                          const QString &description,
+                          SentrySpan *parentSpan,
+                          bool bindToScope);
     QString captureMessage(Sentry *sentry, const QString &message, const QString &level);
     QString captureEvent(Sentry *sentry, const QVariantMap &event, SentrySdkCaptureMode mode);
     bool captureFeedback(Sentry *sentry, const QVariantMap &feedback, SentryHint *hint);
@@ -86,6 +99,7 @@ signals:
 
 private:
     friend class SentryAttachment;
+    friend class SentrySpan;
 
     explicit SentrySdk(QObject *parent = nullptr);
     ~SentrySdk() override;
@@ -103,6 +117,16 @@ private:
     void updateAttachments();
     void setAttachmentFilename(SentryAttachment *attachment, const QString &filename);
     void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
+    bool finishSpan(SentrySpan *span, const QString &status);
+    bool setSpanStatus(SentrySpan *span, const QString &status);
+    bool setSpanData(SentrySpan *span, const QString &key, const QVariant &value);
+    bool removeSpanData(SentrySpan *span, const QString &key);
+    bool setSpanTag(SentrySpan *span, const QString &key, const QString &value);
+    bool removeSpanTag(SentrySpan *span, const QString &key);
+    QVariantMap spanTraceHeaders(const SentrySpan *span) const;
+    void trackSpan(SentrySpan *span);
+    void detachSpan(SentrySpan *span);
+    void invalidateSpans();
     void clearLocalScope();
     void applyLocalScopeToEvent(QVariantMap *event) const;
     void setInitialized(bool initialized);
@@ -112,6 +136,9 @@ private:
     std::unique_ptr<SentrySdkEventHookState> m_beforeSendLogState;
     std::unique_ptr<SentrySdkEventHookState> m_beforeSendMetricState;
     std::unique_ptr<SentrySdkEventHookState> m_onCrashState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeSendTransactionState;
+    std::unique_ptr<SentrySdkEventHookState> m_beforeSendSpanState;
+    std::unique_ptr<SentrySdkEventHookState> m_tracesSamplerState;
     std::unique_ptr<SentrySdkCrashHookState> m_crashHookState;
     QString m_dsn;
     QString m_release;
@@ -123,6 +150,7 @@ private:
     QVariantList m_breadcrumbs;
     QStringList m_fingerprint;
     QList<SentryAttachment *> m_attachments;
+    QList<SentrySpan *> m_spans;
     QMetaObject::Connection m_applicationShutdownConnection;
     int m_maxBreadcrumbs = 100;
     int m_userConsent = -1;

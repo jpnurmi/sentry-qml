@@ -25,6 +25,7 @@ class SentryQmlUnitTest : public QObject
 
 private slots:
     void importsQmlModule();
+    void importsTracingApi();
     void initializesAndCapturesMessage();
     void sendsEnvelope();
     void handlesUserConsent();
@@ -170,6 +171,102 @@ void SentryQmlUnitTest::importsQmlModule()
     QCOMPARE(object->property("metricsReady").toBool(), true);
     QCOMPARE(object->property("sessionsReady").toBool(), true);
     QCOMPARE(object->property("consentReady").toBool(), true);
+}
+
+void SentryQmlUnitTest::importsTracingApi()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            id: root
+            property bool initialized: false
+            property bool closed: false
+            property bool transactionHookCalled: false
+            property bool spanHookCalled: false
+            property var transaction: null
+            property var span: null
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                tracesSampleRate: 1.0
+                tracePropagationTargets: ["api.example.com", "localhost"]
+                orgId: "12345"
+                strictTraceContinuation: true
+                tracesSampler: function(context) { return 1.0 }
+                beforeSendTransaction: function(transaction) {
+                    root.transactionHookCalled = transaction.name === "qml transaction"
+                        || transaction.transaction === "qml transaction"
+                    transaction.tags = transaction.tags || ({})
+                    transaction.tags.qml_transaction_hook = "yes"
+                    return transaction
+                }
+                beforeSendSpan: function(span) {
+                    root.spanHookCalled = span.name === "load data"
+                    span.data = span.data || ({})
+                    span.data.qml_span_hook = true
+                    return span
+                }
+            }
+            property bool optionsReady: options.tracesSampleRate === 1.0
+                && options.tracePropagationTargets.length === 2
+                && options.orgId === "12345"
+                && options.strictTraceContinuation
+            property bool spanReady: transaction !== null
+                && span !== null
+                && transaction.transaction
+                && !span.transaction
+                && span.name === "load data"
+                && span.operation === "db.query"
+                && span.description === "select"
+                && span.data.rows === 3
+                && span.tags.source === "qml"
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                transaction = Sentry.startTransaction("qml transaction", "ui.action", "open screen", true)
+                span = Sentry.startSpan("load data", "db.query", "select", transaction)
+                if (span) {
+                    span.setData("rows", 3)
+                    span.setTag("source", "qml")
+                }
+            }
+
+            function finish() {
+                if (span) {
+                    span.finish("ok")
+                }
+                if (transaction) {
+                    transaction.finish("ok")
+                }
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryTracingImportTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+    QCOMPARE(component.status(), QQmlComponent::Ready);
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("optionsReady").toBool(), true);
+    QCOMPARE(object->property("spanReady").toBool(), true);
+    QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
+    QCOMPARE(object->property("spanHookCalled").toBool(), true);
+    QCOMPARE(object->property("transactionHookCalled").toBool(), true);
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 void SentryQmlUnitTest::initializesAndCapturesMessage()

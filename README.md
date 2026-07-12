@@ -1,10 +1,10 @@
 # Sentry QML
 
-Experimental Sentry SDK for QML, backed by
-[sentry-native](https://github.com/getsentry/sentry-native),
-[Sentry Cocoa](https://github.com/getsentry/sentry-cocoa), or
-[Sentry Android](https://github.com/getsentry/sentry-java), or the Sentry
-JavaScript SDK when built for WebAssembly.
+An unofficial, experimental Sentry SDK for QML, backed by:
+- [Sentry Native](https://github.com/getsentry/sentry-native) for macOS, Linux, and Windows
+- [Sentry Android](https://github.com/getsentry/sentry-java) for Android
+- [Sentry Cocoa](https://github.com/getsentry/sentry-cocoa) for iOS, and optionally macOS
+- [Sentry JavaScript](https://github.com/getsentry/sentry-javascript) for WebAssembly
 
 ## Build
 
@@ -23,61 +23,46 @@ ctest --test-dir build --output-on-failure
 
 The example runs from the build tree without installing the QML module.
 
-The default Sentry backend is inferred from the target platform: Android uses
-`android`, iOS uses `cocoa`, WebAssembly uses `wasm`, and other targets use
-`native`. Override it with `-DSENTRY_BACKEND=<backend>`. Native crash backend
-values such as `crashpad`, `breakpad`, `inproc`, and `none` select
-sentry-native.
+## Backends
+
+The default backend is inferred from the target platform: `android` on Android,
+`cocoa` on iOS, `wasm` on WebAssembly, and `native` elsewhere. Override it with
+`-DSENTRY_BACKEND=<backend>`.
+
+For sentry-native builds, values such as `crashpad`, `breakpad`, `inproc`, and
+`none` select the native crash backend.
 
 ## Android
 
-Configure Android builds with a Qt for Android toolchain. The Android backend
-(`-DSENTRY_BACKEND=android`) is selected automatically.
-Android app targets that link `SentryQml` must also call:
+Use a Qt for Android toolchain. App targets that link `SentryQml` must call:
 
 ```cmake
 sentry_qml_configure_android_target(your_app_target)
 ```
 
-This adds the Java bridge and the Gradle dependency on `io.sentry:sentry-android`.
-The default dependency version is `8.41.0`; override it with
-`-DSENTRY_ANDROID_VERSION=<version>` or replace the full Gradle coordinate with
+This adds the Java bridge and the `io.sentry:sentry-android` Gradle dependency.
+Override the default dependency with `-DSENTRY_ANDROID_VERSION=<version>` or
 `-DSENTRY_ANDROID_GRADLE_COORDINATE=<coordinate>`.
-
-With Qt versions before 6.10, the helper owns `QT_ANDROID_PACKAGE_SOURCE_DIR`.
-If your app already has a custom package source directory, copy
-`src/android/java` into it and add the Sentry Android dependency to your
-`build.gradle` manually, or build with Qt 6.10 or newer.
 
 ## WebAssembly
 
-Configure WebAssembly builds with a Qt for WebAssembly toolchain. The
-WebAssembly backend (`-DSENTRY_BACKEND=wasm`) is selected automatically for
-Emscripten builds. The generated page must load the Sentry JavaScript SDK before
-calling `Sentry.init(...)` from QML and expose it as `globalThis.Sentry`. If
-`globalThis.Sentry.wasmIntegration` is available, it is added during
-initialization.
+Use a Qt for WebAssembly toolchain. The generated page must load the Sentry
+JavaScript SDK before QML calls `Sentry.init(...)` and expose it as
+`globalThis.Sentry`.
 
-The wasm backend initializes the JavaScript SDK, applies QML event hooks for
-events captured through the QML API, and forwards scope data, breadcrumbs, logs,
-metrics, feedback, and attachments through the browser SDK. Native crash capture
-is not supported by the browser JavaScript backend.
+The browser JavaScript backend does not support native crash capture.
 
 ## iOS
 
-Configure iOS builds with a Qt for iOS toolchain and the Xcode generator. The
-Cocoa backend (`-DSENTRY_BACKEND=cocoa`) is selected automatically. Sentry
-Cocoa requires an iOS deployment target of 15.0 or higher. iOS app targets that
-link `SentryQml` must also call:
+Use a Qt for iOS toolchain and the Xcode generator. Sentry Cocoa requires an iOS
+deployment target of 15.0 or higher. App targets that link `SentryQml` must call:
 
 ```cmake
 sentry_qml_configure_ios_target(your_app_target)
 ```
 
-This embeds and signs the selected `SentryObjC-Dynamic.xcframework` slice from
-Sentry Cocoa. By default, the build uses `modules/sentry-cocoa` and prepares the
-XCFramework in the CMake build directory. To use a prebuilt XCFramework instead,
-pass it with:
+This embeds and signs the selected `SentryObjC-Dynamic.xcframework` slice. To
+use a prebuilt XCFramework instead of `modules/sentry-cocoa`, pass:
 
 ```sh
 -DSENTRY_COCOA_XCFRAMEWORK=/path/to/SentryObjC-Dynamic.xcframework

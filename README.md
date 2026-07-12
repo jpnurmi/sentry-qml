@@ -6,6 +6,8 @@ An unofficial, experimental Sentry SDK for QML, backed by:
 - [Sentry Cocoa](https://github.com/getsentry/sentry-cocoa) for iOS, and optionally macOS
 - [Sentry JavaScript](https://github.com/getsentry/sentry-javascript) for WebAssembly
 
+<img width="75%" src=".github/screenshot.png"/>
+
 ## Build
 
 ```sh

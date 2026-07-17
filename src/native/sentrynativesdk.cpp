@@ -14,7 +14,6 @@
 
 extern "C" {
 #include <include/sentry.h>
-#include <src/sentry_tracing.h>
 }
 
 #include <QtCore/qbytearray.h>
@@ -1681,7 +1680,7 @@ bool SentrySdk::finishSpan(SentrySpan *span, const QString &status)
         sentry_value_t replacement = invokeValueHook(nativeValueFromVariant(span->toVariantMap()), m_beforeSendSpanState.get());
         if (sentry_value_is_null(replacement)) {
             sentry_value_decref(replacement);
-            sentry__span_decref(state->span);
+            sentry_span_discard(state->span);
             state->span = nullptr;
             detachSpan(span);
             return true;
@@ -1853,10 +1852,10 @@ void SentrySdk::detachSpan(SentrySpan *span)
     auto *state = static_cast<SentrySdkSpanState *>(span->handle());
     if (state) {
         if (state->transaction) {
-            sentry__transaction_decref(state->transaction);
+            sentry_transaction_discard(state->transaction);
         }
         if (state->span) {
-            sentry__span_decref(state->span);
+            sentry_span_discard(state->span);
         }
         delete state;
     }
@@ -1874,10 +1873,10 @@ void SentrySdk::invalidateSpans()
         auto *state = static_cast<SentrySdkSpanState *>(span->handle());
         if (state) {
             if (state->transaction) {
-                sentry__transaction_decref(state->transaction);
+                sentry_transaction_discard(state->transaction);
             }
             if (state->span) {
-                sentry__span_decref(state->span);
+                sentry_span_discard(state->span);
             }
             delete state;
         }

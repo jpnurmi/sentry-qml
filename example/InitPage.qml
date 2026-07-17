@@ -46,6 +46,7 @@ Item {
         debug: AppState.debugEnabled
         enableLogs: AppState.logsEnabled
         enableMetrics: AppState.metricsEnabled
+        sendClientReports: AppState.clientReportsEnabled
         autoSessionTracking: AppState.autoSessionTrackingEnabled
         requireUserConsent: AppState.requireUserConsentEnabled
         attachScreenshot: AppState.screenshotEnabled
@@ -289,6 +290,13 @@ Item {
                             checked: AppState.metricsEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.metricsEnabled = checked
+                        }
+
+                        CheckBox {
+                            text: qsTr("Client reports")
+                            checked: AppState.clientReportsEnabled
+                            Layout.fillWidth: true
+                            onToggled: AppState.clientReportsEnabled = checked
                         }
 
                         CheckBox {

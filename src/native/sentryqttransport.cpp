@@ -1,5 +1,7 @@
 extern "C" {
 #include <include/sentry.h>
+#include <src/sentry_client_report.h>
+#include <src/sentry_envelope.h>
 }
 
 #include <QtCore/qbytearray.h>
@@ -63,7 +65,24 @@ public:
         if (!m_userAgent.isEmpty()) {
             m_authHeader += QByteArrayLiteral(", sentry_client=") + m_userAgent;
         }
+        m_sendClientReports = sentry_options_get_send_client_reports(options) != 0;
         return true;
+    }
+
+    void addClientReport(sentry_envelope_t *envelope)
+    {
+        if (!m_sendClientReports || !sentry__envelope_can_add_client_report(envelope, nullptr)) {
+            return;
+        }
+
+        sentry_client_report_t report = {};
+        if (!sentry__client_report_save(&report)) {
+            return;
+        }
+
+        if (!sentry__envelope_add_client_report(envelope, &report)) {
+            sentry__client_report_restore(&report);
+        }
     }
 
     void send(const QByteArray &body)
@@ -115,6 +134,7 @@ private:
     QUrl m_envelopeUrl;
     QByteArray m_authHeader;
     QByteArray m_userAgent;
+    bool m_sendClientReports = true;
 };
 
 int startupTransport(const sentry_options_t *options, void *state)
@@ -134,6 +154,9 @@ int shutdownTransport(uint64_t, void *)
 
 void sendEnvelope(sentry_envelope_t *envelope, void *state)
 {
+    auto *transportState = static_cast<SentryQtTransportState *>(state);
+    transportState->addClientReport(envelope);
+
     size_t size = 0;
     char *serialized = sentry_envelope_serialize(envelope, &size);
     sentry_envelope_free(envelope);
@@ -143,8 +166,7 @@ void sendEnvelope(sentry_envelope_t *envelope, void *state)
     }
 
     if (size <= static_cast<size_t>(std::numeric_limits<qsizetype>::max())) {
-        static_cast<SentryQtTransportState *>(state)->send(
-            QByteArray(serialized, static_cast<qsizetype>(size)));
+        transportState->send(QByteArray(serialized, static_cast<qsizetype>(size)));
     }
 
     sentry_free(serialized);

@@ -474,6 +474,11 @@ void closeBridge()
     QJniObject::callStaticMethod<void>(bridgeClassName, "close", "()V");
 }
 
+bool recordBeforeSendErrorBridge()
+{
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName, "recordBeforeSendError", "()Z") == JNI_TRUE;
+}
+
 QString captureEventBridge(const QVariantMap &event, const QList<SentrySdkAttachmentState> &attachments)
 {
     const QJniObject eventJson = QJniObject::fromString(jsonStringFromVariant(event));
@@ -827,6 +832,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("debug"), options->debug()},
         {QStringLiteral("enableLogs"), options->enableLogs()},
         {QStringLiteral("enableMetrics"), options->enableMetrics()},
+        {QStringLiteral("sendClientReports"), options->sendClientReports()},
         {QStringLiteral("autoSessionTracking"), options->autoSessionTracking()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
         {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},
@@ -1869,6 +1875,9 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
 
     const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
     if (result.action == HookResult::Drop) {
+        if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+            recordBeforeSendErrorBridge();
+        }
         return {};
     }
     if (result.action == HookResult::Replace) {

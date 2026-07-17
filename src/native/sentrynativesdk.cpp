@@ -780,6 +780,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_set_debug(nativeOptions, options->debug() ? 1 : 0);
     sentry_options_set_enable_logs(nativeOptions, options->enableLogs() ? 1 : 0);
     sentry_options_set_enable_metrics(nativeOptions, options->enableMetrics() ? 1 : 0);
+    sentry_options_set_send_client_reports(nativeOptions, options->sendClientReports() ? 1 : 0);
     sentry_options_set_auto_session_tracking(nativeOptions, options->autoSessionTracking() ? 1 : 0);
     sentry_options_set_require_user_consent(nativeOptions, options->requireUserConsent() ? 1 : 0);
     sentry_options_set_attach_screenshot(nativeOptions, options->attachScreenshot() ? 1 : 0);

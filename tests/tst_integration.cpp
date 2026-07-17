@@ -26,6 +26,7 @@ class SentryQmlIntegrationTest : public QObject
 
 private slots:
     void capturesSdkFeaturesThroughHttpTransport();
+    void sendsClientReportsWhenEnabled();
     void attachesScreenshotWhenEnabled();
     void attachesViewHierarchyWhenEnabled();
 };
@@ -198,6 +199,124 @@ bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray
 QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
 {
     return server.combinedBody().left(16 * 1024);
+}
+
+bool runClientReportsScenario(bool sendClientReports, QByteArray *combinedBody, QString *errorMessage)
+{
+    IntegrationEnvelopeServer server;
+    if (!server.listen(QHostAddress::LocalHost)) {
+        *errorMessage = server.errorString();
+        return false;
+    }
+
+    QTemporaryDir temporaryDir;
+    if (!temporaryDir.isValid()) {
+        *errorMessage = QStringLiteral("Could not create temporary directory.");
+        return false;
+    }
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDsn"), QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    engine.rootContext()->setContextProperty(QStringLiteral("testSendClientReports"), sendClientReports);
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool flushed: false
+            property bool closed: false
+            property string droppedEventId: ""
+            property string deliveredEventId: ""
+            property SentryOptions options: SentryOptions {
+                dsn: testDsn
+                databasePath: testDatabasePath
+                autoSessionTracking: false
+                sendClientReports: testSendClientReports
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    if (JSON.stringify(event).indexOf("Dropped client report event") !== -1) {
+                        return null
+                    }
+                    return event
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                droppedEventId = Sentry.captureMessage("Dropped client report event")
+                deliveredEventId = Sentry.captureMessage("Delivered client report event")
+                flushed = Sentry.flush(5000)
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryClientReportsIntegrationTest.qml")));
+
+    QElapsedTimer loadTimer;
+    loadTimer.start();
+    while (component.isLoading() && loadTimer.elapsed() < 5000) {
+        QTest::qWait(50);
+    }
+    if (component.isLoading()) {
+        *errorMessage = QStringLiteral("Timed out loading client reports test component.");
+        return false;
+    }
+    if (component.isError()) {
+        *errorMessage = component.errorString();
+        return false;
+    }
+
+    const std::unique_ptr<QObject> object(component.create());
+    if (!object) {
+        *errorMessage = component.errorString();
+        return false;
+    }
+    if (!object->property("initialized").toBool()) {
+        *errorMessage = QStringLiteral("Sentry.init returned false.");
+        return false;
+    }
+    if (object->property("deliveredEventId").toString().size() != 36) {
+        *errorMessage = QStringLiteral("Delivered event id was not generated.");
+        return false;
+    }
+    if (!object->property("flushed").toBool() || !object->property("closed").toBool()) {
+        *errorMessage = QStringLiteral("Sentry.flush or Sentry.close returned false.");
+        return false;
+    }
+
+    if (!waitUntilContains(server, QByteArrayLiteral("Delivered client report event"), 5000)) {
+        *errorMessage = QString::fromUtf8(serverBodyExcerpt(server));
+        return false;
+    }
+    *combinedBody = server.combinedBody();
+    return true;
+}
+
+void SentryQmlIntegrationTest::sendsClientReportsWhenEnabled()
+{
+    SENTRY_QML_SKIP_CRASHPAD("crashpad transport does not use the HTTP envelope path this test inspects.");
+    SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
+
+    QByteArray enabledBody;
+    QString errorMessage;
+    QVERIFY2(runClientReportsScenario(true, &enabledBody, &errorMessage), qPrintable(errorMessage));
+    QVERIFY(enabledBody.contains("Delivered client report event"));
+    QVERIFY(enabledBody.contains("\"type\":\"client_report\""));
+    QVERIFY(enabledBody.contains("\"reason\":\"before_send\""));
+    QVERIFY(enabledBody.contains("\"category\":\"error\""));
+
+    QByteArray disabledBody;
+    errorMessage.clear();
+    QVERIFY2(runClientReportsScenario(false, &disabledBody, &errorMessage), qPrintable(errorMessage));
+    QVERIFY(disabledBody.contains("Delivered client report event"));
+    QVERIFY(!disabledBody.contains("\"type\":\"client_report\""));
+    QVERIFY(!disabledBody.contains("\"reason\":\"before_send\""));
 }
 
 void SentryQmlIntegrationTest::attachesScreenshotWhenEnabled()

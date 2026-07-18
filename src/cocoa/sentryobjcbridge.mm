@@ -14,6 +14,7 @@
 namespace {
 
 QString currentRelease;
+QString currentTransaction;
 
 NSString *nsString(const QString &value)
 {
@@ -544,6 +545,11 @@ void applyVariantMapToEvent(SentryObjCEvent *event, const QVariantMap &map)
     }
     if (map.contains(QStringLiteral("fingerprint"))) {
         event.fingerprint = stringArrayFromVariant(map.value(QStringLiteral("fingerprint")));
+    }
+    if (map.contains(QStringLiteral("transaction"))) {
+        event.transaction = nsString(map.value(QStringLiteral("transaction")).toString());
+    } else if (!currentTransaction.isEmpty()) {
+        event.transaction = nsString(currentTransaction);
     }
     if (!currentRelease.isEmpty()) {
         event.releaseName = nsString(currentRelease);
@@ -1255,6 +1261,11 @@ void setLevel(const QString &level)
             [scope setLevel:levelFromString(level)];
         }];
     }
+}
+
+void setTransaction(const QString &transaction)
+{
+    currentTransaction = transaction;
 }
 
 void setUser(const QVariantMap &user)

@@ -630,6 +630,7 @@ bool SentrySdk::setTransaction(Sentry *sentry, const QString &transaction)
     }
 
     m_transaction = transaction;
+    SentryObjCBridge::setTransaction(transaction);
     return true;
 }
 

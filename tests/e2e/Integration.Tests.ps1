@@ -475,6 +475,11 @@ Describe 'Sentry QML E2E' {
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'e2e_run_id' | Should -Be $script:RunId
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'test.action' | Should -Be 'message-capture'
         }
+
+        It 'keeps the QML scope level and transaction' {
+            Get-ObjectValue -InputObject $script:MessageEvent -Name 'level' | Should -Be 'warning'
+            Get-ObjectValue -InputObject $script:MessageEvent -Name 'transaction' | Should -Be 'e2e-scope-transaction'
+        }
     }
 
     Context 'User consent' -Skip:$IsCocoa {

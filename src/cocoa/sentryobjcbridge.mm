@@ -1248,6 +1248,15 @@ void setEnvironment(const QString &environment)
     }
 }
 
+void setLevel(const QString &level)
+{
+    @autoreleasepool {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
+            [scope setLevel:levelFromString(level)];
+        }];
+    }
+}
+
 void setUser(const QVariantMap &user)
 {
     @autoreleasepool {

@@ -11,6 +11,7 @@ namespace SentryEvent {
 
 QJSValue toScriptValue(QJSEngine *engine, const QVariant &value);
 QString levelNameFromString(const QString &level);
+QString levelNameFromInt(int level);
 QVariantMap stacktraceFromQmlStack(const QString &stack);
 QVariantMap stacktraceFromQmlError(const QQmlError &error, const QStringList &stack = {});
 QVariantMap exceptionEvent(const QString &type,

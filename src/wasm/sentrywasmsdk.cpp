@@ -450,6 +450,45 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             return true;
         },
 
+        setLevel: function (level) {
+            var S = sentry();
+            if (!S || !S.getCurrentScope) {
+                return false;
+            }
+            var names = {
+                "-2": "trace",
+                "-1": "debug",
+                "0": "info",
+                "1": "warning",
+                "2": "error",
+                "3": "fatal"
+            };
+            var name = names[String(level)] || "info";
+            var scope = S.getCurrentScope();
+            if (scope && scope.setLevel) {
+                scope.setLevel(name);
+                return true;
+            }
+            return false;
+        },
+
+        setTransaction: function (transaction) {
+            var S = sentry();
+            if (!S || !S.getCurrentScope) {
+                return false;
+            }
+            var scope = S.getCurrentScope();
+            if (scope && scope.setTransactionName) {
+                scope.setTransactionName(transaction);
+                return true;
+            }
+            if (scope && scope.setTransaction) {
+                scope.setTransaction(transaction);
+                return true;
+            }
+            return false;
+        },
+
         setUser: function (userJson) {
             var S = sentry();
             if (!S || !S.setUser) {
@@ -1865,6 +1904,31 @@ bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
     return m_dsn.isEmpty() || callBridgeString("setEnvironment", environment);
 }
 
+bool SentrySdk::setLevel(Sentry *sentry, int level)
+{
+    if (!ensureCanCall(sentry, "setLevel", "setting levels")) {
+        return false;
+    }
+
+    m_level = SentryEvent::levelNameFromInt(level);
+    return m_dsn.isEmpty() || callBridgeString("setLevel", QString::number(level));
+}
+
+bool SentrySdk::setTransaction(Sentry *sentry, const QString &transaction)
+{
+    if (!ensureCanCall(sentry, "setTransaction", "setting transactions")) {
+        return false;
+    }
+
+    if (transaction.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction must not be empty."));
+        return false;
+    }
+
+    m_transaction = transaction;
+    return m_dsn.isEmpty() || callBridgeString("setTransaction", transaction);
+}
+
 bool SentrySdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (!ensureCanCall(sentry, "setUser", "setting users")) {
@@ -2607,14 +2671,16 @@ QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const 
         return {};
     }
 
-    const QVariantMap event = {
-        {QStringLiteral("level"), SentryEvent::levelNameFromString(level)},
+    QVariantMap event = {
         {QStringLiteral("logger"), QStringLiteral("qml")},
         {QStringLiteral("message"),
          QVariantMap{
              {QStringLiteral("formatted"), message},
          }},
     };
+    if (!level.isEmpty()) {
+        event.insert(QStringLiteral("level"), SentryEvent::levelNameFromString(level));
+    }
 
     return captureEvent(sentry, event, SentrySdkCaptureMode::Manual);
 }
@@ -2702,6 +2768,8 @@ void SentrySdk::clearLocalScope()
     m_release.clear();
     m_environment.clear();
     m_dist.clear();
+    m_level.clear();
+    m_transaction.clear();
     m_user.clear();
     m_tags.clear();
     m_contexts.clear();
@@ -2728,6 +2796,12 @@ void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const
     }
     if (!m_dist.isEmpty() && !event->contains(QStringLiteral("dist"))) {
         event->insert(QStringLiteral("dist"), m_dist);
+    }
+    if (!m_level.isEmpty() && !event->contains(QStringLiteral("level"))) {
+        event->insert(QStringLiteral("level"), m_level);
+    }
+    if (!m_transaction.isEmpty() && !event->contains(QStringLiteral("transaction"))) {
+        event->insert(QStringLiteral("transaction"), m_transaction);
     }
     if (!m_user.isEmpty() && !event->contains(QStringLiteral("user"))) {
         event->insert(QStringLiteral("user"), m_user);

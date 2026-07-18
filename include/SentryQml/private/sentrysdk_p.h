@@ -43,6 +43,8 @@ public:
     bool resetUserConsent(Sentry *sentry);
     bool setRelease(Sentry *sentry, const QString &release);
     bool setEnvironment(Sentry *sentry, const QString &environment);
+    bool setLevel(Sentry *sentry, int level);
+    bool setTransaction(Sentry *sentry, const QString &transaction);
     bool setUser(Sentry *sentry, const QVariantMap &user);
     bool removeUser(Sentry *sentry);
     bool setTag(Sentry *sentry, const QString &key, const QString &value);
@@ -144,6 +146,8 @@ private:
     QString m_release;
     QString m_environment;
     QString m_dist;
+    QString m_level;
+    QString m_transaction;
     QVariantMap m_user;
     QVariantMap m_tags;
     QVariantMap m_contexts;

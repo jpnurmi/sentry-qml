@@ -82,6 +82,7 @@ void close();
 
 void setRelease(const QString &release);
 void setEnvironment(const QString &environment);
+void setLevel(const QString &level);
 void setUser(const QVariantMap &user);
 void removeUser();
 void setTag(const QString &key, const QString &value);

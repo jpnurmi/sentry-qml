@@ -95,6 +95,16 @@ bool Sentry::setEnvironment(const QString &environment)
     return SentrySdk::instance()->setEnvironment(this, environment);
 }
 
+bool Sentry::setLevel(Level level)
+{
+    return SentrySdk::instance()->setLevel(this, static_cast<int>(level));
+}
+
+bool Sentry::setTransaction(const QString &transaction)
+{
+    return SentrySdk::instance()->setTransaction(this, transaction);
+}
+
 bool Sentry::setUser(const QVariantMap &user)
 {
     return SentrySdk::instance()->setUser(this, user);

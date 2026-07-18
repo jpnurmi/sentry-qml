@@ -607,6 +607,32 @@ bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
     return true;
 }
 
+bool SentrySdk::setLevel(Sentry *sentry, int level)
+{
+    if (!ensureCanCall(sentry, "setLevel", "setting levels")) {
+        return false;
+    }
+
+    m_level = SentryEvent::levelNameFromInt(level);
+    SentryObjCBridge::setLevel(m_level);
+    return true;
+}
+
+bool SentrySdk::setTransaction(Sentry *sentry, const QString &transaction)
+{
+    if (!ensureCanCall(sentry, "setTransaction", "setting transactions")) {
+        return false;
+    }
+
+    if (transaction.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction must not be empty."));
+        return false;
+    }
+
+    m_transaction = transaction;
+    return true;
+}
+
 bool SentrySdk::setUser(Sentry *sentry, const QVariantMap &user)
 {
     if (!ensureCanCall(sentry, "setUser", "setting users")) {
@@ -1259,14 +1285,16 @@ QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const 
         return {};
     }
 
-    const QVariantMap event = {
-        {QStringLiteral("level"), levelNameFromString(level)},
+    QVariantMap event = {
         {QStringLiteral("logger"), QStringLiteral("qml")},
         {QStringLiteral("message"),
          QVariantMap{
              {QStringLiteral("formatted"), message},
          }},
     };
+    if (!level.isEmpty()) {
+        event.insert(QStringLiteral("level"), levelNameFromString(level));
+    }
 
     return captureEvent(sentry, event, SentrySdkCaptureMode::Manual);
 }
@@ -1347,6 +1375,8 @@ void SentrySdk::clearLocalScope()
     m_release.clear();
     m_environment.clear();
     m_dist.clear();
+    m_level.clear();
+    m_transaction.clear();
     m_user.clear();
     m_tags.clear();
     m_contexts.clear();
@@ -1370,6 +1400,12 @@ void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const
     }
     if (!m_dist.isEmpty() && !event->contains(QStringLiteral("dist"))) {
         event->insert(QStringLiteral("dist"), m_dist);
+    }
+    if (!m_level.isEmpty() && !event->contains(QStringLiteral("level"))) {
+        event->insert(QStringLiteral("level"), m_level);
+    }
+    if (!m_transaction.isEmpty() && !event->contains(QStringLiteral("transaction"))) {
+        event->insert(QStringLiteral("transaction"), m_transaction);
     }
     if (!m_user.isEmpty() && !event->contains(QStringLiteral("user"))) {
         event->insert(QStringLiteral("user"), m_user);

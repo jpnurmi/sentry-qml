@@ -1378,6 +1378,7 @@ void SentrySdk::clearLocalScope()
     m_dist.clear();
     m_level.clear();
     m_transaction.clear();
+    SentryObjCBridge::setTransaction({});
     m_user.clear();
     m_tags.clear();
     m_contexts.clear();

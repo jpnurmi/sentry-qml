@@ -151,6 +151,26 @@ public final class SentryQmlBridge {
         }
     }
 
+    public static boolean setLevel(int level) {
+        try {
+            Sentry.configureScope(scope -> scope.setLevel(eventLevel(level)));
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not set level.", t);
+            return false;
+        }
+    }
+
+    public static boolean setTransaction(String transaction) {
+        try {
+            Sentry.configureScope(scope -> scope.setTransaction(transaction));
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not set transaction.", t);
+            return false;
+        }
+    }
+
     public static boolean setUser(String userJson) {
         try {
             Map<String, Object> userMap = toMap(object(userJson));
@@ -637,6 +657,23 @@ public final class SentryQmlBridge {
             case 0:
             default:
                 return SentryLogLevel.INFO;
+        }
+    }
+
+    private static SentryLevel eventLevel(int level) {
+        switch (level) {
+            case -1:
+                return SentryLevel.DEBUG;
+            case 1:
+                return SentryLevel.WARNING;
+            case 2:
+                return SentryLevel.ERROR;
+            case 3:
+                return SentryLevel.FATAL;
+            case -2:
+            case 0:
+            default:
+                return SentryLevel.INFO;
         }
     }
 

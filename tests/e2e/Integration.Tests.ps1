@@ -340,6 +340,18 @@ BeforeAll {
         }
     }
 
+    function script:Assert-TestResultSuccess {
+        param(
+            [Parameter(Mandatory = $true)]
+            $Result
+        )
+
+        $testResultLine = $Result.Output | Where-Object { $_ -match 'TEST_RESULT:' } | Select-Object -Last 1
+        $testResultLine | Should -Not -BeNullOrEmpty
+        $testResult = ($testResultLine -replace '^.*TEST_RESULT:\s*', '') | ConvertFrom-Json
+        $testResult.success | Should -BeTrue
+    }
+
     function script:Assert-CrashExit {
         param(
             [Parameter(Mandatory = $true)]
@@ -464,6 +476,12 @@ Describe 'Sentry QML E2E' {
 
         It 'exits cleanly' {
             Assert-CleanExit -Result $script:MessageResult
+        }
+
+        It 'keeps the QML scope level and transaction before sending' {
+            # The hosted event API can expose derived/search fields before the full event fields.
+            # Assert the SDK boundary here and keep Sentry API checks focused on delivery.
+            Assert-TestResultSuccess -Result $script:MessageResult
         }
 
         It 'captures a message event in Sentry' {

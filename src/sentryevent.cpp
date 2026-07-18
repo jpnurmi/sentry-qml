@@ -100,6 +100,25 @@ QString levelNameFromString(const QString &level)
     return QStringLiteral("info");
 }
 
+QString levelNameFromInt(int level)
+{
+    switch (level) {
+    case -2:
+        return QStringLiteral("trace");
+    case -1:
+        return QStringLiteral("debug");
+    case 1:
+        return QStringLiteral("warning");
+    case 2:
+        return QStringLiteral("error");
+    case 3:
+        return QStringLiteral("fatal");
+    case 0:
+    default:
+        return QStringLiteral("info");
+    }
+}
+
 QVariantMap stacktraceFromQmlStack(const QString &stack)
 {
     if (stack.isEmpty()) {

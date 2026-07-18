@@ -83,6 +83,8 @@ public:
     Q_INVOKABLE bool resetUserConsent();
     Q_INVOKABLE bool setRelease(const QString &release);
     Q_INVOKABLE bool setEnvironment(const QString &environment);
+    Q_INVOKABLE bool setLevel(Level level);
+    Q_INVOKABLE bool setTransaction(const QString &transaction);
     Q_INVOKABLE bool setUser(const QVariantMap &user);
     Q_INVOKABLE bool removeUser();
     Q_INVOKABLE bool setTag(const QString &key, const QString &value);
@@ -139,7 +141,7 @@ public:
                                       const QString &description = QString(),
                                       SentrySpan *parentSpan = nullptr,
                                       bool bindToScope = false);
-    Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QStringLiteral("info"));
+    Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QString());
     Q_INVOKABLE QString captureException(const QJSValue &exception);
     Q_INVOKABLE bool captureFeedback(const QVariantMap &feedback, SentryHint *hint = nullptr);
 

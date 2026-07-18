@@ -434,6 +434,12 @@ bool callBridgeBool(const char *method, const char *signature, const QString &ar
         == JNI_TRUE;
 }
 
+bool callBridgeBool(const char *method, const char *signature, int arg)
+{
+    return QJniObject::callStaticMethod<jboolean>(bridgeClassName, method, signature, static_cast<jint>(arg))
+        == JNI_TRUE;
+}
+
 bool callBridgeBool(const char *method, const char *signature, const QString &first, const QString &second)
 {
     const QJniObject firstString = QJniObject::fromString(first);
@@ -1059,6 +1065,31 @@ bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
 
     m_environment = environment;
     return m_dsn.isEmpty() || callBridgeBool("setEnvironment", "(Ljava/lang/String;)Z", environment);
+}
+
+bool SentrySdk::setLevel(Sentry *sentry, int level)
+{
+    if (!ensureCanCall(sentry, "setLevel", "setting levels")) {
+        return false;
+    }
+
+    m_level = SentryEvent::levelNameFromInt(level);
+    return m_dsn.isEmpty() || callBridgeBool("setLevel", "(I)Z", level);
+}
+
+bool SentrySdk::setTransaction(Sentry *sentry, const QString &transaction)
+{
+    if (!ensureCanCall(sentry, "setTransaction", "setting transactions")) {
+        return false;
+    }
+
+    if (transaction.isEmpty()) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry transaction must not be empty."));
+        return false;
+    }
+
+    m_transaction = transaction;
+    return m_dsn.isEmpty() || callBridgeBool("setTransaction", "(Ljava/lang/String;)Z", transaction);
 }
 
 bool SentrySdk::setUser(Sentry *sentry, const QVariantMap &user)
@@ -1811,14 +1842,16 @@ QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const 
         return {};
     }
 
-    const QVariantMap event = {
-        {QStringLiteral("level"), SentryEvent::levelNameFromString(level)},
+    QVariantMap event = {
         {QStringLiteral("logger"), QStringLiteral("qml")},
         {QStringLiteral("message"),
          QVariantMap{
              {QStringLiteral("formatted"), message},
          }},
     };
+    if (!level.isEmpty()) {
+        event.insert(QStringLiteral("level"), SentryEvent::levelNameFromString(level));
+    }
 
     return captureEvent(sentry, event, SentrySdkCaptureMode::Manual);
 }
@@ -1906,6 +1939,8 @@ void SentrySdk::clearLocalScope()
     m_release.clear();
     m_environment.clear();
     m_dist.clear();
+    m_level.clear();
+    m_transaction.clear();
     m_user.clear();
     m_tags.clear();
     m_contexts.clear();
@@ -1932,6 +1967,12 @@ void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const
     }
     if (!m_dist.isEmpty() && !event->contains(QStringLiteral("dist"))) {
         event->insert(QStringLiteral("dist"), m_dist);
+    }
+    if (!m_level.isEmpty() && !event->contains(QStringLiteral("level"))) {
+        event->insert(QStringLiteral("level"), m_level);
+    }
+    if (!m_transaction.isEmpty() && !event->contains(QStringLiteral("transaction"))) {
+        event->insert(QStringLiteral("transaction"), m_transaction);
     }
     if (!m_user.isEmpty() && !event->contains(QStringLiteral("user"))) {
         event->insert(QStringLiteral("user"), m_user);

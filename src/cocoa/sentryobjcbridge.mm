@@ -14,6 +14,7 @@
 namespace {
 
 QString currentRelease;
+QString currentTransaction;
 
 NSString *nsString(const QString &value)
 {
@@ -545,6 +546,11 @@ void applyVariantMapToEvent(SentryObjCEvent *event, const QVariantMap &map)
     if (map.contains(QStringLiteral("fingerprint"))) {
         event.fingerprint = stringArrayFromVariant(map.value(QStringLiteral("fingerprint")));
     }
+    if (map.contains(QStringLiteral("transaction"))) {
+        event.transaction = nsString(map.value(QStringLiteral("transaction")).toString());
+    } else if (!currentTransaction.isEmpty()) {
+        event.transaction = nsString(currentTransaction);
+    }
     if (!currentRelease.isEmpty()) {
         event.releaseName = nsString(currentRelease);
     }
@@ -697,6 +703,9 @@ QVariantMap eventToVariantMap(SentryObjCEvent *event)
     }
     if (event.fingerprint) {
         map.insert(QStringLiteral("fingerprint"), variantFromObject(event.fingerprint));
+    }
+    if (event.transaction) {
+        map.insert(QStringLiteral("transaction"), qtString(event.transaction));
     }
     return map;
 }
@@ -1246,6 +1255,20 @@ void setEnvironment(const QString &environment)
             [scope setEnvironment:nsStringOrNil(environment)];
         }];
     }
+}
+
+void setLevel(const QString &level)
+{
+    @autoreleasepool {
+        [SentryObjCSDK configureScope:^(SentryObjCScope *scope) {
+            [scope setLevel:levelFromString(level)];
+        }];
+    }
+}
+
+void setTransaction(const QString &transaction)
+{
+    currentTransaction = transaction;
 }
 
 void setUser(const QVariantMap &user)

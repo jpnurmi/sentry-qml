@@ -5,6 +5,8 @@ QtObject {
     property bool initialized: false
     property bool releaseSet: false
     property bool environmentSet: false
+    property bool levelSet: false
+    property bool transactionSet: false
     property bool userSet: false
     property bool tagSet: false
     property bool removedTagSet: false
@@ -155,6 +157,8 @@ QtObject {
         declarativeEventId = Sentry.captureMessage("Declarative options integration message")
         releaseSet = Sentry.setRelease("sentry-qml@runtime")
         environmentSet = Sentry.setEnvironment("runtime")
+        levelSet = Sentry.setLevel(Sentry.Warning)
+        transactionSet = Sentry.setTransaction("integration-scope-transaction")
         userSet = Sentry.setUser({
             id: "integration-user",
             username: "grace",
@@ -195,7 +199,7 @@ QtObject {
         feedbackBytesAttached = feedbackHint.attachBytes("integration feedback bytes payload", "feedback-inline.txt", "text/plain")
         feedbackAttachmentCount = feedbackHint.attachmentCount
         sessionStarted = Sentry.startSession()
-        messageEventId = Sentry.captureMessage("Integration message", "warning")
+        messageEventId = Sentry.captureMessage("Integration message")
         bareFeedbackCaptured = Sentry.captureFeedback({
             message: "Integration bare feedback",
             email: "bare-feedback@example.com"

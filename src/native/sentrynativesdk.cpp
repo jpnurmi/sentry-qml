@@ -391,6 +391,11 @@ QString levelNameFromString(const QString &level)
     return SentryEvent::levelNameFromString(level);
 }
 
+QString levelNameFromInt(int level)
+{
+    return SentryEvent::levelNameFromInt(level);
+}
+
 sentry_span_status_t spanStatusFromString(const QString &status)
 {
     const QString normalized = status.trimmed().toLower().replace(QLatin1Char('-'), QLatin1Char('_'));
@@ -895,9 +900,7 @@ bool SentrySdk::close()
     m_tracesSamplerState.reset();
     m_crashHookState.reset();
     m_onCrashState.reset();
-    m_attachScreenshot = false;
-    m_attachViewHierarchy = false;
-    m_fingerprint.clear();
+    clearLocalScope();
     invalidateAttachments();
     invalidateSpans();
     setInitialized(false);
@@ -1059,6 +1062,36 @@ bool SentrySdk::setEnvironment(Sentry *sentry, const QString &environment)
 
     const QByteArray utf8Environment = environment.toUtf8();
     sentry_set_environment_n(utf8Environment.constData(), static_cast<size_t>(utf8Environment.size()));
+    return true;
+}
+
+bool SentrySdk::setLevel(Sentry *sentry, int level)
+{
+    if (!ensureCanCall(sentry, "setLevel", "setting levels")) {
+        return false;
+    }
+
+    sentry_set_level(logLevelFromInt(level));
+    m_level = levelNameFromInt(level);
+    return true;
+}
+
+bool SentrySdk::setTransaction(Sentry *sentry, const QString &transaction)
+{
+    if (!ensureCanCall(sentry, "setTransaction", "setting transactions")) {
+        return false;
+    }
+
+    if (transaction.isEmpty()) {
+        if (sentry) {
+            emit sentry->errorOccurred(QStringLiteral("Sentry transaction must not be empty."));
+        }
+        return false;
+    }
+
+    const QByteArray utf8Transaction = transaction.toUtf8();
+    sentry_set_transaction_n(utf8Transaction.constData(), static_cast<size_t>(utf8Transaction.size()));
+    m_transaction = transaction;
     return true;
 }
 
@@ -1897,14 +1930,16 @@ QString SentrySdk::captureMessage(Sentry *sentry, const QString &message, const 
         return {};
     }
 
-    const QVariantMap event = {
-        {QStringLiteral("level"), SentryEvent::levelNameFromString(level)},
+    QVariantMap event = {
         {QStringLiteral("logger"), QStringLiteral("qml")},
         {QStringLiteral("message"),
          QVariantMap{
              {QStringLiteral("formatted"), message},
          }},
     };
+    if (!level.isEmpty()) {
+        event.insert(QStringLiteral("level"), SentryEvent::levelNameFromString(level));
+    }
 
     return captureEvent(sentry, event, SentrySdkCaptureMode::Manual);
 }
@@ -2014,7 +2049,8 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         return {};
     }
 
-    if (m_fingerprint.isEmpty() && !m_attachScreenshot && !m_attachViewHierarchy) {
+    if (m_fingerprint.isEmpty() && m_level.isEmpty() && m_transaction.isEmpty() && !m_attachScreenshot
+        && !m_attachViewHierarchy) {
         return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
     }
 
@@ -2028,23 +2064,52 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
         viewHierarchy = SentryViewHierarchy::toJson();
     }
 
-    if (m_fingerprint.isEmpty() && screenshot.isEmpty() && viewHierarchy.isEmpty()) {
+    if (m_fingerprint.isEmpty() && m_level.isEmpty() && m_transaction.isEmpty() && screenshot.isEmpty()
+        && viewHierarchy.isEmpty()) {
         return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(event)));
     }
 
     sentry_scope_t *scope = sentry_local_scope_new();
     if (!scope) {
-        QVariantMap eventWithFingerprint = event;
-        applyFingerprintToEvent(&eventWithFingerprint);
-        return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(eventWithFingerprint)));
+        QVariantMap localEvent = event;
+        applyLocalScopeToEvent(&localEvent);
+        return eventIdFromUuid(sentry_capture_event(nativeValueFromVariant(localEvent)));
     }
+
+    QVariantMap scopedEvent = event;
+    applyLocalScopeToEvent(&scopedEvent);
 
     if (!m_fingerprint.isEmpty()) {
         sentry_scope_set_fingerprints(scope, nativeFingerprintFromStringList(m_fingerprint));
     }
     attachScreenshotToScope(scope, screenshot);
     attachViewHierarchyToScope(scope, viewHierarchy);
-    return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(event), scope));
+    return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(scopedEvent), scope));
+}
+
+void SentrySdk::clearLocalScope()
+{
+    m_level.clear();
+    m_transaction.clear();
+    m_fingerprint.clear();
+    m_maxBreadcrumbs = 100;
+    m_attachScreenshot = false;
+    m_attachViewHierarchy = false;
+}
+
+void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const
+{
+    if (!event) {
+        return;
+    }
+
+    if (!m_level.isEmpty() && !event->contains(QStringLiteral("level"))) {
+        event->insert(QStringLiteral("level"), m_level);
+    }
+    if (!m_transaction.isEmpty() && !event->contains(QStringLiteral("transaction"))) {
+        event->insert(QStringLiteral("transaction"), m_transaction);
+    }
+    applyFingerprintToEvent(event);
 }
 
 void SentrySdk::applyFingerprintToEvent(QVariantMap *event) const

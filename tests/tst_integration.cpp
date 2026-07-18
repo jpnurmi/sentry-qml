@@ -334,6 +334,8 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("releaseSet").toBool(), true);
     QCOMPARE(object->property("environmentSet").toBool(), true);
+    QCOMPARE(object->property("levelSet").toBool(), true);
+    QCOMPARE(object->property("transactionSet").toBool(), true);
     QCOMPARE(object->property("userSet").toBool(), true);
     QCOMPARE(object->property("tagSet").toBool(), true);
     QCOMPARE(object->property("removedTagSet").toBool(), true);
@@ -447,6 +449,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     const EnvelopeItem event = findItem(messageItems, QStringLiteral("event"), "Integration message");
     QVERIFY(!event.payload.isEmpty());
     QVERIFY(event.payload.contains("\"level\":\"warning\""));
+    QVERIFY(event.payload.contains("\"transaction\":\"integration-scope-transaction\""));
     QVERIFY(event.payload.contains("\"release\":\"sentry-qml@runtime\""));
     QVERIFY(event.payload.contains("\"environment\":\"runtime\""));
     QVERIFY(event.payload.contains("\"dist\":\"42\""));

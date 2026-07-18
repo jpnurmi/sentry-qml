@@ -704,6 +704,9 @@ QVariantMap eventToVariantMap(SentryObjCEvent *event)
     if (event.fingerprint) {
         map.insert(QStringLiteral("fingerprint"), variantFromObject(event.fingerprint));
     }
+    if (event.transaction) {
+        map.insert(QStringLiteral("transaction"), qtString(event.transaction));
+    }
     return map;
 }
 

@@ -165,6 +165,47 @@ BeforeAll {
         return $null
     }
 
+    function script:Get-SentryTestEventWithValues {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$EventId,
+
+            [Parameter(Mandatory = $true)]
+            [System.Collections.IDictionary]$ExpectedValues,
+
+            [int]$TimeoutSeconds = 180
+        )
+
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $lastEvent = $null
+        $lastMismatches = @()
+
+        do {
+            $lastEvent = Get-SentryTestEvent -EventId $EventId -TimeoutSeconds 30
+            $lastMismatches = @()
+
+            foreach ($key in $ExpectedValues.Keys) {
+                $actual = Get-ObjectValue -InputObject $lastEvent -Name $key
+                if ($actual -ne $ExpectedValues[$key]) {
+                    $lastMismatches += "$key expected '$($ExpectedValues[$key])' but got '$actual'"
+                }
+            }
+
+            if ($lastMismatches.Count -eq 0) {
+                return $lastEvent
+            }
+
+            Start-Sleep -Seconds 5
+        } while ([DateTime]::UtcNow -lt $deadline)
+
+        $lastEventJson = if ($lastEvent) {
+            $lastEvent | ConvertTo-Json -Depth 16 -Compress
+        } else {
+            '<null>'
+        }
+        throw "Event $EventId did not contain expected values: $($lastMismatches -join '; '). Last event: $lastEventJson"
+    }
+
     function script:Save-SentryTestEventAttachment {
         param(
             [Parameter(Mandatory = $true)]
@@ -459,7 +500,13 @@ Describe 'Sentry QML E2E' {
         BeforeAll {
             $script:MessageResult = Invoke-E2EAction -Action 'message-capture'
             $script:MessageEventIds = Get-EventIds -AppOutput $script:MessageResult.Output -ExpectedCount 1
-            $script:MessageEvent = Get-SentryTestEvent -EventId $script:MessageEventIds[0] -TimeoutSeconds 180
+            $script:MessageEvent = Get-SentryTestEventWithValues `
+                -EventId $script:MessageEventIds[0] `
+                -ExpectedValues @{
+                    level = 'warning'
+                    transaction = 'e2e-scope-transaction'
+                } `
+                -TimeoutSeconds 180
         }
 
         It 'exits cleanly' {
@@ -476,7 +523,8 @@ Describe 'Sentry QML E2E' {
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'test.action' | Should -Be 'message-capture'
         }
 
-        It 'keeps the QML scope transaction' {
+        It 'keeps the QML scope level and transaction' {
+            Get-ObjectValue -InputObject $script:MessageEvent -Name 'level' | Should -Be 'warning'
             Get-ObjectValue -InputObject $script:MessageEvent -Name 'transaction' | Should -Be 'e2e-scope-transaction'
         }
     }

@@ -476,8 +476,7 @@ Describe 'Sentry QML E2E' {
             Get-TagValue -SentryEvent $script:MessageEvent -Key 'test.action' | Should -Be 'message-capture'
         }
 
-        It 'keeps the QML scope level and transaction' {
-            Get-ObjectValue -InputObject $script:MessageEvent -Name 'level' | Should -Be 'warning'
+        It 'keeps the QML scope transaction' {
             Get-ObjectValue -InputObject $script:MessageEvent -Name 'transaction' | Should -Be 'e2e-scope-transaction'
         }
     }

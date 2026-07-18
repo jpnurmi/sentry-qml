@@ -18,6 +18,9 @@ Window {
     property bool metricCaptured: false
     property bool levelSet: false
     property bool scopeTransactionSet: false
+    property bool beforeSendMessageCalled: false
+    property string beforeSendMessageLevel: ""
+    property string beforeSendMessageTransaction: ""
     property bool beforeSendTransactionCalled: false
     property bool beforeSendSpanCalled: false
     property bool transactionStarted: false
@@ -79,6 +82,14 @@ Window {
         }
         tracesSampler: function(context) {
             return testAction === "tracing-capture" ? 1.0 : 0.0
+        }
+        beforeSend: function(event) {
+            if (testAction === "message-capture") {
+                beforeSendMessageCalled = true
+                beforeSendMessageLevel = event.level || ""
+                beforeSendMessageTransaction = event.transaction || ""
+            }
+            return event
         }
         beforeSendTransaction: function(transaction) {
             beforeSendTransactionCalled = true
@@ -162,7 +173,15 @@ Window {
             eventId = Sentry.captureMessage(message)
             flushed = Sentry.flush(10000)
             closed = Sentry.close()
-            success = initialized && levelSet && scopeTransactionSet && eventId !== "" && flushed && closed
+            success = initialized
+                && levelSet
+                && scopeTransactionSet
+                && beforeSendMessageCalled
+                && beforeSendMessageLevel === "warning"
+                && beforeSendMessageTransaction === "e2e-scope-transaction"
+                && eventId !== ""
+                && flushed
+                && closed
         } else if (testAction === "consent-capture") {
             consentRequired = Sentry.userConsentRequired
             consentInitiallyUnknown = Sentry.userConsent === Sentry.UserConsentUnknown

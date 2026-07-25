@@ -310,6 +310,16 @@ QString Sentry::captureMessage(const QString &message, const QString &level)
     return SentrySdk::instance()->captureMessage(this, message, level);
 }
 
+QString Sentry::captureEvent(const QVariantMap &event)
+{
+    if (!isInitialized()) {
+        emit errorOccurred(QStringLiteral("Sentry must be initialized before capturing events."));
+        return {};
+    }
+
+    return SentrySdk::instance()->captureEvent(this, event, SentrySdkCaptureMode::Manual);
+}
+
 QString Sentry::captureException(const QJSValue &exception)
 {
     if (!isInitialized()) {

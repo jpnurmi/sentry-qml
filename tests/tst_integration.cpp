@@ -372,6 +372,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("declarativeEventId").toString().size(), 36);
     QCOMPARE(object->property("blockedBeforeConsentEventId").toString().size(), 36);
     QCOMPARE(object->property("messageEventId").toString().size(), 36);
+    QCOMPARE(object->property("rawEventId").toString().size(), 36);
     QCOMPARE(object->property("exceptionEventId").toString().size(), 36);
 
     QTest::ignoreMessage(QtWarningMsg,
@@ -399,6 +400,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
         const QByteArray body = serverBodyExcerpt(server);
         QVERIFY2(false, body.constData());
     }
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration raw event"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration exception"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration bare feedback"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration feedback"), 5000);
@@ -467,6 +469,25 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(event.payload.contains("beforeBreadcrumb"));
     QVERIFY(!event.payload.contains("removed_tag"));
     QVERIFY(!event.payload.contains("removed_context"));
+
+    const QList<EnvelopeItem> rawItems = findEnvelopeItems(server.bodies(), "Integration raw event");
+    QVERIFY(!rawItems.isEmpty());
+
+    const EnvelopeItem rawEvent = findItem(rawItems, QStringLiteral("event"), "Integration raw event");
+    QVERIFY(!rawEvent.payload.isEmpty());
+    QVERIFY(rawEvent.payload.contains("\"logger\":\"qml.raw\""));
+    QVERIFY(rawEvent.payload.contains("\"raw_event\":\"yes\""));
+    QVERIFY(rawEvent.payload.contains("\"screen\":\"integration\""));
+    QVERIFY(rawEvent.payload.contains("\"transaction\":\"integration-scope-transaction\""));
+    QVERIFY(rawEvent.payload.contains("\"type\":\"RawIntegrationError\""));
+    QVERIFY(rawEvent.payload.contains("\"value\":\"Integration raw exception\""));
+    QVERIFY(rawEvent.payload.contains("\"mechanism\""));
+    QVERIFY(rawEvent.payload.contains("\"request\""));
+    QVERIFY(rawEvent.payload.contains("https://example.com/integration/raw"));
+    QVERIFY(rawEvent.payload.contains("\"threads\""));
+    QVERIFY(rawEvent.payload.contains("\"arbitrary\""));
+    QVERIFY(rawEvent.payload.contains("\"count\":7"));
+    QVERIFY(rawEvent.payload.contains("\"fingerprint\":[\"{{ default }}\",\"integration\"]"));
 
     const EnvelopeItem fileAttachment = findItem(messageItems, QStringLiteral("attachment"), "integration file payload");
     QVERIFY(!fileAttachment.payload.isEmpty());

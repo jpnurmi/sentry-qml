@@ -41,6 +41,7 @@ private slots:
     void addsBreadcrumbs();
     void sendsLogs();
     void sendsMetrics();
+    void capturesRawEvent();
     void capturesManualException();
     void capturesFeedback();
     void capturesUncaughtQmlError();
@@ -1514,6 +1515,123 @@ void SentryQmlUnitTest::capturesManualException()
     QVERIFY2(object, qPrintable(component.errorString()));
     QCOMPARE(object->property("initialized").toBool(), true);
     QCOMPARE(object->property("eventId").toString().size(), 36);
+    QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlUnitTest::capturesRawEvent()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool beforeSendCalled: false
+            property bool tagSet: false
+            property bool contextSet: false
+            property bool fingerprintSet: false
+            property bool closed: false
+            property string eventId: ""
+            property string message: ""
+            property string level: ""
+            property string exceptionType: ""
+            property string exceptionValue: ""
+            property string requestUrl: ""
+            property string tagValue: ""
+            property string scopedTagValue: ""
+            property string contextValue: ""
+            property string fingerprintValue: ""
+            property int frameLine: 0
+            property SentryOptions options: SentryOptions {
+                databasePath: testDatabasePath
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    const exception = event.exception.values[0]
+                    const frames = exception.stacktrace.frames
+                    beforeSendCalled = true
+                    message = event.message.formatted || ""
+                    level = event.level || ""
+                    exceptionType = exception.type || ""
+                    exceptionValue = exception.value || ""
+                    requestUrl = event.request.url || ""
+                    tagValue = event.tags.raw || ""
+                    scopedTagValue = event.tags.scope || ""
+                    contextValue = event.contexts.raw.answer || ""
+                    fingerprintValue = event.fingerprint[1] || ""
+                    frameLine = frames[0].lineno || 0
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                tagSet = Sentry.setTag("scope", "raw-event")
+                contextSet = Sentry.setContext("raw", { answer: "42" })
+                fingerprintSet = Sentry.setFingerprint(["{{ default }}", "raw-event"])
+                eventId = Sentry.captureEvent({
+                    level: "error",
+                    message: { formatted: "Raw event message" },
+                    tags: { raw: "custom" },
+                    request: {
+                        url: "https://example.com/raw",
+                        method: "POST"
+                    },
+                    exception: {
+                        values: [{
+                            type: "CustomError",
+                            value: "custom failure",
+                            stacktrace: {
+                                frames: [{
+                                    filename: "RawEvent.qml",
+                                    function: "capture",
+                                    lineno: 123,
+                                    in_app: true
+                                }]
+                            },
+                            mechanism: {
+                                type: "manual",
+                                handled: true
+                            }
+                        }]
+                    }
+                })
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryRawEventTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("tagSet").toBool(), true);
+    QCOMPARE(object->property("contextSet").toBool(), true);
+    QCOMPARE(object->property("fingerprintSet").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("message").toString(), QStringLiteral("Raw event message"));
+    QCOMPARE(object->property("level").toString(), QStringLiteral("error"));
+    QCOMPARE(object->property("exceptionType").toString(), QStringLiteral("CustomError"));
+    QCOMPARE(object->property("exceptionValue").toString(), QStringLiteral("custom failure"));
+    QCOMPARE(object->property("requestUrl").toString(), QStringLiteral("https://example.com/raw"));
+    QCOMPARE(object->property("tagValue").toString(), QStringLiteral("custom"));
+    QCOMPARE(object->property("scopedTagValue").toString(), QStringLiteral("raw-event"));
+    QCOMPARE(object->property("contextValue").toString(), QStringLiteral("42"));
+    QCOMPARE(object->property("fingerprintValue").toString(), QStringLiteral("raw-event"));
+    QCOMPARE(object->property("frameLine").toInt(), 123);
+    QCOMPARE(object->property("eventId").toString(), QString());
     QCOMPARE(object->property("closed").toBool(), true);
 }
 

@@ -21,6 +21,7 @@ Window {
     property bool beforeSendMessageCalled: false
     property string beforeSendMessageLevel: ""
     property string beforeSendMessageTransaction: ""
+    property bool beforeSendRawEventCalled: false
     property bool beforeSendTransactionCalled: false
     property bool beforeSendSpanCalled: false
     property bool transactionStarted: false
@@ -48,6 +49,7 @@ Window {
     property string consentBlockedMessage: "Sentry QML E2E consent blocked " + testRunId
     property string consentMessage: "Sentry QML E2E consent " + testRunId
     property string consentRevokedMessage: "Sentry QML E2E consent revoked " + testRunId
+    property string rawEventMessage: "Sentry QML E2E raw event " + testRunId
     property string attributesLogMessage: "Sentry QML E2E attributes " + testRunId
     property string feedbackEventMessage: "Sentry QML E2E feedback event " + testRunId
     property string feedbackMessage: "Sentry QML E2E feedback " + testRunId
@@ -88,6 +90,14 @@ Window {
                 beforeSendMessageCalled = true
                 beforeSendMessageLevel = event.level || ""
                 beforeSendMessageTransaction = event.transaction || ""
+            } else if (testAction === "raw-event-capture") {
+                beforeSendRawEventCalled = event.logger === "qml.raw"
+                    && event.request
+                    && event.request.url === "https://example.com/e2e/raw"
+                    && event.exception
+                    && event.exception.values
+                    && event.exception.values[0]
+                    && event.exception.values[0].type === "RawE2EError"
             }
             return event
         }
@@ -179,6 +189,47 @@ Window {
                 && beforeSendMessageCalled
                 && beforeSendMessageLevel === "warning"
                 && beforeSendMessageTransaction === "e2e-scope-transaction"
+                && eventId !== ""
+                && flushed
+                && closed
+        } else if (testAction === "raw-event-capture") {
+            eventId = Sentry.captureEvent({
+                level: "error",
+                logger: "qml.raw",
+                message: {
+                    formatted: rawEventMessage
+                },
+                tags: {
+                    raw_event: "yes"
+                },
+                contexts: {
+                    qml: {
+                        scenario: "e2e-raw-event",
+                        runId: testRunId
+                    }
+                },
+                request: {
+                    url: "https://example.com/e2e/raw",
+                    method: "POST"
+                },
+                exception: {
+                    values: [{
+                        type: "RawE2EError",
+                        value: "Raw event E2E exception",
+                        mechanism: {
+                            type: "manual",
+                            handled: true
+                        }
+                    }]
+                },
+                extra: {
+                    rawRunId: testRunId
+                }
+            })
+            flushed = Sentry.flush(10000)
+            closed = Sentry.close()
+            success = initialized
+                && beforeSendRawEventCalled
                 && eventId !== ""
                 && flushed
                 && closed

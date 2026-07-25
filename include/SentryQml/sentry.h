@@ -142,6 +142,7 @@ public:
                                       SentrySpan *parentSpan = nullptr,
                                       bool bindToScope = false);
     Q_INVOKABLE QString captureMessage(const QString &message, const QString &level = QString());
+    Q_INVOKABLE QString captureEvent(const QVariantMap &event);
     Q_INVOKABLE QString captureException(const QJSValue &exception);
     Q_INVOKABLE bool captureFeedback(const QVariantMap &feedback, SentryHint *hint = nullptr);
 

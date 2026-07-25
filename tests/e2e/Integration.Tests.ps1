@@ -518,6 +518,36 @@ Describe 'Sentry QML E2E' {
         }
     }
 
+    Context 'Raw event capture' {
+        BeforeAll {
+            $script:RawEventMessage = "Sentry QML E2E raw event $script:RunId"
+            $script:RawEventResult = Invoke-E2EAction -Action 'raw-event-capture'
+            $script:RawEventIds = Get-EventIds -AppOutput $script:RawEventResult.Output -ExpectedCount 1
+            $script:RawEvent = Get-SentryTestEvent -EventId $script:RawEventIds[0] -TimeoutSeconds 180
+        }
+
+        It 'exits cleanly' {
+            Assert-CleanExit -Result $script:RawEventResult
+        }
+
+        It 'captures a raw event in Sentry' {
+            $script:RawEvent | Should -Not -BeNullOrEmpty
+            Get-ObjectValue -InputObject $script:RawEvent -Name 'type' | Should -Be 'error'
+        }
+
+        It 'keeps custom raw event fields' {
+            Get-TagValue -SentryEvent $script:RawEvent -Key 'e2e_run_id' | Should -Be $script:RunId
+            Get-TagValue -SentryEvent $script:RawEvent -Key 'test.action' | Should -Be 'raw-event-capture'
+            Get-TagValue -SentryEvent $script:RawEvent -Key 'raw_event' | Should -Be 'yes'
+
+            $rawEventJson = $script:RawEvent | ConvertTo-Json -Depth 32 -Compress
+            $rawEventJson.Contains($script:RawEventMessage) | Should -BeTrue
+            $rawEventJson.Contains('RawE2EError') | Should -BeTrue
+            $rawEventJson.Contains('https://example.com/e2e/raw') | Should -BeTrue
+            $rawEventJson.Contains('e2e-raw-event') | Should -BeTrue
+        }
+    }
+
     Context 'Feedback capture' {
         BeforeAll {
             $script:FeedbackMessage = "Sentry QML E2E feedback $script:RunId"

@@ -476,6 +476,72 @@ NSArray<SentryObjCException *> *exceptionsFromVariant(const QVariant &value)
     return exceptions;
 }
 
+SentryObjCRequest *requestFromVariantMap(const QVariantMap &map)
+{
+    SentryObjCRequest *request = [[SentryObjCRequest alloc] init];
+    if (map.contains(QStringLiteral("body_size"))) {
+        request.bodySize = @(map.value(QStringLiteral("body_size")).toLongLong());
+    } else if (map.contains(QStringLiteral("bodySize"))) {
+        request.bodySize = @(map.value(QStringLiteral("bodySize")).toLongLong());
+    }
+    request.cookies = stringValue(map, QStringLiteral("cookies"));
+    if (map.contains(QStringLiteral("headers"))) {
+        request.headers = stringDictionaryFromVariantMap(map.value(QStringLiteral("headers")).toMap());
+    }
+    request.fragment = stringValue(map, QStringLiteral("fragment"));
+    request.method = stringValue(map, QStringLiteral("method"));
+    if (map.contains(QStringLiteral("query_string"))) {
+        request.queryString = nsString(map.value(QStringLiteral("query_string")).toString());
+    } else if (map.contains(QStringLiteral("queryString"))) {
+        request.queryString = nsString(map.value(QStringLiteral("queryString")).toString());
+    }
+    request.url = stringValue(map, QStringLiteral("url"));
+    return request;
+}
+
+SentryObjCThread *threadFromVariantMap(const QVariantMap &map)
+{
+    NSNumber *threadId = nil;
+    if (map.contains(QStringLiteral("id"))) {
+        threadId = @(map.value(QStringLiteral("id")).toLongLong());
+    } else if (map.contains(QStringLiteral("thread_id"))) {
+        threadId = @(map.value(QStringLiteral("thread_id")).toLongLong());
+    }
+
+    SentryObjCThread *thread = [[SentryObjCThread alloc] initWithThreadId:threadId];
+    thread.name = stringValue(map, QStringLiteral("name"));
+    if (map.contains(QStringLiteral("stacktrace"))) {
+        thread.stacktrace = stacktraceFromVariantMap(map.value(QStringLiteral("stacktrace")).toMap());
+    }
+    if (map.contains(QStringLiteral("crashed"))) {
+        thread.crashed = @(map.value(QStringLiteral("crashed")).toBool());
+    }
+    if (map.contains(QStringLiteral("current"))) {
+        thread.current = @(map.value(QStringLiteral("current")).toBool());
+    }
+    if (map.contains(QStringLiteral("main"))) {
+        thread.isMain = @(map.value(QStringLiteral("main")).toBool());
+    }
+    return thread;
+}
+
+NSArray<SentryObjCThread *> *threadsFromVariant(const QVariant &value)
+{
+    QVariantList values = value.toMap().value(QStringLiteral("values")).toList();
+    if (values.isEmpty()) {
+        values = value.toList();
+    }
+
+    NSMutableArray<SentryObjCThread *> *threads = [NSMutableArray arrayWithCapacity:values.size()];
+    for (const QVariant &threadValue : values) {
+        const QVariantMap threadMap = threadValue.toMap();
+        if (!threadMap.isEmpty()) {
+            [threads addObject:threadFromVariantMap(threadMap)];
+        }
+    }
+    return threads;
+}
+
 void applyVariantMapToBreadcrumb(SentryObjCBreadcrumb *breadcrumb, const QVariantMap &map)
 {
     if (map.contains(QStringLiteral("level"))) {
@@ -529,8 +595,14 @@ void applyVariantMapToEvent(SentryObjCEvent *event, const QVariantMap &map)
     if (map.contains(QStringLiteral("exception"))) {
         event.exceptions = exceptionsFromVariant(map.value(QStringLiteral("exception")));
     }
+    if (map.contains(QStringLiteral("threads"))) {
+        event.threads = threadsFromVariant(map.value(QStringLiteral("threads")));
+    }
     if (map.contains(QStringLiteral("stacktrace"))) {
         event.stacktrace = stacktraceFromVariantMap(map.value(QStringLiteral("stacktrace")).toMap());
+    }
+    if (map.contains(QStringLiteral("request"))) {
+        event.request = requestFromVariantMap(map.value(QStringLiteral("request")).toMap());
     }
     if (map.contains(QStringLiteral("extra"))) {
         event.extra = dictionaryFromVariantMap(map.value(QStringLiteral("extra")).toMap());

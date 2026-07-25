@@ -65,6 +65,7 @@ QtObject {
     property string blockedBeforeConsentEventId: ""
     property string declarativeEventId: ""
     property string messageEventId: ""
+    property string rawEventId: ""
     property string exceptionEventId: ""
     property int feedbackAttachmentCount: 0
     property var fileAttachment: null
@@ -200,6 +201,60 @@ QtObject {
         feedbackAttachmentCount = feedbackHint.attachmentCount
         sessionStarted = Sentry.startSession()
         messageEventId = Sentry.captureMessage("Integration message")
+        rawEventId = Sentry.captureEvent({
+            level: "error",
+            logger: "qml.raw",
+            message: {
+                formatted: "Integration raw event"
+            },
+            tags: {
+                raw_event: "yes"
+            },
+            request: {
+                url: "https://example.com/integration/raw",
+                method: "POST",
+                headers: {
+                    "content-type": "application/json"
+                },
+                data: {
+                    action: "captureEvent"
+                }
+            },
+            threads: {
+                values: [{
+                    id: 1,
+                    name: "qml-main",
+                    current: true,
+                    stacktrace: {
+                        frames: [{
+                            filename: "IntegrationTest.qml",
+                            function: "Component.onCompleted",
+                            lineno: 1,
+                            in_app: true
+                        }]
+                    }
+                }]
+            },
+            exception: {
+                values: [{
+                    type: "RawIntegrationError",
+                    value: "Integration raw exception",
+                    mechanism: {
+                        type: "manual",
+                        handled: true,
+                        data: {
+                            source: "qml"
+                        }
+                    }
+                }]
+            },
+            extra: {
+                arbitrary: {
+                    enabled: true,
+                    count: 7
+                }
+            }
+        })
         bareFeedbackCaptured = Sentry.captureFeedback({
             message: "Integration bare feedback",
             email: "bare-feedback@example.com"

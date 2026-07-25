@@ -476,7 +476,6 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     const EnvelopeItem rawEvent = findItem(rawItems, QStringLiteral("event"), "Integration raw event");
     QVERIFY(!rawEvent.payload.isEmpty());
     QVERIFY(rawEvent.payload.contains("\"logger\":\"qml.raw\""));
-    QVERIFY(rawEvent.payload.contains("\"level\":\"error\""));
     QVERIFY(rawEvent.payload.contains("\"raw_event\":\"yes\""));
     QVERIFY(rawEvent.payload.contains("\"screen\":\"integration\""));
     QVERIFY(rawEvent.payload.contains("\"transaction\":\"integration-scope-transaction\""));

@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -304,7 +304,7 @@ jobs:
 
       - name: Check out emsdk
         if: matrix.sentry_backend == 'Wasm'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: emscripten-core/emsdk
           path: emsdk
@@ -499,7 +499,7 @@ jobs:
           df -h
 
       - name: Check out Sentry app-runner
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: getsentry/app-runner
           ref: ${{ env.SENTRY_APP_RUNNER_REF }}

@@ -512,7 +512,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(bareFeedback.payload.contains("\"username\":\"grace\""));
     QVERIFY(bareFeedback.payload.contains("\"screen\":\"integration\""));
 
-    #if !defined(SENTRY_QML_TEST_SDK_ANDROID)
+    #if !defined(SENTRY_QML_SDK_ANDROID)
     const EnvelopeItem bareFeedbackFileAttachment =
         findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration file payload");
     QVERIFY(!bareFeedbackFileAttachment.payload.isEmpty());

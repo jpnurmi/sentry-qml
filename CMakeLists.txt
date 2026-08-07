@@ -81,6 +81,11 @@ else()
     message(STATUS "Sentry backend: ${sentry_qml_backend}")
 endif()
 
+string(TOUPPER "${sentry_qml_backend}" SENTRY_QML_SDK)
+if(sentry_qml_backend STREQUAL "native")
+    string(TOUPPER "${SENTRY_BACKEND}" SENTRY_QML_BACKEND)
+endif()
+
 set(sentry_qml_backend_sources)
 set(sentry_qml_backend_libraries)
 set(sentry_qml_backend_include_directories)

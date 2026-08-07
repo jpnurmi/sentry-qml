@@ -76,6 +76,17 @@ target_compile_definitions(SentryQml
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
 )
 
+target_compile_definitions(SentryQml
+    PUBLIC
+        SENTRY_QML_SDK_${SENTRY_QML_SDK}
+)
+if(SENTRY_QML_BACKEND)
+    target_compile_definitions(SentryQml
+        PUBLIC
+            SENTRY_QML_BACKEND_${SENTRY_QML_BACKEND}
+    )
+endif()
+
 if(sentry_qml_backend_link_options)
     target_link_options(SentryQml
         INTERFACE

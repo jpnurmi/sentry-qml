@@ -509,7 +509,29 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(!bareFeedback.payload.isEmpty());
     QVERIFY(bareFeedback.payload.contains("\"message\":\"Integration bare feedback\""));
     QVERIFY(bareFeedback.payload.contains("\"contact_email\":\"bare-feedback@example.com\""));
-    QVERIFY(findItem(bareFeedbackItems, QStringLiteral("attachment")).payload.isEmpty());
+    QVERIFY(bareFeedback.payload.contains("\"username\":\"grace\""));
+    QVERIFY(bareFeedback.payload.contains("\"screen\":\"integration\""));
+
+    const EnvelopeItem bareFeedbackFileAttachment =
+        findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration file payload");
+    QVERIFY(!bareFeedbackFileAttachment.payload.isEmpty());
+    QCOMPARE(bareFeedbackFileAttachment.headers.value(QStringLiteral("filename")).toString(),
+             QStringLiteral("diagnostic.log"));
+    QCOMPARE(bareFeedbackFileAttachment.headers.value(QStringLiteral("content_type")).toString(),
+             QStringLiteral("text/plain"));
+    QCOMPARE(bareFeedbackFileAttachment.payload, QByteArrayLiteral("integration file payload"));
+
+    const EnvelopeItem bareFeedbackByteAttachment =
+        findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration bytes payload");
+    QVERIFY(!bareFeedbackByteAttachment.payload.isEmpty());
+    QCOMPARE(bareFeedbackByteAttachment.headers.value(QStringLiteral("filename")).toString(),
+             QStringLiteral("inline.txt"));
+    QCOMPARE(bareFeedbackByteAttachment.headers.value(QStringLiteral("content_type")).toString(),
+             QStringLiteral("text/plain"));
+    QCOMPARE(bareFeedbackByteAttachment.payload, QByteArrayLiteral("integration bytes payload"));
+    QVERIFY2(findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration feedback bytes payload").payload
+             .isEmpty(),
+         "bare feedback must not carry hint attachments");
 
     const QList<EnvelopeItem> feedbackItems = findEnvelopeItems(server.bodies(), "Integration feedback");
     QVERIFY(!feedbackItems.isEmpty());

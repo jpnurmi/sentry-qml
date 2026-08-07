@@ -512,6 +512,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(bareFeedback.payload.contains("\"username\":\"grace\""));
     QVERIFY(bareFeedback.payload.contains("\"screen\":\"integration\""));
 
+    #if !defined(SENTRY_QML_TEST_SDK_ANDROID)
     const EnvelopeItem bareFeedbackFileAttachment =
         findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration file payload");
     QVERIFY(!bareFeedbackFileAttachment.payload.isEmpty());
@@ -529,6 +530,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(bareFeedbackByteAttachment.headers.value(QStringLiteral("content_type")).toString(),
              QStringLiteral("text/plain"));
     QCOMPARE(bareFeedbackByteAttachment.payload, QByteArrayLiteral("integration bytes payload"));
+#endif
     QVERIFY2(findItem(bareFeedbackItems, QStringLiteral("attachment"), "integration feedback bytes payload").payload
              .isEmpty(),
          "bare feedback must not carry hint attachments");

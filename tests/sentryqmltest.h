@@ -10,7 +10,7 @@
 #include <limits>
 #endif
 
-#if defined(SENTRY_QML_TEST_SDK_COCOA)
+#if defined(SENTRY_QML_SDK_COCOA)
 #define SENTRY_QML_EXPECT_FAIL_COCOA(reason) QEXPECT_FAIL("", reason, Continue)
 #define SENTRY_QML_SKIP_COCOA(reason) QSKIP(reason)
 #else
@@ -18,13 +18,13 @@
 #define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
 #endif
 
-#if defined(SENTRY_QML_TEST_SDK_CRASHPAD)
+#if defined(SENTRY_QML_BACKEND_CRASHPAD)
 #define SENTRY_QML_SKIP_CRASHPAD(reason) QSKIP(reason)
 #else
 #define SENTRY_QML_SKIP_CRASHPAD(reason) do {} while (false)
 #endif
 
-#if defined(SENTRY_QML_TEST_SDK_WASM)
+#if defined(SENTRY_QML_SDK_WASM)
 #define SENTRY_QML_SKIP_WASM(reason) QSKIP(reason)
 #else
 #define SENTRY_QML_SKIP_WASM(reason) do {} while (false)

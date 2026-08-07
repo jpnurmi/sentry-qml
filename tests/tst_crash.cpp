@@ -363,7 +363,7 @@ void SentryQmlCrashTest::capturesNativeCrashWithQmlScope()
 
 void SentryQmlCrashTest::capturesNativeCrashWithScreenshot()
 {
-#if defined(SENTRY_QML_TEST_SDK_CRASHPAD) && !defined(Q_OS_WIN)
+#if defined(SENTRY_QML_BACKEND_CRASHPAD) && !defined(Q_OS_WIN)
     QSKIP("Crashpad screenshot capture is only available on Windows.");
 #endif
 

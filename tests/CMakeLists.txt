@@ -67,28 +67,6 @@ function(add_sentry_qml_test target)
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
     )
 
-    if(sentry_qml_backend STREQUAL "android")
-        target_compile_definitions(${target} PRIVATE
-            SENTRY_QML_TEST_SDK_ANDROID
-        )
-    elseif(sentry_qml_backend STREQUAL "cocoa")
-        target_compile_definitions(${target} PRIVATE
-            SENTRY_QML_TEST_SDK_COCOA
-        )
-    endif()
-
-    if(SENTRY_BACKEND STREQUAL "crashpad")
-        target_compile_definitions(${target} PRIVATE
-            SENTRY_QML_TEST_SDK_CRASHPAD
-        )
-    endif()
-
-    if(EMSCRIPTEN)
-        target_compile_definitions(${target} PRIVATE
-            SENTRY_QML_TEST_SDK_WASM
-        )
-    endif()
-
     target_link_libraries(${target}
         PRIVATE
             SentryQml
@@ -128,9 +106,6 @@ function(add_sentry_qml_test target)
     add_dependencies(${target} SentryQmlplugin)
 
     if(ANDROID AND COMMAND sentry_qml_configure_android_target)
-        target_compile_definitions(${target} PRIVATE
-            SENTRY_QML_TEST_SDK_ANDROID
-        )
         set_target_properties(${target} PROPERTIES
             QT_ANDROID_PACKAGE_NAME "io.sentry.qml.${target}"
             QT_ANDROID_TARGET_SDK_VERSION 27

@@ -5,8 +5,11 @@ extern "C" {
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qeventloop.h>
+#include <QtCore/qfile.h>
+#include <QtCore/qmetaobject.h>
+#include <QtCore/qmutex.h>
 #include <QtCore/qobject.h>
-#include <QtCore/qstringlist.h>
+#include <QtCore/qstring.h>
 #include <QtCore/qurl.h>
 #include <QtNetwork/qnetworkaccessmanager.h>
 #include <QtNetwork/qnetworkreply.h>
@@ -20,83 +23,114 @@ namespace {
 
 constexpr int RequestTimeoutMs = 15000;
 
-class SentryQtTransportState
+class SentryQtHttpClient
 {
 public:
-    bool start(const sentry_options_t *options)
-    {
-        const char *dsnString = sentry_options_get_dsn(options);
-        if (!dsnString || !*dsnString) {
-            return true;
-        }
-
-        const QUrl dsn(QString::fromUtf8(dsnString));
-        if (!dsn.isValid() || dsn.scheme().isEmpty() || dsn.host().isEmpty() || dsn.userName().isEmpty()) {
-            return true;
-        }
-
-        QStringList pathSegments = dsn.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
-        if (pathSegments.isEmpty()) {
-            return true;
-        }
-
-        const QString projectId = pathSegments.takeLast();
-        QString envelopePath = QLatin1String("/");
-        if (!pathSegments.isEmpty()) {
-            envelopePath += pathSegments.join(QLatin1Char('/'));
-            envelopePath += QLatin1Char('/');
-        }
-        envelopePath += QLatin1String("api/") + projectId + QLatin1String("/envelope/");
-
-        m_envelopeUrl.setScheme(dsn.scheme());
-        m_envelopeUrl.setHost(dsn.host());
-        m_envelopeUrl.setPort(dsn.port());
-        m_envelopeUrl.setPath(envelopePath);
-
-        const char *userAgent = sentry_options_get_user_agent(options);
-        m_userAgent = userAgent ? QByteArray(userAgent) : QByteArray();
-        m_authHeader = QByteArrayLiteral("Sentry sentry_key=") + dsn.userName().toUtf8()
-            + QByteArrayLiteral(", sentry_version=7");
-        if (!dsn.password().isEmpty()) {
-            m_authHeader += QByteArrayLiteral(", sentry_secret=") + dsn.password().toUtf8();
-        }
-        if (!m_userAgent.isEmpty()) {
-            m_authHeader += QByteArrayLiteral(", sentry_client=") + m_userAgent;
-        }
-        return true;
-    }
-
-    void send(const QByteArray &body)
+    int send(sentry_http_request_t *httpRequest, sentry_http_response_t *httpResponse)
     {
         if (!ensureApplication() || QCoreApplication::closingDown()) {
-            return;
+            return 0;
         }
 
-        if (!m_envelopeUrl.isValid() || body.isEmpty()) {
-            return;
+        const char *url = sentry_http_request_get_url(httpRequest);
+        const char *method = sentry_http_request_get_method(httpRequest);
+        if (!url || !method) {
+            return 0;
         }
 
-        QNetworkRequest request(m_envelopeUrl);
-        request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-sentry-envelope"));
-        request.setRawHeader(QByteArrayLiteral("x-sentry-auth"), m_authHeader);
-        if (!m_userAgent.isEmpty()) {
-            request.setHeader(QNetworkRequest::UserAgentHeader, QString::fromUtf8(m_userAgent));
+        QNetworkRequest request(QUrl(QString::fromUtf8(url)));
+        const size_t headerCount = sentry_http_request_get_header_count(httpRequest);
+        for (size_t i = 0; i < headerCount; ++i) {
+            const char *key = nullptr;
+            const char *value = nullptr;
+            if (sentry_http_request_get_header(httpRequest, i, &key, &value)) {
+                request.setRawHeader(QByteArray(key), QByteArray(value));
+            }
         }
         request.setTransferTimeout(RequestTimeoutMs);
 
-        QNetworkAccessManager manager;
-        QNetworkReply *reply = manager.post(request, body);
-        if (!reply) {
-            return;
+        QNetworkAccessManager &manager = networkAccessManager();
+        QNetworkReply *reply = nullptr;
+        size_t bodyLength = 0;
+        const char *body = sentry_http_request_get_body(httpRequest, &bodyLength);
+        if (body) {
+            if (bodyLength > static_cast<size_t>(std::numeric_limits<qsizetype>::max())) {
+                return 0;
+            }
+            reply = manager.sendCustomRequest(request, QByteArray(method),
+                QByteArray(body, static_cast<qsizetype>(bodyLength)));
+        } else {
+            QFile bodyFile;
+#ifdef Q_OS_WIN
+            const wchar_t *bodyPath = sentry_http_request_get_body_file_pathw(httpRequest, &bodyLength);
+            if (bodyPath) {
+                bodyFile.setFileName(QString::fromWCharArray(bodyPath));
+            }
+#else
+            const char *bodyPath = sentry_http_request_get_body_file_path(httpRequest, &bodyLength);
+            if (bodyPath) {
+                bodyFile.setFileName(QString::fromUtf8(bodyPath));
+            }
+#endif
+            if (!bodyFile.fileName().isEmpty()) {
+                if (!bodyFile.open(QIODevice::ReadOnly)) {
+                    return 0;
+                }
+                reply = manager.sendCustomRequest(request, QByteArray(method), &bodyFile);
+            } else {
+                reply = manager.sendCustomRequest(request, QByteArray(method), QByteArray());
+            }
+
+            return finishRequest(reply, httpResponse);
         }
 
-        QEventLoop loop;
-        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-        loop.exec();
-        delete reply;
+        return finishRequest(reply, httpResponse);
+    }
+
+    void shutdown()
+    {
+        QMutexLocker locker(&m_replyMutex);
+        if (m_reply) {
+            QMetaObject::invokeMethod(m_reply, &QNetworkReply::abort, Qt::QueuedConnection);
+        }
     }
 
 private:
+    int finishRequest(QNetworkReply *reply, sentry_http_response_t *httpResponse)
+    {
+        if (!reply) {
+            return 0;
+        }
+
+        {
+            QMutexLocker locker(&m_replyMutex);
+            m_reply = reply;
+        }
+
+        if (!reply->isFinished()) {
+            QEventLoop loop;
+            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            loop.exec();
+        }
+
+        const QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+        if (statusCode.isValid()) {
+            sentry_http_response_set_status_code(httpResponse, statusCode.toInt());
+        }
+        const auto responseHeaders = reply->rawHeaderPairs();
+        for (const auto &header : responseHeaders) {
+            sentry_http_response_set_header(httpResponse, header.first.constData(), header.second.constData());
+        }
+
+        {
+            QMutexLocker locker(&m_replyMutex);
+            m_reply = nullptr;
+            delete reply;
+        }
+
+        return statusCode.isValid() ? 1 : 0;
+    }
+
     bool ensureApplication()
     {
         if (QCoreApplication::instance()) {
@@ -108,72 +142,48 @@ private:
         return QCoreApplication::instance();
     }
 
+    static QNetworkAccessManager &networkAccessManager()
+    {
+        thread_local QNetworkAccessManager manager;
+        return manager;
+    }
+
     int m_argc = 1;
     QByteArray m_applicationName = QByteArrayLiteral("sentry-crash");
     char *m_argv[2] = {nullptr, nullptr};
     std::unique_ptr<QCoreApplication> m_application;
-    QUrl m_envelopeUrl;
-    QByteArray m_authHeader;
-    QByteArray m_userAgent;
+    QMutex m_replyMutex;
+    QNetworkReply *m_reply = nullptr;
 };
 
-int startupTransport(const sentry_options_t *options, void *state)
+sentry_http_client_t *createClient(void *)
 {
-    return static_cast<SentryQtTransportState *>(state)->start(options) ? 0 : 1;
+    return new (std::nothrow) SentryQtHttpClient;
 }
 
-int flushTransport(uint64_t, void *)
+int sendRequest(sentry_http_client_t *client, sentry_http_request_t *request,
+    sentry_http_response_t *response)
 {
-    return 0;
+    return static_cast<SentryQtHttpClient *>(client)->send(request, response);
 }
 
-int shutdownTransport(uint64_t, void *)
+void shutdownClient(sentry_http_client_t *client)
 {
-    return 0;
+    static_cast<SentryQtHttpClient *>(client)->shutdown();
 }
 
-void sendEnvelope(sentry_envelope_t *envelope, void *state)
+void freeClient(sentry_http_client_t *client)
 {
-    size_t size = 0;
-    char *serialized = sentry_envelope_serialize(envelope, &size);
-    sentry_envelope_free(envelope);
-
-    if (!serialized) {
-        return;
-    }
-
-    if (size <= static_cast<size_t>(std::numeric_limits<qsizetype>::max())) {
-        static_cast<SentryQtTransportState *>(state)->send(
-            QByteArray(serialized, static_cast<qsizetype>(size)));
-    }
-
-    sentry_free(serialized);
-}
-
-void freeTransport(void *state)
-{
-    delete static_cast<SentryQtTransportState *>(state);
+    delete static_cast<SentryQtHttpClient *>(client);
 }
 
 } // namespace
 
 extern "C" sentry_transport_t *sentry__transport_new_default(void)
 {
-    auto *state = new (std::nothrow) SentryQtTransportState;
-    if (!state) {
-        return nullptr;
+    sentry_transport_t *transport = sentry_http_transport_new(createClient, nullptr, sendRequest, freeClient);
+    if (transport) {
+        sentry_http_transport_set_client_shutdown_func(transport, shutdownClient);
     }
-
-    sentry_transport_t *transport = sentry_transport_new(sendEnvelope);
-    if (!transport) {
-        delete state;
-        return nullptr;
-    }
-
-    sentry_transport_set_state(transport, state);
-    sentry_transport_set_free_func(transport, freeTransport);
-    sentry_transport_set_startup_func(transport, startupTransport);
-    sentry_transport_set_flush_func(transport, flushTransport);
-    sentry_transport_set_shutdown_func(transport, shutdownTransport);
     return transport;
 }

@@ -19,6 +19,7 @@ extern "C" {
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qeventloop.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
@@ -879,7 +880,25 @@ bool SentrySdk::flush(int timeoutMs)
         return true;
     }
 
-    return sentry_flush(timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs)) == 0;
+    const uint64_t timeout = timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs);
+    QCoreApplication *application = QCoreApplication::instance();
+    if (!application || QThread::currentThread() != application->thread()
+        || QCoreApplication::closingDown()) {
+        return sentry_flush(timeout) == 0;
+    }
+
+    int result = 1;
+    QEventLoop loop;
+    std::unique_ptr<QThread> flushThread(QThread::create(
+        [&]
+        {
+            result = sentry_flush(timeout);
+            QMetaObject::invokeMethod(&loop, &QEventLoop::quit, Qt::QueuedConnection);
+        }));
+    flushThread->start();
+    loop.exec();
+    flushThread->wait();
+    return result == 0;
 }
 
 bool SentrySdk::close()

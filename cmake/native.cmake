@@ -16,7 +16,7 @@ set(SENTRY_BUILD_BENCHMARKS OFF CACHE BOOL "Build sentry-native benchmarks" FORC
 
 if(NOT DEFINED SENTRY_TRANSPORT)
     set(SENTRY_TRANSPORT "custom" CACHE STRING
-        "sentry-native HTTP transport. Sentry QML provides a Qt transport."
+        "sentry-native HTTP backend. Sentry QML provides a Qt HTTP client."
     )
 endif()
 

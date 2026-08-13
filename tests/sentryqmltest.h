@@ -2,7 +2,15 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qmetaobject.h>
+#include <QtCore/qmutex.h>
+#include <QtCore/qthread.h>
+#include <QtNetwork/qhostaddress.h>
+#include <QtNetwork/qtcpserver.h>
+#include <QtNetwork/qtcpsocket.h>
 #include <QtTest/qtest.h>
+
+#include <memory>
 
 #if defined(SENTRY_QML_TEST_HAS_ZLIB)
 #include <zlib.h>
@@ -95,5 +103,168 @@ inline QByteArray decodedHttpBody(const QByteArray &headers, const QByteArray &b
 #endif
     return body;
 }
+
+class EnvelopeServer
+{
+public:
+    EnvelopeServer()
+        : m_worker(new Worker(this))
+    {
+        m_worker->moveToThread(&m_thread);
+        QObject::connect(&m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+        m_thread.start();
+    }
+
+    ~EnvelopeServer()
+    {
+        QMetaObject::invokeMethod(m_worker, [worker = m_worker] { worker->close(); }, Qt::BlockingQueuedConnection);
+        m_thread.quit();
+        m_thread.wait();
+    }
+
+    bool listen(const QHostAddress &address, quint16 port = 0)
+    {
+        bool listening = false;
+        QMetaObject::invokeMethod(
+            m_worker,
+            [this, &listening, address, port]
+            {
+                listening = m_worker->listen(address, port);
+                if (listening) {
+                    m_serverPort = m_worker->serverPort();
+                }
+            },
+            Qt::BlockingQueuedConnection);
+        return listening;
+    }
+
+    quint16 serverPort() const { return m_serverPort; }
+
+    QList<QByteArray> bodies() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_bodies;
+    }
+
+    QByteArray combinedBody() const
+    {
+        const QList<QByteArray> allBodies = bodies();
+        QByteArray result;
+        for (const QByteArray &body : allBodies) {
+            result += body;
+            result += '\n';
+        }
+        return result;
+    }
+
+    QByteArray body() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_body;
+    }
+
+    bool contains(const QByteArray &needle) const { return combinedBody().contains(needle); }
+
+    QString path() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_path;
+    }
+
+    bool receivedRequest() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return !m_requests.isEmpty();
+    }
+
+    QByteArray request() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_request;
+    }
+
+private:
+    class Worker : public QTcpServer
+    {
+    public:
+        explicit Worker(EnvelopeServer *server)
+            : m_server(server)
+        {
+        }
+
+    protected:
+        void incomingConnection(qintptr socketDescriptor) override
+        {
+            auto *socket = new QTcpSocket(this);
+            if (!socket->setSocketDescriptor(socketDescriptor)) {
+                socket->deleteLater();
+                return;
+            }
+
+            struct RequestState
+            {
+                QByteArray data;
+                bool complete = false;
+            };
+            auto state = std::make_shared<RequestState>();
+            QObject::connect(socket, &QTcpSocket::readyRead, socket,
+                [this, socket, state]
+                {
+                    if (state->complete) {
+                        return;
+                    }
+                    state->data += socket->readAll();
+
+                    const qsizetype headerEnd = state->data.indexOf("\r\n\r\n");
+                    if (headerEnd < 0) {
+                        return;
+                    }
+
+                    const QByteArray headers = state->data.left(headerEnd);
+                    const QByteArray body = state->data.mid(headerEnd + 4);
+                    const qsizetype contentLength
+                        = httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
+                    if (body.size() < contentLength) {
+                        return;
+                    }
+
+                    state->complete = true;
+                    const QList<QByteArray> requestLine = headers.split('\n').value(0).trimmed().split(' ');
+                    m_server->recordRequest(state->data,
+                        QString::fromUtf8(requestLine.value(1)),
+                        decodedHttpBody(headers, body.left(contentLength)));
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                });
+            QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        }
+
+    private:
+        EnvelopeServer *m_server;
+    };
+
+    void recordRequest(const QByteArray &request, const QString &path, const QByteArray &body)
+    {
+        QMutexLocker locker(&m_mutex);
+        m_requests.append(request);
+        m_request += request;
+        m_path = path;
+        m_bodies.append(body);
+        if (!m_body.isEmpty()) {
+            m_body += '\n';
+        }
+        m_body += body;
+    }
+
+    mutable QMutex m_mutex;
+    QList<QByteArray> m_requests;
+    QList<QByteArray> m_bodies;
+    QByteArray m_request;
+    QByteArray m_body;
+    QString m_path;
+    QThread m_thread;
+    Worker *m_worker;
+    quint16 m_serverPort = 0;
+};
 
 } // namespace SentryQmlTest

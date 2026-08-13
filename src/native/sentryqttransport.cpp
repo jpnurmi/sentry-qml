@@ -23,12 +23,29 @@ namespace {
 
 constexpr int RequestTimeoutMs = 15000;
 
+class SentryQtNetworkContext
+{
+public:
+    SentryQtNetworkContext()
+    {
+        if (QCoreApplication::instance()) {
+            m_manager = std::make_unique<QNetworkAccessManager>();
+        }
+    }
+
+    QNetworkAccessManager *manager() const { return m_manager.get(); }
+
+private:
+    std::unique_ptr<QNetworkAccessManager> m_manager;
+};
+
 class SentryQtHttpClient
 {
 public:
     int send(sentry_http_request_t *httpRequest, sentry_http_response_t *httpResponse)
     {
-        if (!ensureApplication() || QCoreApplication::closingDown()) {
+        QNetworkAccessManager *manager = networkAccessManager();
+        if (!manager || QCoreApplication::closingDown()) {
             return 0;
         }
 
@@ -49,18 +66,17 @@ public:
         }
         request.setTransferTimeout(RequestTimeoutMs);
 
-        QNetworkAccessManager &manager = networkAccessManager();
         QNetworkReply *reply = nullptr;
+        QFile bodyFile;
         size_t bodyLength = 0;
         const char *body = sentry_http_request_get_body(httpRequest, &bodyLength);
         if (body) {
             if (bodyLength > static_cast<size_t>(std::numeric_limits<qsizetype>::max())) {
                 return 0;
             }
-            reply = manager.sendCustomRequest(request, QByteArray(method),
+            reply = manager->sendCustomRequest(request, QByteArray(method),
                 QByteArray(body, static_cast<qsizetype>(bodyLength)));
         } else {
-            QFile bodyFile;
 #ifdef Q_OS_WIN
             const wchar_t *bodyPath = sentry_http_request_get_body_file_pathw(httpRequest, &bodyLength);
             if (bodyPath) {
@@ -76,12 +92,11 @@ public:
                 if (!bodyFile.open(QIODevice::ReadOnly)) {
                     return 0;
                 }
-                reply = manager.sendCustomRequest(request, QByteArray(method), &bodyFile);
+                reply = manager->sendCustomRequest(request, QByteArray(method), &bodyFile);
             } else {
-                reply = manager.sendCustomRequest(request, QByteArray(method), QByteArray());
+                reply = manager->sendCustomRequest(request, QByteArray(method), QByteArray());
             }
 
-            return finishRequest(reply, httpResponse);
         }
 
         return finishRequest(reply, httpResponse);
@@ -90,6 +105,7 @@ public:
     void shutdown()
     {
         QMutexLocker locker(&m_replyMutex);
+        m_shutdown = true;
         if (m_reply) {
             QMetaObject::invokeMethod(m_reply, &QNetworkReply::abort, Qt::QueuedConnection);
         }
@@ -105,6 +121,9 @@ private:
         {
             QMutexLocker locker(&m_replyMutex);
             m_reply = reply;
+            if (m_shutdown) {
+                reply->abort();
+            }
         }
 
         if (!reply->isFinished()) {
@@ -131,29 +150,15 @@ private:
         return statusCode.isValid() ? 1 : 0;
     }
 
-    bool ensureApplication()
+    static QNetworkAccessManager *networkAccessManager()
     {
-        if (QCoreApplication::instance()) {
-            return true;
-        }
-
-        m_argv[0] = m_applicationName.data();
-        m_application = std::make_unique<QCoreApplication>(m_argc, m_argv);
-        return QCoreApplication::instance();
+        thread_local SentryQtNetworkContext context;
+        return context.manager();
     }
 
-    static QNetworkAccessManager &networkAccessManager()
-    {
-        thread_local QNetworkAccessManager manager;
-        return manager;
-    }
-
-    int m_argc = 1;
-    QByteArray m_applicationName = QByteArrayLiteral("sentry-crash");
-    char *m_argv[2] = {nullptr, nullptr};
-    std::unique_ptr<QCoreApplication> m_application;
     QMutex m_replyMutex;
     QNetworkReply *m_reply = nullptr;
+    bool m_shutdown = false;
 };
 
 sentry_http_client_t *createClient(void *)

@@ -9,9 +9,6 @@
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
-#include <QtNetwork/qhostaddress.h>
-#include <QtNetwork/qtcpserver.h>
-#include <QtNetwork/qtcpsocket.h>
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
@@ -19,6 +16,8 @@
 
 #include <algorithm>
 #include <memory>
+
+using SentryQmlTest::EnvelopeServer;
 
 class SentryQmlIntegrationTest : public QObject
 {
@@ -28,71 +27,6 @@ private slots:
     void capturesSdkFeaturesThroughHttpTransport();
     void attachesScreenshotWhenEnabled();
     void attachesViewHierarchyWhenEnabled();
-};
-
-class IntegrationEnvelopeServer : public QTcpServer
-{
-    Q_OBJECT
-
-public:
-    using QTcpServer::QTcpServer;
-
-    QList<QByteArray> bodies() const { return m_bodies; }
-
-    QByteArray combinedBody() const
-    {
-        QByteArray body;
-        for (const QByteArray &item : m_bodies) {
-            body += item;
-            body += '\n';
-        }
-        return body;
-    }
-
-    bool contains(const QByteArray &needle) const { return combinedBody().contains(needle); }
-
-signals:
-    void received();
-
-protected:
-    void incomingConnection(qintptr socketDescriptor) override
-    {
-        auto *socket = new QTcpSocket(this);
-        if (!socket->setSocketDescriptor(socketDescriptor)) {
-            socket->deleteLater();
-            return;
-        }
-
-        auto request = std::make_shared<QByteArray>();
-        connect(socket, &QTcpSocket::readyRead, this,
-                [this, socket, request]
-                {
-                    request->append(socket->readAll());
-
-                    const qsizetype headerEnd = request->indexOf("\r\n\r\n");
-                    if (headerEnd < 0) {
-                        return;
-                    }
-
-                    const QByteArray headers = request->left(headerEnd);
-                    const QByteArray body = request->mid(headerEnd + 4);
-                    const qsizetype contentLength =
-                        SentryQmlTest::httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
-
-                    if (body.size() < contentLength) {
-                        return;
-                    }
-
-                    m_bodies.append(SentryQmlTest::decodedHttpBody(headers, body.left(contentLength)));
-                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                    socket->disconnectFromHost();
-                    emit received();
-                });
-        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
-    }
-
-private:
-    QList<QByteArray> m_bodies;
 };
 
 struct EnvelopeItem
@@ -182,7 +116,7 @@ EnvelopeItem findItemByFilename(const QList<EnvelopeItem> &items, const QString 
     return item != items.cend() ? *item : EnvelopeItem {};
 }
 
-bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray &needle, int timeoutMs)
+bool waitUntilContains(const EnvelopeServer &server, const QByteArray &needle, int timeoutMs)
 {
     QElapsedTimer timer;
     timer.start();
@@ -195,7 +129,7 @@ bool waitUntilContains(const IntegrationEnvelopeServer &server, const QByteArray
     return server.contains(needle);
 }
 
-QByteArray serverBodyExcerpt(const IntegrationEnvelopeServer &server)
+QByteArray serverBodyExcerpt(const EnvelopeServer &server)
 {
     return server.combinedBody().left(16 * 1024);
 }
@@ -204,7 +138,7 @@ void SentryQmlIntegrationTest::attachesScreenshotWhenEnabled()
 {
     SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
-    IntegrationEnvelopeServer server;
+    EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir temporaryDir;
@@ -249,7 +183,7 @@ void SentryQmlIntegrationTest::attachesViewHierarchyWhenEnabled()
 {
     SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
-    IntegrationEnvelopeServer server;
+    EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir temporaryDir;
@@ -302,7 +236,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     SENTRY_QML_SKIP_COCOA("SentryCocoa integration coverage still depends on skipped log and metric envelope paths.");
     SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 
-    IntegrationEnvelopeServer server;
+    EnvelopeServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir temporaryDir;

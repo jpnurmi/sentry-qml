@@ -8,9 +8,6 @@
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
-#include <QtNetwork/qhostaddress.h>
-#include <QtNetwork/qtcpserver.h>
-#include <QtNetwork/qtcpsocket.h>
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
@@ -18,6 +15,8 @@
 #include <QtTest/qtest.h>
 
 #include <memory>
+
+using SentryQmlTest::EnvelopeServer;
 
 class SentryQmlUnitTest : public QObject
 {
@@ -47,74 +46,6 @@ private slots:
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
-};
-
-class EnvelopeServer : public QTcpServer
-{
-    Q_OBJECT
-
-public:
-    using QTcpServer::QTcpServer;
-
-    QByteArray request() const { return m_request; }
-    QByteArray body() const { return m_body; }
-    QString path() const { return m_path; }
-    bool receivedRequest() const { return m_receivedRequest; }
-
-protected:
-    void incomingConnection(qintptr socketDescriptor) override
-    {
-        auto *socket = new QTcpSocket(this);
-        if (!socket->setSocketDescriptor(socketDescriptor)) {
-            socket->deleteLater();
-            return;
-        }
-
-        auto request = std::make_shared<QByteArray>();
-        connect(socket, &QTcpSocket::readyRead, this,
-                [this, socket, request]
-                {
-                    request->append(socket->readAll());
-
-                    const qsizetype headerEnd = request->indexOf("\r\n\r\n");
-                    if (headerEnd < 0) {
-                        return;
-                    }
-
-                    const QByteArray headers = request->left(headerEnd);
-                    const QByteArray body = request->mid(headerEnd + 4);
-                    const qsizetype contentLength =
-                        SentryQmlTest::httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
-
-                    if (body.size() < contentLength) {
-                        return;
-                    }
-
-                    const QList<QByteArray> lines = headers.split('\n');
-                    const QList<QByteArray> requestLine = lines.value(0).trimmed().split(' ');
-                    m_path = QString::fromUtf8(requestLine.value(1));
-                    m_request += *request;
-                    if (!m_body.isEmpty()) {
-                        m_body += '\n';
-                    }
-                    m_body += SentryQmlTest::decodedHttpBody(headers, body.left(contentLength));
-                    m_receivedRequest = true;
-
-                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                    socket->disconnectFromHost();
-                    emit received();
-                });
-        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
-    }
-
-signals:
-    void received();
-
-private:
-    QByteArray m_request;
-    QByteArray m_body;
-    QString m_path;
-    bool m_receivedRequest = false;
 };
 
 void SentryQmlUnitTest::importsQmlModule()

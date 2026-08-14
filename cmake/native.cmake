@@ -55,7 +55,7 @@ if(SENTRY_TRANSPORT STREQUAL "custom")
 
     target_sources(sentry PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
     target_include_directories(sentry PRIVATE "${SENTRY_NATIVE_DIR}" "${SENTRY_NATIVE_DIR}/src")
-    target_link_libraries(sentry PRIVATE Qt6::Core Qt6::Network)
+    target_link_libraries(sentry PRIVATE Qt6::Core Qt6::Network Qt6::Qml)
 
     if(WIN32)
         target_compile_definitions(sentry PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -64,7 +64,7 @@ if(SENTRY_TRANSPORT STREQUAL "custom")
     if(TARGET sentry-crash)
         target_sources(sentry-crash PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")
         target_include_directories(sentry-crash PRIVATE "${SENTRY_NATIVE_DIR}" "${SENTRY_NATIVE_DIR}/src")
-        target_link_libraries(sentry-crash PRIVATE Qt6::Core Qt6::Network)
+        target_link_libraries(sentry-crash PRIVATE Qt6::Core Qt6::Network Qt6::Qml)
 
         if(WIN32)
             target_compile_definitions(sentry-crash PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

@@ -12,6 +12,8 @@
 #include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
+#include "sentryqttransport_p.h"
+
 extern "C" {
 #include <include/sentry.h>
 }
@@ -29,6 +31,7 @@ extern "C" {
 #include <QtCore/qthread.h>
 #include <QtQml/qjsengine.h>
 #include <QtQml/qjsvalue.h>
+#include <QtQml/qqmlnetworkaccessmanagerfactory.h>
 
 #include <cmath>
 #include <cstdint>
@@ -776,6 +779,21 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
         return false;
+    }
+
+    QQmlEngine *engine = qmlEngine(options);
+    if (!engine) {
+        engine = qmlEngine(sentry);
+    }
+    if (engine) {
+        if (QQmlNetworkAccessManagerFactory *factory = engine->networkAccessManagerFactory()) {
+            sentry_transport_t *transport = sentryQtTransportNew(factory);
+            if (!transport) {
+                sentry_options_free(nativeOptions);
+                return false;
+            }
+            sentry_options_set_transport(nativeOptions, transport);
+        }
     }
 
     setUtf8Option(options->dsn(), sentry_options_set_dsn_n, nativeOptions);

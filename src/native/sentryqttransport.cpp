@@ -2,6 +2,8 @@ extern "C" {
 #include <include/sentry.h>
 }
 
+#include "sentryqttransport_p.h"
+
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qeventloop.h>
@@ -26,10 +28,10 @@ constexpr int RequestTimeoutMs = 15000;
 class SentryQtNetworkContext
 {
 public:
-    SentryQtNetworkContext()
+    explicit SentryQtNetworkContext(QQmlNetworkAccessManagerFactory *factory)
     {
         if (QCoreApplication::instance()) {
-            m_manager = std::make_unique<QNetworkAccessManager>();
+            m_manager.reset(factory ? factory->create(nullptr) : new QNetworkAccessManager);
         }
     }
 
@@ -42,6 +44,11 @@ private:
 class SentryQtHttpClient
 {
 public:
+    explicit SentryQtHttpClient(QQmlNetworkAccessManagerFactory *factory)
+        : m_managerFactory(factory)
+    {
+    }
+
     int send(sentry_http_request_t *httpRequest, sentry_http_response_t *httpResponse)
     {
         QNetworkAccessManager *manager = networkAccessManager();
@@ -150,20 +157,21 @@ private:
         return statusCode.isValid() ? 1 : 0;
     }
 
-    static QNetworkAccessManager *networkAccessManager()
+    QNetworkAccessManager *networkAccessManager() const
     {
-        thread_local SentryQtNetworkContext context;
+        thread_local SentryQtNetworkContext context(m_managerFactory);
         return context.manager();
     }
 
+    QQmlNetworkAccessManagerFactory *m_managerFactory = nullptr;
     QMutex m_replyMutex;
     QNetworkReply *m_reply = nullptr;
     bool m_shutdown = false;
 };
 
-sentry_http_client_t *createClient(void *)
+sentry_http_client_t *createClient(void *factoryData)
 {
-    return new (std::nothrow) SentryQtHttpClient;
+    return new (std::nothrow) SentryQtHttpClient(static_cast<QQmlNetworkAccessManagerFactory *>(factoryData));
 }
 
 int sendRequest(sentry_http_client_t *client, sentry_http_request_t *request,
@@ -184,11 +192,16 @@ void freeClient(sentry_http_client_t *client)
 
 } // namespace
 
-extern "C" sentry_transport_t *sentry__transport_new_default(void)
+sentry_transport_t *sentryQtTransportNew(QQmlNetworkAccessManagerFactory *factory)
 {
-    sentry_transport_t *transport = sentry_http_transport_new(createClient, nullptr, sendRequest, freeClient);
+    sentry_transport_t *transport = sentry_http_transport_new(createClient, factory, sendRequest, freeClient);
     if (transport) {
         sentry_http_transport_set_client_shutdown_func(transport, shutdownClient);
     }
     return transport;
+}
+
+extern "C" sentry_transport_t *sentry__transport_new_default(void)
+{
+    return sentryQtTransportNew(nullptr);
 }

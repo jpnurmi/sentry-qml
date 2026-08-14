@@ -8,15 +8,33 @@
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
+#include <QtNetwork/qnetworkaccessmanager.h>
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
+#include <QtQml/qqmlnetworkaccessmanagerfactory.h>
 #include <QtTest/qsignalspy.h>
 #include <QtTest/qtest.h>
 
+#include <atomic>
 #include <memory>
 
 using SentryQmlTest::EnvelopeServer;
+
+class TestNetworkAccessManagerFactory final : public QQmlNetworkAccessManagerFactory
+{
+public:
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        m_createCount.fetch_add(1, std::memory_order_relaxed);
+        return new QNetworkAccessManager(parent);
+    }
+
+    int createCount() const { return m_createCount.load(std::memory_order_relaxed); }
+
+private:
+    std::atomic_int m_createCount = 0;
+};
 
 class SentryQmlUnitTest : public QObject
 {
@@ -239,8 +257,13 @@ void SentryQmlUnitTest::sendsEnvelope()
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
 
+    TestNetworkAccessManagerFactory networkFactory;
+    QQmlEngine engine;
+    engine.setNetworkAccessManagerFactory(&networkFactory);
+
     Sentry sentry;
     SentryOptions options;
+    QQmlEngine::setContextForObject(&options, engine.rootContext());
     options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
     options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     options.setShutdownTimeout(2000);
@@ -256,6 +279,7 @@ void SentryQmlUnitTest::sendsEnvelope()
     QVERIFY(request.contains("x-sentry-auth:"));
     QVERIFY(request.contains("application/x-sentry-envelope"));
     QVERIFY(server.body().contains("Sent through QtNetwork"));
+    QCOMPARE(networkFactory.createCount(), 1);
 
     QVERIFY(sentry.close());
 }

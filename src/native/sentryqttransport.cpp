@@ -50,18 +50,25 @@ void ensureCrashDaemonApplication()
 class SentryQtNetworkContext
 {
 public:
-    explicit SentryQtNetworkContext(std::unique_ptr<QNetworkAccessManager> manager)
-        : m_manager(std::move(manager))
+    explicit SentryQtNetworkContext(QNetworkAccessManager *manager)
+        : m_manager(manager)
     {
         if (m_manager && !m_manager->moveToThread(QThread::currentThread())) {
-            m_manager.reset();
+            m_manager = nullptr;
         }
     }
 
-    QNetworkAccessManager *manager() const { return m_manager.get(); }
+    ~SentryQtNetworkContext()
+    {
+        if (m_manager) {
+            m_manager->moveToThread(nullptr);
+        }
+    }
+
+    QNetworkAccessManager *manager() const { return m_manager; }
 
 private:
-    std::unique_ptr<QNetworkAccessManager> m_manager;
+    QNetworkAccessManager *m_manager;
 };
 
 class SentryQtHttpClient
@@ -79,7 +86,8 @@ public:
 
     int send(sentry_http_request_t *httpRequest, sentry_http_response_t *httpResponse)
     {
-        QNetworkAccessManager *manager = networkAccessManager();
+        SentryQtNetworkContext context(m_manager.get());
+        QNetworkAccessManager *manager = context.manager();
         if (!manager || QCoreApplication::closingDown()) {
             return 0;
         }
@@ -183,12 +191,6 @@ private:
         }
 
         return statusCode.isValid() ? 1 : 0;
-    }
-
-    QNetworkAccessManager *networkAccessManager()
-    {
-        thread_local SentryQtNetworkContext context(std::move(m_manager));
-        return context.manager();
     }
 
     std::unique_ptr<QNetworkAccessManager> m_manager;

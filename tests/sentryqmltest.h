@@ -2,8 +2,8 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qmetaobject.h>
 #include <QtCore/qmutex.h>
-#include <QtCore/qsemaphore.h>
 #include <QtCore/qthread.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qtcpserver.h>
@@ -108,22 +108,39 @@ class EnvelopeServer
 {
 public:
     EnvelopeServer()
-        : m_thread(this)
+        : m_worker(new Worker(this))
     {
+        m_worker->moveToThread(&m_thread);
+        QObject::connect(m_worker, &QObject::destroyed, &m_thread, &QThread::quit, Qt::DirectConnection);
+        m_thread.start();
     }
 
     ~EnvelopeServer()
     {
-        m_thread.quit();
+        QMetaObject::invokeMethod(
+            m_worker,
+            [worker = m_worker]
+            {
+                worker->close();
+                worker->deleteLater();
+            },
+            Qt::QueuedConnection);
         m_thread.wait();
     }
 
     bool listen(const QHostAddress &address, quint16 port = 0)
     {
-        const bool listening = m_thread.listen(address, port);
-        if (listening) {
-            m_serverPort = m_thread.serverPort();
-        }
+        bool listening = false;
+        QMetaObject::invokeMethod(
+            m_worker,
+            [this, &listening, address, port]
+            {
+                listening = m_worker->listen(address, port);
+                if (listening) {
+                    m_serverPort = m_worker->serverPort();
+                }
+            },
+            Qt::BlockingQueuedConnection);
         return listening;
     }
 
@@ -232,49 +249,6 @@ private:
         EnvelopeServer *m_server;
     };
 
-    class WorkerThread : public QThread
-    {
-    public:
-        explicit WorkerThread(EnvelopeServer *server)
-            : m_server(server)
-        {
-        }
-
-        bool listen(const QHostAddress &address, quint16 port)
-        {
-            m_address = address;
-            m_port = port;
-            start();
-            m_started.acquire();
-            return m_listening;
-        }
-
-        quint16 serverPort() const { return m_serverPort; }
-
-    protected:
-        void run() override
-        {
-            Worker worker(m_server);
-            m_listening = worker.listen(m_address, m_port);
-            if (m_listening) {
-                m_serverPort = worker.serverPort();
-            }
-            m_started.release();
-
-            if (m_listening) {
-                exec();
-            }
-        }
-
-    private:
-        EnvelopeServer *m_server;
-        QHostAddress m_address;
-        QSemaphore m_started;
-        quint16 m_port = 0;
-        quint16 m_serverPort = 0;
-        bool m_listening = false;
-    };
-
     void recordRequest(const QByteArray &request, const QString &path, const QByteArray &body)
     {
         QMutexLocker locker(&m_mutex);
@@ -294,7 +268,8 @@ private:
     QByteArray m_request;
     QByteArray m_body;
     QString m_path;
-    WorkerThread m_thread;
+    QThread m_thread;
+    Worker *m_worker;
     quint16 m_serverPort = 0;
 };
 

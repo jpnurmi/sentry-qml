@@ -781,6 +781,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+#if defined(SENTRY_TRANSPORT_CUSTOM)
     QQmlEngine *engine = qmlEngine(options);
     if (!engine) {
         engine = qmlEngine(sentry);
@@ -795,6 +796,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
             sentry_options_set_transport(nativeOptions, transport);
         }
     }
+#endif
 
     setUtf8Option(options->dsn(), sentry_options_set_dsn_n, nativeOptions);
     setUtf8Option(options->release(), sentry_options_set_release_n, nativeOptions);

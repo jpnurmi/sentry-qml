@@ -56,6 +56,7 @@ if(TARGET sentry-crash)
 endif()
 
 if(SENTRY_TRANSPORT STREQUAL "custom")
+    list(APPEND sentry_qml_backend_compile_definitions SENTRY_TRANSPORT_CUSTOM)
     set(SENTRY_QML_QT_TRANSPORT_SOURCE "${PROJECT_SOURCE_DIR}/src/native/sentryqttransport.cpp")
 
     target_sources(sentry PRIVATE "${SENTRY_QML_QT_TRANSPORT_SOURCE}")

@@ -265,7 +265,7 @@ void SentryQmlUnitTest::sendsEnvelope()
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
 
-#if defined(SENTRY_QML_SDK_NATIVE)
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
     TestNetworkAccessManagerFactory networkFactory;
     QQmlEngine engine;
     engine.setNetworkAccessManagerFactory(&networkFactory);
@@ -273,7 +273,7 @@ void SentryQmlUnitTest::sendsEnvelope()
 
     Sentry sentry;
     SentryOptions options;
-#if defined(SENTRY_QML_SDK_NATIVE)
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
     QQmlEngine::setContextForObject(&options, engine.rootContext());
 #endif
     options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
@@ -291,7 +291,7 @@ void SentryQmlUnitTest::sendsEnvelope()
     QVERIFY(request.contains("x-sentry-auth:"));
     QVERIFY(request.contains("application/x-sentry-envelope"));
     QVERIFY(server.body().contains("Sent through QtNetwork"));
-#if defined(SENTRY_QML_SDK_NATIVE)
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
     QCOMPARE(networkFactory.createCount(), 1);
 #endif
 

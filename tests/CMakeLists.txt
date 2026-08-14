@@ -65,6 +65,7 @@ function(add_sentry_qml_test target)
 
     target_compile_definitions(${target} PRIVATE
         SENTRY_QML_IMPORT_PATH="${SENTRY_QML_OUTPUT_DIRECTORY}"
+        ${sentry_qml_backend_compile_definitions}
     )
 
     target_link_libraries(${target}

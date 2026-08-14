@@ -12,6 +12,7 @@ extern "C" {
 #include <QtCore/qmutex.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qthread.h>
 #include <QtCore/qurl.h>
 #include <QtNetwork/qnetworkaccessmanager.h>
 #include <QtNetwork/qnetworkreply.h>
@@ -49,10 +50,11 @@ void ensureCrashDaemonApplication()
 class SentryQtNetworkContext
 {
 public:
-    explicit SentryQtNetworkContext(QQmlNetworkAccessManagerFactory *factory)
+    explicit SentryQtNetworkContext(std::unique_ptr<QNetworkAccessManager> manager)
+        : m_manager(std::move(manager))
     {
-        if (QCoreApplication::instance()) {
-            m_manager.reset(factory ? factory->create(nullptr) : new QNetworkAccessManager);
+        if (m_manager && !m_manager->moveToThread(QThread::currentThread())) {
+            m_manager.reset();
         }
     }
 
@@ -66,8 +68,13 @@ class SentryQtHttpClient
 {
 public:
     explicit SentryQtHttpClient(QQmlNetworkAccessManagerFactory *factory)
-        : m_managerFactory(factory)
     {
+        if (QCoreApplication::instance()) {
+            m_manager.reset(factory ? factory->create(nullptr) : new QNetworkAccessManager);
+            if (m_manager && !m_manager->moveToThread(nullptr)) {
+                m_manager.reset();
+            }
+        }
     }
 
     int send(sentry_http_request_t *httpRequest, sentry_http_response_t *httpResponse)
@@ -178,13 +185,13 @@ private:
         return statusCode.isValid() ? 1 : 0;
     }
 
-    QNetworkAccessManager *networkAccessManager() const
+    QNetworkAccessManager *networkAccessManager()
     {
-        thread_local SentryQtNetworkContext context(m_managerFactory);
+        thread_local SentryQtNetworkContext context(std::move(m_manager));
         return context.manager();
     }
 
-    QQmlNetworkAccessManagerFactory *m_managerFactory = nullptr;
+    std::unique_ptr<QNetworkAccessManager> m_manager;
     QMutex m_replyMutex;
     QNetworkReply *m_reply = nullptr;
     bool m_shutdown = false;

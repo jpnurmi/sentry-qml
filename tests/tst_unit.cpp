@@ -27,14 +27,29 @@
 
 using SentryQmlTest::EnvelopeServer;
 
-#if defined(SENTRY_QML_SDK_NATIVE)
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+class TestNetworkAccessManager final : public QNetworkAccessManager
+{
+public:
+    using QNetworkAccessManager::QNetworkAccessManager;
+
+protected:
+    QNetworkReply *createRequest(Operation operation,
+        const QNetworkRequest &request, QIODevice *outgoingData) override
+    {
+        QNetworkRequest testRequest(request);
+        testRequest.setRawHeader("X-Sentry-Qml-Test", "true");
+        return QNetworkAccessManager::createRequest(operation, testRequest, outgoingData);
+    }
+};
+
 class TestNetworkAccessManagerFactory final : public QQmlNetworkAccessManagerFactory
 {
 public:
     QNetworkAccessManager *create(QObject *parent) override
     {
         m_createCount.fetch_add(1, std::memory_order_relaxed);
-        return new QNetworkAccessManager(parent);
+        return new TestNetworkAccessManager(parent);
     }
 
     int createCount() const { return m_createCount.load(std::memory_order_relaxed); }
@@ -266,9 +281,9 @@ void SentryQmlUnitTest::sendsEnvelope()
     QVERIFY(temporaryDir.isValid());
 
 #if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
-    TestNetworkAccessManagerFactory networkFactory;
+    auto networkFactory = std::make_unique<TestNetworkAccessManagerFactory>();
     QQmlEngine engine;
-    engine.setNetworkAccessManagerFactory(&networkFactory);
+    engine.setNetworkAccessManagerFactory(networkFactory.get());
 #endif
 
     Sentry sentry;
@@ -281,6 +296,11 @@ void SentryQmlUnitTest::sendsEnvelope()
     options.setShutdownTimeout(2000);
 
     QVERIFY(sentry.init(&options));
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+    QCOMPARE(networkFactory->createCount(), 1);
+    engine.setNetworkAccessManagerFactory(nullptr);
+    networkFactory.reset();
+#endif
 
     const QString eventId = sentry.captureMessage(QStringLiteral("Sent through QtNetwork"));
     QCOMPARE(eventId.size(), 36);
@@ -290,11 +310,10 @@ void SentryQmlUnitTest::sendsEnvelope()
     const QByteArray request = server.request().toLower();
     QVERIFY(request.contains("x-sentry-auth:"));
     QVERIFY(request.contains("application/x-sentry-envelope"));
-    QVERIFY(server.body().contains("Sent through QtNetwork"));
 #if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
-    QCOMPARE(networkFactory.createCount(), 1);
+    QVERIFY(request.contains("x-sentry-qml-test: true"));
 #endif
-
+    QVERIFY(server.body().contains("Sent through QtNetwork"));
     QVERIFY(sentry.close());
 }
 

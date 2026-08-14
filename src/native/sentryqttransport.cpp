@@ -25,6 +25,20 @@ namespace {
 
 constexpr int RequestTimeoutMs = 15000;
 
+#if defined(SENTRY_QML_CRASH_DAEMON)
+void ensureCrashDaemonApplication()
+{
+    if (QCoreApplication::instance()) {
+        return;
+    }
+
+    static int argc = 1;
+    static char applicationName[] = "sentry-crash";
+    static char *argv[] = {applicationName, nullptr};
+    static const auto application = std::make_unique<QCoreApplication>(argc, argv);
+}
+#endif
+
 class SentryQtNetworkContext
 {
 public:
@@ -171,6 +185,9 @@ private:
 
 sentry_http_client_t *createClient(void *factoryData)
 {
+#if defined(SENTRY_QML_CRASH_DAEMON)
+    ensureCrashDaemonApplication();
+#endif
     return new (std::nothrow) SentryQtHttpClient(static_cast<QQmlNetworkAccessManagerFactory *>(factoryData));
 }
 

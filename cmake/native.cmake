@@ -47,6 +47,7 @@ add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 
 if(TARGET sentry-crash)
     target_sources(sentry-crash PRIVATE "${PROJECT_SOURCE_DIR}/src/native/sentryqtlogging.cpp")
+    target_compile_definitions(sentry-crash PRIVATE SENTRY_QML_CRASH_DAEMON)
     target_link_libraries(sentry-crash PRIVATE Qt6::Core)
 endif()
 

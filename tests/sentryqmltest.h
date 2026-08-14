@@ -117,7 +117,6 @@ public:
 
     ~EnvelopeServer()
     {
-        QMetaObject::invokeMethod(m_worker, [worker = m_worker] { worker->close(); }, Qt::BlockingQueuedConnection);
         m_thread.quit();
         m_thread.wait();
     }

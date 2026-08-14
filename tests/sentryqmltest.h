@@ -111,7 +111,7 @@ public:
         : m_worker(new Worker(this))
     {
         m_worker->moveToThread(&m_thread);
-        QObject::connect(m_worker, &QObject::destroyed, &m_thread, &QThread::quit, Qt::DirectConnection);
+        QObject::connect(&m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
         m_thread.start();
     }
 
@@ -122,9 +122,9 @@ public:
             [worker = m_worker]
             {
                 worker->close();
-                worker->deleteLater();
             },
-            Qt::QueuedConnection);
+            Qt::BlockingQueuedConnection);
+        m_thread.quit();
         m_thread.wait();
     }
 

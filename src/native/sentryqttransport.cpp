@@ -16,6 +16,9 @@ extern "C" {
 #include <QtNetwork/qnetworkaccessmanager.h>
 #include <QtNetwork/qnetworkreply.h>
 #include <QtNetwork/qnetworkrequest.h>
+#if defined(SENTRY_QML_CRASH_DAEMON) && defined(QT_GUI_LIB)
+#include <QtGui/qguiapplication.h>
+#endif
 
 #include <limits>
 #include <memory>
@@ -35,7 +38,11 @@ void ensureCrashDaemonApplication()
     static int argc = 1;
     static char applicationName[] = "sentry-crash";
     static char *argv[] = {applicationName, nullptr};
+#if defined(QT_GUI_LIB)
+    static const auto application = std::make_unique<QGuiApplication>(argc, argv);
+#else
     static const auto application = std::make_unique<QCoreApplication>(argc, argv);
+#endif
 }
 #endif
 

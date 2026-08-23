@@ -213,6 +213,7 @@ target_compile_definitions(tst_unit PRIVATE
 )
 get_target_property(sentry_qml_smoke_type SentryQmlSmokeIntegration TYPE)
 if(sentry_qml_smoke_type STREQUAL "STATIC_LIBRARY")
+    target_compile_definitions(tst_unit PRIVATE SENTRY_QML_TEST_INTEGRATIONS_STATIC)
     target_link_libraries(tst_unit PRIVATE
         SentryQmlSmokeIntegration
         SentryQmlServiceIntegration
@@ -342,7 +343,11 @@ if(NOT CMAKE_CROSSCOMPILING)
             -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
             -DBINARY_DIR=${CMAKE_BINARY_DIR}
             -DQT_DIR=${Qt6_DIR}
+            -DCONFIG=$<CONFIG>
             -P ${CMAKE_CURRENT_SOURCE_DIR}/installed/run.cmake
     )
-    set_tests_properties(tst_installed_consumer PROPERTIES TIMEOUT 180)
+    set_tests_properties(tst_installed_consumer PROPERTIES
+        RUN_SERIAL TRUE
+        TIMEOUT 180
+    )
 endif()

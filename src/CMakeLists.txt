@@ -113,7 +113,9 @@ if(SENTRY_QML_STATIC_LIBRARY)
     )
 endif()
 
+set(SENTRY_QML_HAS_QML_PRIVATE OFF)
 if(TARGET Qt6::QmlPrivate)
+    set(SENTRY_QML_HAS_QML_PRIVATE ON)
     target_compile_definitions(SentryQml
         PRIVATE
             SENTRY_QML_HAS_QML_PRIVATE

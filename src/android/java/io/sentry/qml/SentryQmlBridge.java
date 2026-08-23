@@ -30,10 +30,10 @@ import io.sentry.metrics.SentryMetricsParameters;
 import io.sentry.protocol.Feedback;
 import io.sentry.protocol.SdkVersion;
 import io.sentry.protocol.SentryId;
-import io.sentry.protocol.SentryPackage;
 import io.sentry.protocol.User;
 import java.io.File;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,6 +110,7 @@ public final class SentryQmlBridge {
                 options.getLogs().setEnabled(true);
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
+                // This bridge owns beforeSend; keep future decoration and user hooks in this callback.
                 options.setBeforeSend((event, hint) -> applyIntegrationMetadata(event, options));
             });
 
@@ -169,25 +170,26 @@ public final class SentryQmlBridge {
                 return event;
             }
 
-            JSONObject value = new JSONObject();
-            value.put("name", sdk.getName());
-            value.put("version", sdk.getVersion());
-            JSONArray packages = new JSONArray();
-            for (SentryPackage item : sdk.getPackageSet()) {
-                JSONObject entry = new JSONObject();
-                entry.put("name", item.getName());
-                entry.put("version", item.getVersion());
-                packages.put(entry);
-            }
-            value.put("packages", packages);
-            JSONArray integrations = new JSONArray();
-            for (String name : sdk.getIntegrationSet()) {
-                integrations.put(name);
+            StringWriter serialized = new StringWriter();
+            options.getSerializer().serialize(sdk, serialized);
+            JSONObject value = new JSONObject(serialized.toString());
+            JSONArray integrations = value.optJSONArray("integrations");
+            if (integrations == null) {
+                integrations = new JSONArray();
+                value.put("integrations", integrations);
             }
             for (String name : integrationNames) {
-                integrations.put(name);
+                boolean present = false;
+                for (int index = 0; index < integrations.length(); index++) {
+                    if (name.equals(integrations.optString(index))) {
+                        present = true;
+                        break;
+                    }
+                }
+                if (!present) {
+                    integrations.put(name);
+                }
             }
-            value.put("integrations", integrations);
 
             SdkVersion decorated = options.getSerializer()
                     .deserialize(new StringReader(value.toString()), SdkVersion.class);

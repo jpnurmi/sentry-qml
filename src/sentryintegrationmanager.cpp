@@ -36,6 +36,15 @@
 
 namespace {
 
+constexpr auto integrationIdPatternText = "[a-z0-9][a-z0-9.-]*";
+
+bool isIntegrationId(const QString &id)
+{
+    static const QRegularExpression pattern(QStringLiteral("^") + QString::fromLatin1(integrationIdPatternText) +
+                                            QStringLiteral("$"));
+    return pattern.match(id).hasMatch();
+}
+
 QString currentPlatform()
 {
 #if defined(Q_OS_WIN)
@@ -208,7 +217,7 @@ public:
             }
 
             SentryIntegrationDescriptorSnapshot descriptor;
-            descriptor.id = integration->id();
+            descriptor.id = integration->name();
             descriptor.path = integration->path();
             descriptor.configuration = integration->configuration();
             descriptor.required = integration->required();
@@ -341,9 +350,8 @@ public:
             }
         }
 
-        static const QRegularExpression idPattern(QStringLiteral("^[a-z0-9][a-z0-9.-]*$"));
         const QString id = metadata.value(QStringLiteral("Id")).toString();
-        if (!idPattern.match(id).hasMatch()) {
+        if (!isIntegrationId(id)) {
             *error = QStringLiteral("metadata ID '%1' is invalid.").arg(id);
             return false;
         }
@@ -638,9 +646,9 @@ bool SentryIntegrationManager::prepare(SentryOptions *options)
 
     d->setContextState(SentryIntegrationContext::Preparing);
     for (const SentryIntegrationDescriptorSnapshot &descriptor : descriptors) {
-        static const QRegularExpression idPattern(QStringLiteral("^[a-z0-9][a-z0-9.-]*$"));
-        if (!idPattern.match(descriptor.id).hasMatch()) {
-            d->diagnostic(descriptor.id, descriptor.required, QStringLiteral("ID must match [a-z0-9][a-z0-9.-]*."));
+        if (!isIntegrationId(descriptor.id)) {
+            d->diagnostic(descriptor.id, descriptor.required,
+                          QStringLiteral("ID must match %1.").arg(QString::fromLatin1(integrationIdPatternText)));
             if (descriptor.required) {
                 d->stopEntries();
                 return false;

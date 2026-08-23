@@ -3,6 +3,7 @@
 #include <SentryQml/sentryoptions.h>
 
 #include <QtCore/qcoreapplication.h>
+#include <QtCore/qdebug.h>
 #include <QtCore/qtemporarydir.h>
 
 int main(int argc, char **argv)
@@ -14,10 +15,12 @@ int main(int argc, char **argv)
     }
 
     Sentry sentry;
+    QObject::connect(&sentry, &Sentry::errorOccurred,
+                     [](const QString &message) { qCritical().noquote() << message; });
     SentryOptions options;
     options.setDatabasePath(database.path());
     SentryIntegration integration;
-    integration.setId(QStringLiteral("installed-smoke"));
+    integration.setName(QStringLiteral("installed-smoke"));
     integration.setRequired(true);
     options.addIntegration(&integration);
 

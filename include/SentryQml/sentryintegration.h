@@ -14,7 +14,7 @@ class SENTRYQML_EXPORT SentryIntegration : public QObject
     Q_OBJECT
     QML_NAMED_ELEMENT(SentryIntegration)
 
-    Q_PROPERTY(QString id READ id WRITE setId NOTIFY idChanged)
+    Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(bool required READ required WRITE setRequired NOTIFY requiredChanged)
@@ -23,8 +23,8 @@ class SENTRYQML_EXPORT SentryIntegration : public QObject
 public:
     explicit SentryIntegration(QObject *parent = nullptr);
 
-    QString id() const;
-    void setId(const QString &id);
+    QString name() const;
+    void setName(const QString &name);
 
     QString path() const;
     void setPath(const QString &path);
@@ -39,14 +39,14 @@ public:
     void setConfiguration(const QVariantMap &configuration);
 
 signals:
-    void idChanged();
+    void nameChanged();
     void pathChanged();
     void enabledChanged();
     void requiredChanged();
     void configurationChanged();
 
 private:
-    QString m_id;
+    QString m_name;
     QString m_path;
     QVariantMap m_configuration;
     bool m_enabled = true;

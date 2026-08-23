@@ -104,18 +104,27 @@ function(sentry_qml_deploy_integrations)
         if(integration_type STREQUAL "STATIC_LIBRARY")
             target_link_libraries(${arg_TARGET} PRIVATE ${integration})
         else()
+            if(APPLE)
+                set(integration_deploy_dir
+                    "$<TARGET_FILE_DIR:${arg_TARGET}>/../PlugIns/sentry-integrations"
+                )
+            else()
+                set(integration_deploy_dir
+                    "$<TARGET_FILE_DIR:${arg_TARGET}>/sentry-integrations"
+                )
+            endif()
             add_custom_command(TARGET ${arg_TARGET} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E make_directory
-                    "$<TARGET_FILE_DIR:${arg_TARGET}>/sentry-integrations"
+                    "${integration_deploy_dir}"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "$<TARGET_FILE:${integration}>"
-                    "$<TARGET_FILE_DIR:${arg_TARGET}>/sentry-integrations/$<TARGET_FILE_NAME:${integration}>"
+                    "${integration_deploy_dir}/$<TARGET_FILE_NAME:${integration}>"
                 VERBATIM
             )
             if(WIN32)
                 add_custom_command(TARGET ${arg_TARGET} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy -t
-                        "$<TARGET_FILE_DIR:${arg_TARGET}>/sentry-integrations"
+                        "${integration_deploy_dir}"
                         $<TARGET_RUNTIME_DLLS:${integration}>
                     COMMAND_EXPAND_LISTS
                     VERBATIM

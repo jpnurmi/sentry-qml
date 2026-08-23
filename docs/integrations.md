@@ -20,7 +20,7 @@ SentryOptions {
     integrationPaths: ["/opt/my-app/lib/sentry-integrations"]
     integrations: [
         SentryIntegration {
-            id: "minimal"
+            name: "minimal"
             required: false
             configuration: { "label": "example" }
         }
@@ -33,7 +33,7 @@ C++ applications use the same descriptor objects:
 ```cpp
 SentryOptions options;
 SentryIntegration integration;
-integration.setId(QStringLiteral("minimal"));
+integration.setName(QStringLiteral("minimal"));
 integration.setConfiguration({{QStringLiteral("label"), QStringLiteral("example")}});
 options.addIntegration(&integration);
 Sentry::instance()->init(&options);

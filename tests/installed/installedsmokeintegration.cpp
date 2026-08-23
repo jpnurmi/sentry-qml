@@ -13,8 +13,11 @@ public:
     bool prepare(SentryIntegrationContext *context, const QVariantMap &configuration, QString *error) override
     {
         Q_UNUSED(configuration);
-        Q_UNUSED(error);
-        return context && context->backend() == QLatin1String("native");
+        if (context) {
+            return true;
+        }
+        *error = QStringLiteral("the integration context is unavailable");
+        return false;
     }
 
     bool start(QString *error) override

@@ -44,14 +44,9 @@ endif()
 
 list(APPEND sentry_qml_backend_sources
     "${PROJECT_SOURCE_DIR}/src/native/sentrynativesdk.cpp"
-    "${PROJECT_SOURCE_DIR}/src/native/sentrynativemetadata.cpp"
-    "${PROJECT_SOURCE_DIR}/src/native/sentrynativemetadata_p.h"
 )
 list(APPEND sentry_qml_backend_libraries sentry::sentry)
-list(APPEND sentry_qml_backend_include_directories
-    "${SENTRY_NATIVE_DIR}"
-    "${SENTRY_NATIVE_DIR}/src"
-)
+list(APPEND sentry_qml_backend_include_directories "${SENTRY_NATIVE_DIR}")
 
 add_subdirectory("${SENTRY_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/sentry-native")
 

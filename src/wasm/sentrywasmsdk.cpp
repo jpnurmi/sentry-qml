@@ -38,6 +38,9 @@
 #ifndef SENTRY_QML_SDK_NAME
 #    define SENTRY_QML_SDK_NAME "sentry.javascript.qml"
 #endif
+#ifndef SENTRY_QML_VERSION
+#    define SENTRY_QML_VERSION "0.0.0"
+#endif
 
 struct SentrySdkEventHookState
 {
@@ -324,7 +327,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             return !this.requireUserConsent || this.userConsent === 1;
         },
 
-        init: function (optionsJson, sdkName) {
+        init: function (optionsJson, sdkName, sdkVersion) {
             var S = sentry();
             if (!S || !S.init) {
                 console.error("Sentry QML: Sentry JavaScript SDK is not available as globalThis.Sentry.");
@@ -342,6 +345,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                 _metadata: {
                     sdk: {
                         name: sdkName || "sentry.javascript.qml",
+                        version: sdkVersion || "0.0.0",
                         integrations: Array.isArray(options.integrations)
                             ? options.integrations.slice()
                             : [],
@@ -432,13 +436,11 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             }
             var S = sentry();
             var client = S && S.getClient ? S.getClient() : null;
-            var options = client && client.getOptions ? client.getOptions() : null;
-            if (!options) {
+            var metadata = client && client.getSdkMetadata ? client.getSdkMetadata() : null;
+            if (!metadata || !metadata.sdk) {
                 return false;
             }
-            options._metadata = options._metadata || {};
-            options._metadata.sdk = options._metadata.sdk || {};
-            options._metadata.sdk.integrations = names.slice();
+            metadata.sdk.integrations = names.slice();
             return true;
         },
 
@@ -844,8 +846,11 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     };
 });
 
-EM_JS(int, sentry_qml_wasm_init, (const char *optionsJson, const char *sdkName), {
-    return globalThis.__sentryQmlWasmBridge.init(UTF8ToString(optionsJson), UTF8ToString(sdkName)) ? 1 : 0;
+EM_JS(int, sentry_qml_wasm_init, (const char *optionsJson, const char *sdkName, const char *sdkVersion), {
+    return globalThis.__sentryQmlWasmBridge.init(
+               UTF8ToString(optionsJson), UTF8ToString(sdkName), UTF8ToString(sdkVersion))
+        ? 1
+        : 0;
 });
 
 EM_JS(int, sentry_qml_wasm_flush, (int timeoutMs), {
@@ -1370,7 +1375,8 @@ bool initBridge(const QVariantMap &options)
     sentry_qml_wasm_ensure_bridge();
     const QByteArray optionsJson = jsonFromVariant(options);
     const QByteArray sdkName(SENTRY_QML_SDK_NAME);
-    return sentry_qml_wasm_init(optionsJson.constData(), sdkName.constData()) != 0;
+    const QByteArray sdkVersion(SENTRY_QML_VERSION);
+    return sentry_qml_wasm_init(optionsJson.constData(), sdkName.constData(), sdkVersion.constData()) != 0;
 }
 
 bool flushBridge(int timeoutMs)
@@ -1391,9 +1397,9 @@ void setBridgeUserConsent(bool required, int consent)
     sentry_qml_wasm_set_user_consent(required ? 1 : 0, consent);
 }
 
-void setBridgeIntegrations(const QStringList &integrations)
+bool setBridgeIntegrations(const QStringList &integrations)
 {
-    callBridgeString("setIntegrations", jsonStringFromVariant(integrations));
+    return callBridgeString("setIntegrations", jsonStringFromVariant(integrations));
 }
 
 QString captureEventBridge(const QVariantMap &event, const QList<SentrySdkAttachmentState> &attachments)
@@ -1763,8 +1769,21 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    if (!m_dsn.isEmpty()) {
-        setBridgeIntegrations(m_integrationManager->activeIntegrationIds());
+    if (!m_dsn.isEmpty() && !setBridgeIntegrations(m_integrationManager->activeIntegrationIds())) {
+        m_integrationManager->stop();
+        closeBridge(0);
+        clearLocalScope();
+        m_beforeBreadcrumbState.reset();
+        m_beforeSendLogState.reset();
+        m_beforeSendMetricState.reset();
+        m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
+        m_onCrashState.reset();
+        m_crashHookState.reset();
+        emit sentry->errorOccurred(QStringLiteral("Sentry JavaScript integration metadata could not be updated."));
+        return false;
     }
 
     setInitialized(true);

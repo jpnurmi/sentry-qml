@@ -5,19 +5,19 @@ SentryIntegration::SentryIntegration(QObject *parent)
 {
 }
 
-QString SentryIntegration::id() const
+QString SentryIntegration::name() const
 {
-    return m_id;
+    return m_name;
 }
 
-void SentryIntegration::setId(const QString &id)
+void SentryIntegration::setName(const QString &name)
 {
-    if (m_id == id) {
+    if (m_name == name) {
         return;
     }
 
-    m_id = id;
-    emit idChanged();
+    m_name = name;
+    emit nameChanged();
 }
 
 QString SentryIntegration::path() const

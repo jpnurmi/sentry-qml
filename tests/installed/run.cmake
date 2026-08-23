@@ -6,8 +6,19 @@ set(install_dir "${BINARY_DIR}/installed consumer-å-prefix")
 set(consumer_dir "${BINARY_DIR}/installed consumer-å-build")
 file(REMOVE_RECURSE "${install_dir}" "${consumer_dir}")
 
+set(install_config_args)
+set(consumer_configure_args)
+set(consumer_build_config_args)
+if(DEFINED CONFIG AND NOT CONFIG STREQUAL "")
+    list(APPEND install_config_args --config "${CONFIG}")
+    list(APPEND consumer_configure_args "-DCMAKE_BUILD_TYPE=${CONFIG}")
+    list(APPEND consumer_build_config_args --config "${CONFIG}")
+endif()
+
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" --install "${BINARY_DIR}" --prefix "${install_dir}"
+    COMMAND "${CMAKE_COMMAND}" --install "${BINARY_DIR}"
+        --prefix "${install_dir}"
+        ${install_config_args}
     RESULT_VARIABLE result
 )
 if(result)
@@ -21,6 +32,7 @@ execute_process(
         "-DQt6_DIR=${QT_DIR}"
         "-DSentryQml_DIR=${install_dir}/lib/cmake/SentryQml"
         "-Dsentry_DIR=${install_dir}/lib/cmake/sentry"
+        ${consumer_configure_args}
     RESULT_VARIABLE result
 )
 if(result)
@@ -28,7 +40,8 @@ if(result)
 endif()
 
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build "${consumer_dir}" --config Release
+    COMMAND "${CMAKE_COMMAND}" --build "${consumer_dir}"
+        ${consumer_build_config_args}
     RESULT_VARIABLE result
 )
 if(result)
@@ -36,9 +49,16 @@ if(result)
 endif()
 
 if(WIN32)
-    set(executable "${consumer_dir}/Release/sentry_qml_installed_consumer.exe")
+    set(executable_name "sentry_qml_installed_consumer.exe")
 else()
-    set(executable "${consumer_dir}/sentry_qml_installed_consumer")
+    set(executable_name "sentry_qml_installed_consumer")
+endif()
+set(executable "${consumer_dir}/${CONFIG}/${executable_name}")
+if(NOT EXISTS "${executable}")
+    set(executable "${consumer_dir}/${executable_name}")
+endif()
+if(NOT EXISTS "${executable}")
+    message(FATAL_ERROR "The installed consumer executable was not found for configuration '${CONFIG}'.")
 endif()
 
 get_filename_component(qt_prefix "${QT_DIR}/../../.." ABSOLUTE)

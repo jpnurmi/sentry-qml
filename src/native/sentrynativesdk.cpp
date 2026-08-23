@@ -317,10 +317,11 @@ sentry_value_t applyIntegrationMetadata(sentry_value_t event, const QStringList 
         return event;
     }
 
-    QVariantMap eventMap = nativeValueToVariant(event).toMap();
-    if (eventMap.isEmpty()) {
+    const QVariant eventValue = nativeValueToVariant(event);
+    if (eventValue.metaType().id() != QMetaType::QVariantMap) {
         return event;
     }
+    QVariantMap eventMap = eventValue.toMap();
     QVariantMap sdk = eventMap.value(QStringLiteral("sdk")).toMap();
     QVariantList integrations = sdk.value(QStringLiteral("integrations")).toList();
     for (const QString &name : names) {

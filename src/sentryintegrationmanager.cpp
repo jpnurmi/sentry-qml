@@ -803,7 +803,8 @@ bool SentryIntegrationManager::flush(int timeoutMs, int *remainingTimeoutMs)
         }
         if (!flushed) {
             success = false;
-            d->diagnostic(entry.loaded->id, false, error.isEmpty() ? QStringLiteral("flush failed.") : error);
+            d->diagnostic(entry.loaded->id, entry.required,
+                          error.isEmpty() ? QStringLiteral("flush failed.") : error);
         }
     }
 

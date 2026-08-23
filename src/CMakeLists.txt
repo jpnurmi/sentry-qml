@@ -54,9 +54,9 @@ if(sentry_qml_backend_dependencies)
     add_dependencies(SentryQml ${sentry_qml_backend_dependencies})
 endif()
 
+set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
 get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
 if(SENTRY_QML_MULTI_CONFIG AND TARGET SentryQmlplugin)
-    set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
     add_custom_command(TARGET SentryQmlplugin POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "${sentry_qml_module_output_dir}"
@@ -167,6 +167,25 @@ install(TARGETS ${sentry_qml_install_targets}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     OBJECTS DESTINATION ${CMAKE_INSTALL_LIBDIR}/sentry-qml/objects
 )
+
+if(NOT SENTRY_QML_STATIC_LIBRARY AND TARGET SentryQmlplugin)
+    set(sentry_qml_module_install_dir "${CMAKE_INSTALL_LIBDIR}/qml/${SENTRY_QML_IMPORT_URI}")
+    if(APPLE)
+        set_property(TARGET SentryQmlplugin APPEND PROPERTY INSTALL_RPATH "@loader_path/../..")
+    elseif(UNIX)
+        set_property(TARGET SentryQmlplugin APPEND PROPERTY INSTALL_RPATH "$ORIGIN/../..")
+    endif()
+    install(TARGETS SentryQmlplugin
+        ARCHIVE DESTINATION ${sentry_qml_module_install_dir}
+        LIBRARY DESTINATION ${sentry_qml_module_install_dir}
+        RUNTIME DESTINATION ${sentry_qml_module_install_dir}
+    )
+    install(FILES
+        "${sentry_qml_module_output_dir}/qmldir"
+        "${sentry_qml_module_output_dir}/SentryQml.qmltypes"
+        DESTINATION ${sentry_qml_module_install_dir}
+    )
+endif()
 
 install(EXPORT SentryQmlTargets
     NAMESPACE SentryQml::

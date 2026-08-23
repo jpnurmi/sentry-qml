@@ -25,6 +25,19 @@ if(result)
     message(FATAL_ERROR "Installing Sentry QML failed with code ${result}.")
 endif()
 
+if(NOT STATIC_LIBRARY)
+    set(qml_module_dir "${install_dir}/lib/qml/Sentry")
+    foreach(module_file IN ITEMS qmldir SentryQml.qmltypes)
+        if(NOT EXISTS "${qml_module_dir}/${module_file}")
+            message(FATAL_ERROR "The installed QML module is missing '${module_file}'.")
+        endif()
+    endforeach()
+    file(GLOB qml_plugins LIST_DIRECTORIES FALSE "${qml_module_dir}/*SentryQmlplugin*")
+    if(NOT qml_plugins)
+        message(FATAL_ERROR "The installed QML module plugin was not found in '${qml_module_dir}'.")
+    endif()
+endif()
+
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
         -S "${SOURCE_DIR}/tests/installed"
@@ -99,7 +112,10 @@ else()
     set(runtime_path "LD_LIBRARY_PATH=${install_dir}/lib:${qt_prefix}/lib:$ENV{LD_LIBRARY_PATH}")
 endif()
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env "${runtime_path}" "${executable}"
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "${runtime_path}"
+        "SENTRY_QML_INSTALLED_IMPORT_PATH=${install_dir}/lib/qml"
+        "${executable}"
     RESULT_VARIABLE result
 )
 if(result)

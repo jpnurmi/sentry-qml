@@ -344,6 +344,7 @@ if(NOT CMAKE_CROSSCOMPILING)
             -DBINARY_DIR=${CMAKE_BINARY_DIR}
             -DQT_DIR=${Qt6_DIR}
             -DCONFIG=$<CONFIG>
+            -DSTATIC_LIBRARY=${SENTRY_QML_STATIC_LIBRARY}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/installed/run.cmake
     )
     set_tests_properties(tst_installed_consumer PROPERTIES

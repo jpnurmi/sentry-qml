@@ -350,10 +350,12 @@ void SentryQmlUnitTest::reportsIntegrationFlushFailure()
 #if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
     integration.setPath(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH));
 #endif
+    integration.setRequired(true);
     integration.setConfiguration({{QStringLiteral("failFlush"), true}});
     options.addIntegration(&integration);
 
     QVERIFY(sentry.init(&options));
+    QTest::ignoreMessage(QtCriticalMsg, "Sentry integration 'smoke': configured flush failure");
     QVERIFY(!sentry.flush(2000));
     QCOMPARE(errorSpy.count(), 1);
     QVERIFY(sentry.close());
@@ -565,6 +567,25 @@ void SentryQmlUnitTest::reportsActiveIntegration()
     QCOMPARE(sentry.captureMessage(QStringLiteral("Failed integration metadata")).size(), 36);
     QTRY_VERIFY_WITH_TIMEOUT(server.bodies().size() >= 2, 5000);
     QVERIFY(!server.bodies().constLast().contains("\"smoke\""));
+    QVERIFY(sentry.close());
+
+    integration.setRequired(true);
+    integration.setConfiguration({});
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    QQmlComponent optionsComponent(&engine);
+    optionsComponent.setData("import Sentry 1.0\nSentryOptions {}", QUrl());
+    const std::unique_ptr<QObject> optionsObject(optionsComponent.create());
+    QVERIFY2(optionsObject, qPrintable(optionsComponent.errorString()));
+    auto *hookOptions = qobject_cast<SentryOptions *>(optionsObject.get());
+    QVERIFY(hookOptions);
+    hookOptions->setDsn(options.dsn());
+    hookOptions->setDatabasePath(options.databasePath());
+    hookOptions->setBeforeSend(engine.evaluate(QStringLiteral("(function() { return {}; })")));
+    hookOptions->addIntegration(&integration);
+    QVERIFY(sentry.init(hookOptions));
+    QCOMPARE(sentry.captureMessage(QStringLiteral("Empty replacement metadata")).size(), 36);
+    QTRY_VERIFY_WITH_TIMEOUT(server.bodies().size() >= 3, 5000);
+    QVERIFY(server.bodies().constLast().contains("\"smoke\""));
     QVERIFY(sentry.close());
 
     engine.setNetworkAccessManagerFactory(nullptr);

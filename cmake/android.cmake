@@ -9,7 +9,18 @@ set(QT_ANDROID_DEPLOYMENT_TYPE Debug CACHE STRING
     "Qt Android deployment type"
 )
 
-set(SENTRY_ANDROID_VERSION "8.41.0" CACHE STRING "sentry-android Gradle dependency version")
+set(sentry_android_version_catalog "${PROJECT_SOURCE_DIR}/src/android/package/gradle/libs.versions.toml")
+file(STRINGS "${sentry_android_version_catalog}" sentry_android_version_entry
+    REGEX "^sentry[ \t]*=[ \t]*\"[^\"]+\"[ \t]*$"
+)
+list(LENGTH sentry_android_version_entry sentry_android_version_entry_count)
+if(NOT sentry_android_version_entry_count EQUAL 1)
+    message(FATAL_ERROR "Could not read the Sentry Android version from ${sentry_android_version_catalog}")
+endif()
+string(REGEX REPLACE "^[^=]+=[ \t]*\"([^\"]+)\"[ \t]*$" "\\1"
+    sentry_android_version "${sentry_android_version_entry}"
+)
+set(SENTRY_ANDROID_VERSION "${sentry_android_version}" CACHE STRING "sentry-android Gradle dependency version")
 set(SENTRY_ANDROID_GRADLE_COORDINATE "io.sentry:sentry-android:${SENTRY_ANDROID_VERSION}" CACHE STRING
     "Gradle coordinate used for the Android Sentry SDK"
 )

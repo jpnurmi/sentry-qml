@@ -17,3 +17,10 @@ updates:
       wasm-e2e:
         patterns:
           - "*"
+
+  - package-ecosystem: gradle
+    directory: /src/android/package
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps): "

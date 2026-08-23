@@ -287,7 +287,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-${{ hashFiles('modules/qt-*.properties', 'cmake/android.cmake') }}
+          key: gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-${{ hashFiles('modules/qt-*.properties', 'cmake/android.cmake', 'src/android/package/gradle/libs.versions.toml') }}
           restore-keys: |
             gradle-${{ runner.os }}-${{ runner.arch }}-api-${{ matrix.android_api }}-
             gradle-${{ runner.os }}-${{ runner.arch }}-

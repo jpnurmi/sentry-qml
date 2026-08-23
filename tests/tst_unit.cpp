@@ -66,6 +66,7 @@ class SentryQmlUnitTest : public QObject
 private slots:
     void importsQmlModule();
     void importsTracingApi();
+    void configuresClientReports();
     void initializesAndCapturesMessage();
     void sendsEnvelope();
     void handlesUserConsent();
@@ -102,12 +103,13 @@ void SentryQmlUnitTest::importsQmlModule()
         QtObject {
             property SentryOptions options: SentryOptions {
                 debug: true
+                sendClientReports: false
                 requireUserConsent: true
                 sampleRate: 1.0
                 onCrash: function(event) { return event }
             }
-            property bool ready: !Sentry.initialized && options.debug && !options.attachViewHierarchy
-                && !options.attachScreenshot
+            property bool ready: !Sentry.initialized && options.debug && !options.sendClientReports
+                && !options.attachViewHierarchy && !options.attachScreenshot
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0
@@ -141,6 +143,7 @@ void SentryQmlUnitTest::importsQmlModule()
     QCOMPARE(component.status(), QQmlComponent::Ready);
     const std::unique_ptr<QObject> object(component.create());
     QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("ready").toBool(), true);
     QCOMPARE(object->property("levelsReady").toBool(), true);
     QCOMPARE(object->property("metricsReady").toBool(), true);
     QCOMPARE(object->property("sessionsReady").toBool(), true);
@@ -241,6 +244,24 @@ void SentryQmlUnitTest::importsTracingApi()
     QCOMPARE(object->property("spanHookCalled").toBool(), true);
     QCOMPARE(object->property("transactionHookCalled").toBool(), true);
     QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlUnitTest::configuresClientReports()
+{
+    SentryOptions options;
+    QSignalSpy clientReportsSpy(&options, &SentryOptions::sendClientReportsChanged);
+
+    QCOMPARE(options.sendClientReports(), true);
+    options.setSendClientReports(true);
+    QCOMPARE(clientReportsSpy.count(), 0);
+
+    options.setSendClientReports(false);
+    QCOMPARE(options.sendClientReports(), false);
+    QCOMPARE(clientReportsSpy.count(), 1);
+
+    options.setSendClientReports(true);
+    QCOMPARE(options.sendClientReports(), true);
+    QCOMPARE(clientReportsSpy.count(), 2);
 }
 
 void SentryQmlUnitTest::initializesAndCapturesMessage()

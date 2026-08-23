@@ -56,8 +56,6 @@ struct Options
     QString dist;
     QVariantMap user;
     bool debug = false;
-    bool enableLogs = true;
-    bool enableMetrics = true;
     bool sendClientReports = true;
     bool autoSessionTracking = true;
     bool attachScreenshot = false;

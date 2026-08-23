@@ -1297,7 +1297,6 @@ void SentryQmlUnitTest::sendsLogs()
             property SentryOptions options: SentryOptions {
                 dsn: testDsn
                 databasePath: testDatabasePath
-                enableLogs: true
                 shutdownTimeout: 2000
                 beforeSendLog: function(log) {
                     beforeSendLogCalled = true
@@ -1403,7 +1402,6 @@ void SentryQmlUnitTest::sendsMetrics()
             property SentryOptions options: SentryOptions {
                 dsn: testDsn
                 databasePath: testDatabasePath
-                enableMetrics: true
                 shutdownTimeout: 2000
                 beforeSendMetric: function(metric) {
                     beforeSendMetricCalled = true

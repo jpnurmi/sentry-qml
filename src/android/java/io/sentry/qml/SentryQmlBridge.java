@@ -66,12 +66,6 @@ public final class SentryQmlBridge {
                 if (json.has("debug")) {
                     options.setDebug(json.optBoolean("debug"));
                 }
-                if (json.has("enableLogs")) {
-                    options.getLogs().setEnabled(json.optBoolean("enableLogs"));
-                }
-                if (json.has("enableMetrics")) {
-                    options.getMetrics().setEnabled(json.optBoolean("enableMetrics"));
-                }
                 if (json.has("sendClientReports")) {
                     options.setSendClientReports(json.optBoolean("sendClientReports"));
                 }

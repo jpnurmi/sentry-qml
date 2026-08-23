@@ -21,8 +21,6 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(QString dist READ dist WRITE setDist NOTIFY distChanged)
     Q_PROPERTY(SentryUser *user READ user WRITE setUser NOTIFY userChanged)
     Q_PROPERTY(bool debug READ debug WRITE setDebug NOTIFY debugChanged)
-    Q_PROPERTY(bool enableLogs READ enableLogs WRITE setEnableLogs NOTIFY enableLogsChanged)
-    Q_PROPERTY(bool enableMetrics READ enableMetrics WRITE setEnableMetrics NOTIFY enableMetricsChanged)
     Q_PROPERTY(bool sendClientReports READ sendClientReports WRITE setSendClientReports NOTIFY sendClientReportsChanged)
     Q_PROPERTY(bool autoSessionTracking READ autoSessionTracking WRITE setAutoSessionTracking NOTIFY autoSessionTrackingChanged)
     Q_PROPERTY(bool requireUserConsent READ requireUserConsent WRITE setRequireUserConsent NOTIFY requireUserConsentChanged)
@@ -67,12 +65,6 @@ public:
 
     bool debug() const;
     void setDebug(bool debug);
-
-    bool enableLogs() const;
-    void setEnableLogs(bool enableLogs);
-
-    bool enableMetrics() const;
-    void setEnableMetrics(bool enableMetrics);
 
     bool sendClientReports() const;
     void setSendClientReports(bool sendClientReports);
@@ -142,8 +134,6 @@ signals:
     void distChanged();
     void userChanged();
     void debugChanged();
-    void enableLogsChanged();
-    void enableMetricsChanged();
     void sendClientReportsChanged();
     void autoSessionTrackingChanged();
     void requireUserConsentChanged();
@@ -173,8 +163,6 @@ private:
     QString m_dist;
     SentryUser *m_user = nullptr;
     bool m_debug = false;
-    bool m_enableLogs = true;
-    bool m_enableMetrics = true;
     bool m_sendClientReports = true;
     bool m_autoSessionTracking = true;
     bool m_requireUserConsent = false;

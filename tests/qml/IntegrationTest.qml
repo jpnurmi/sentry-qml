@@ -81,8 +81,6 @@ QtObject {
         dist: "42"
         autoSessionTracking: false
         requireUserConsent: true
-        enableLogs: true
-        enableMetrics: true
         tracesSampleRate: 1.0
         tracePropagationTargets: ["localhost", "127.0.0.1"]
         orgId: "42"

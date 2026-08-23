@@ -387,8 +387,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         nativeOptions.user = options->user()->toVariantMap();
     }
     nativeOptions.debug = options->debug();
-    nativeOptions.enableLogs = options->enableLogs();
-    nativeOptions.enableMetrics = options->enableMetrics();
     nativeOptions.sendClientReports = options->sendClientReports();
     nativeOptions.autoSessionTracking = options->autoSessionTracking();
     nativeOptions.attachScreenshot = options->attachScreenshot();

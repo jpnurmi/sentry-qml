@@ -44,8 +44,6 @@ Item {
         environment: AppState.environment
         dist: AppState.dist
         debug: AppState.debugEnabled
-        enableLogs: AppState.logsEnabled
-        enableMetrics: AppState.metricsEnabled
         sendClientReports: AppState.clientReportsEnabled
         autoSessionTracking: AppState.autoSessionTrackingEnabled
         requireUserConsent: AppState.requireUserConsentEnabled
@@ -276,20 +274,6 @@ Item {
                             checked: AppState.debugEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.debugEnabled = checked
-                        }
-
-                        CheckBox {
-                            text: qsTr("Logs")
-                            checked: AppState.logsEnabled
-                            Layout.fillWidth: true
-                            onToggled: AppState.logsEnabled = checked
-                        }
-
-                        CheckBox {
-                            text: qsTr("Metrics")
-                            checked: AppState.metricsEnabled
-                            Layout.fillWidth: true
-                            onToggled: AppState.metricsEnabled = checked
                         }
 
                         CheckBox {

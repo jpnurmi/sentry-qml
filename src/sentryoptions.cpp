@@ -112,36 +112,6 @@ void SentryOptions::setDebug(bool debug)
     emit debugChanged();
 }
 
-bool SentryOptions::enableLogs() const
-{
-    return m_enableLogs;
-}
-
-void SentryOptions::setEnableLogs(bool enableLogs)
-{
-    if (m_enableLogs == enableLogs) {
-        return;
-    }
-
-    m_enableLogs = enableLogs;
-    emit enableLogsChanged();
-}
-
-bool SentryOptions::enableMetrics() const
-{
-    return m_enableMetrics;
-}
-
-void SentryOptions::setEnableMetrics(bool enableMetrics)
-{
-    if (m_enableMetrics == enableMetrics) {
-        return;
-    }
-
-    m_enableMetrics = enableMetrics;
-    emit enableMetricsChanged();
-}
-
 bool SentryOptions::sendClientReports() const
 {
     return m_sendClientReports;

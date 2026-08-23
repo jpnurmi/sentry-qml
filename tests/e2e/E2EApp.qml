@@ -71,8 +71,6 @@ Window {
         autoSessionTracking: false
         sendClientReports: testAction !== "client-reports-disabled"
         requireUserConsent: testAction === "consent-capture"
-        enableLogs: testAction === "attributes-capture"
-        enableMetrics: testAction === "attributes-capture"
         attachScreenshot: testAction === "screenshot-capture"
         attachViewHierarchy: testAction === "view-hierarchy-capture"
         tracesSampleRate: testAction === "tracing-capture" ? 1.0 : -1.0

@@ -10,6 +10,8 @@
 #include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryhint.h>
 #include <SentryQml/sentryoptions.h>
+#include <SentryQml/sentrypreviouscrashservice.h>
+#include <SentryQml/sentryreplayvideoservice.h>
 #include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
@@ -25,6 +27,7 @@ extern "C" {
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
+#include <QtCore/qmutex.h>
 #include <QtCore/qstringlist.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qpointer.h>
@@ -682,6 +685,165 @@ bool checkMetricResult(Sentry *sentry, sentry_metrics_result_t result)
     return result == SENTRY_METRICS_RESULT_SUCCESS;
 }
 
+class NativePreviousCrashService final : public SentryPreviousCrashService
+{
+public:
+    using SentryPreviousCrashService::SentryPreviousCrashService;
+
+    QList<SentryPreviousCrashRecord> records() const override
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_records;
+    }
+
+    void acknowledge(const QString &id) override
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto it = m_records.begin(); it != m_records.end();) {
+            if (it->id == id) {
+                m_bytes -= it->envelope.size();
+                it = m_records.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    void retain(const sentry_envelope_t *envelope)
+    {
+        size_t size = 0;
+        char *serialized = sentry_envelope_serialize(envelope, &size);
+        if (!serialized || size == 0) {
+            sentry_free(serialized);
+            return;
+        }
+        constexpr size_t maximumRetainedBytes = 32 * 1024 * 1024;
+        if (size > maximumRetainedBytes) {
+            sentry_free(serialized);
+            return;
+        }
+
+        const QVariantMap event = nativeValueToVariant(sentry_envelope_get_event(envelope)).toMap();
+        SentryPreviousCrashRecord record;
+        record.eventId = event.value(QStringLiteral("event_id")).toString();
+        if (record.eventId.isEmpty()) {
+            record.eventId =
+                nativeValueToVariant(sentry_envelope_get_header(envelope, "event_id")).toString();
+        }
+        record.replayId = event.value(QStringLiteral("contexts"))
+                              .toMap()
+                              .value(QStringLiteral("replay"))
+                              .toMap()
+                              .value(QStringLiteral("replay_id"))
+                              .toString();
+        record.timestamp = QDateTime::fromString(event.value(QStringLiteral("timestamp")).toString(), Qt::ISODateWithMs);
+        if (!record.timestamp.isValid()) {
+            record.timestamp =
+                QDateTime::fromString(event.value(QStringLiteral("timestamp")).toString(), Qt::ISODate);
+        }
+        record.envelope = QByteArray(serialized, static_cast<qsizetype>(size));
+        sentry_free(serialized);
+
+        QMutexLocker locker(&m_mutex);
+        while (!m_records.isEmpty()
+               && (m_records.size() >= 8
+                   || m_bytes + record.envelope.size() > static_cast<qint64>(maximumRetainedBytes))) {
+            m_bytes -= m_records.first().envelope.size();
+            m_records.removeFirst();
+        }
+        record.id = QStringLiteral("%1:%2").arg(record.eventId).arg(++m_sequence);
+        m_bytes += record.envelope.size();
+        m_records.append(std::move(record));
+    }
+
+private:
+    mutable QMutex m_mutex;
+    QList<SentryPreviousCrashRecord> m_records;
+    qint64 m_bytes = 0;
+    quint64 m_sequence = 0;
+};
+
+void onCrashedLastRun(const sentry_envelope_t *envelope, void *userData)
+{
+    if (auto *service = static_cast<NativePreviousCrashService *>(userData)) {
+        service->retain(envelope);
+    }
+}
+
+class NativeReplayVideoService final : public SentryReplayVideoService
+{
+public:
+    using SentryReplayVideoService::SentryReplayVideoService;
+
+    Result submit(const QString &videoPath,
+                  const QVariantMap &metadata,
+                  const SentryPreviousCrashRecord &crash,
+                  QString *error) override
+    {
+        if (videoPath.isEmpty() || crash.envelope.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("the video path and retained crash envelope are required");
+            }
+            return InvalidInput;
+        }
+
+        sentry_envelope_t *crashEnvelope = sentry_envelope_deserialize(
+            crash.envelope.constData(), static_cast<size_t>(crash.envelope.size()));
+        if (!crashEnvelope) {
+            if (error) {
+                *error = QStringLiteral("the retained crash envelope is invalid");
+            }
+            return InvalidInput;
+        }
+
+        sentry_value_t nativeMetadata = nativeValueFromVariant(metadata);
+        sentry_replay_video_result_t nativeResult;
+        const QString nativePath = QDir::toNativeSeparators(videoPath);
+#if defined(Q_OS_WIN)
+        const std::wstring widePath = nativePath.toStdWString();
+        nativeResult = sentry_submit_replay_videow_n(
+            widePath.c_str(), widePath.size(), nativeMetadata, crashEnvelope);
+#else
+        const QByteArray encodedPath = QFile::encodeName(nativePath);
+        nativeResult = sentry_submit_replay_video_n(encodedPath.constData(),
+                                                    static_cast<size_t>(encodedPath.size()),
+                                                    nativeMetadata,
+                                                    crashEnvelope);
+#endif
+        sentry_value_decref(nativeMetadata);
+        sentry_envelope_free(crashEnvelope);
+
+        switch (nativeResult) {
+        case SENTRY_REPLAY_VIDEO_ACCEPTED:
+            return Accepted;
+        case SENTRY_REPLAY_VIDEO_INVALID_INPUT:
+            if (error) {
+                *error = QStringLiteral("the replay metadata, video, or crash correlation is invalid");
+            }
+            return InvalidInput;
+        case SENTRY_REPLAY_VIDEO_BUILD_FAILED:
+            if (error) {
+                *error = QStringLiteral("the replay envelope could not be built");
+            }
+            return BuildFailed;
+        case SENTRY_REPLAY_VIDEO_RATE_LIMITED:
+            if (error) {
+                *error = QStringLiteral("replay submission is rate limited");
+            }
+            return RateLimited;
+        case SENTRY_REPLAY_VIDEO_NOT_INITIALIZED:
+            if (error) {
+                *error = QStringLiteral("the native SDK is not initialized");
+            }
+            return Unavailable;
+        }
+        if (error) {
+            *error = QStringLiteral("replay submission returned an unknown result");
+        }
+        return BuildFailed;
+    }
+};
+
 } // namespace
 
 SentrySdk *SentrySdk::instance()
@@ -807,7 +969,19 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     crashHookState->qmlHook = onCrashState.get();
 
     m_integrationManager->beginInitialization(sentry, options, QStringLiteral("native"));
+    m_previousCrashService = std::make_unique<NativePreviousCrashService>();
+    m_replayVideoService = std::make_unique<NativeReplayVideoService>();
+    if (!m_integrationManager->registerService(
+            QString::fromLatin1(SentryPreviousCrashService::ServiceId), m_previousCrashService.get())
+        || !m_integrationManager->registerService(
+            QString::fromLatin1(SentryReplayVideoService::ServiceId), m_replayVideoService.get())) {
+        m_previousCrashService.reset();
+        m_replayVideoService.reset();
+        return false;
+    }
     if (!m_integrationManager->prepare(options)) {
+        m_previousCrashService.reset();
+        m_replayVideoService.reset();
         return false;
     }
     if (!beforeSendState) {
@@ -819,7 +993,14 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
         m_integrationManager->stop();
+        m_previousCrashService.reset();
+        m_replayVideoService.reset();
         return false;
+    }
+
+    if (m_integrationManager->preparedIntegrationIds().contains(QStringLiteral("session-replay"))) {
+        sentry_options_set_on_crashed_last_run(
+            nativeOptions, onCrashedLastRun, m_previousCrashService.get());
     }
 
 #if defined(SENTRY_TRANSPORT_CUSTOM)
@@ -833,6 +1014,8 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
             if (!transport) {
                 sentry_options_free(nativeOptions);
                 m_integrationManager->stop();
+                m_previousCrashService.reset();
+                m_replayVideoService.reset();
                 return false;
             }
             sentry_options_set_transport(nativeOptions, transport);
@@ -898,6 +1081,8 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     const int result = sentry_init(nativeOptions);
     if (result != 0) {
         m_integrationManager->stop();
+        m_previousCrashService.reset();
+        m_replayVideoService.reset();
         beforeBreadcrumbState.reset();
         beforeSendLogState.reset();
         beforeSendMetricState.reset();
@@ -928,6 +1113,8 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     }
     if (!m_integrationManager->start()) {
         sentry_close();
+        m_previousCrashService.reset();
+        m_replayVideoService.reset();
         m_beforeBreadcrumbState.reset();
         m_beforeSendLogState.reset();
         m_beforeSendMetricState.reset();
@@ -969,6 +1156,8 @@ bool SentrySdk::close()
 
     m_integrationManager->stop();
     sentry_close();
+    m_previousCrashService.reset();
+    m_replayVideoService.reset();
     QObject::disconnect(m_applicationShutdownConnection);
     m_applicationShutdownConnection = {};
     m_beforeBreadcrumbState.reset();

@@ -25,7 +25,9 @@ qt_add_qml_module(SentryQml
         ../include/SentryQml/sentryintegrationcontext.h
         ../include/SentryQml/sentryintegrationplugin.h
         ../include/SentryQml/sentryoptions.h
+        ../include/SentryQml/sentrypreviouscrashservice.h
         ../include/SentryQml/sentryqmlglobal.h
+        ../include/SentryQml/sentryreplayvideoservice.h
         ../include/SentryQml/sentryspan.h
         ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
@@ -43,7 +45,9 @@ qt_add_qml_module(SentryQml
         sentryintegration.cpp
         sentryintegrationmanager.cpp
         sentryoptions.cpp
+        sentrypreviouscrashservice.cpp
         sentryqmlengine.cpp
+        sentryreplayvideoservice.cpp
         sentryspan.cpp
         sentryscreenshot.cpp
         sentryuser.cpp

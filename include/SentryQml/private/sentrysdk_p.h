@@ -17,6 +17,8 @@ class SentryIntegrationManager;
 struct SentrySdkEventHookState;
 struct SentrySdkCrashHookState;
 class SentryOptions;
+class SentryPreviousCrashService;
+class SentryReplayVideoService;
 class SentrySpan;
 
 enum class SentrySdkCaptureMode
@@ -146,6 +148,8 @@ private:
     std::unique_ptr<SentrySdkEventHookState> m_tracesSamplerState;
     std::unique_ptr<SentrySdkCrashHookState> m_crashHookState;
     std::unique_ptr<SentryIntegrationManager> m_integrationManager;
+    std::unique_ptr<SentryPreviousCrashService> m_previousCrashService;
+    std::unique_ptr<SentryReplayVideoService> m_replayVideoService;
     QString m_dsn;
     QString m_release;
     QString m_environment;

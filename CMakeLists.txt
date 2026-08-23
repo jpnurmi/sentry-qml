@@ -97,7 +97,34 @@ set(sentry_qml_backend_compile_definitions)
 
 include("${PROJECT_SOURCE_DIR}/cmake/${sentry_qml_backend}.cmake")
 
+option(SENTRY_QML_BUILD_SESSION_REPLAY_INTEGRATION
+    "Build the optional desktop Session Replay integration"
+    OFF
+)
+
 add_subdirectory(src)
+
+if(SENTRY_QML_BUILD_SESSION_REPLAY_INTEGRATION)
+    if(NOT sentry_qml_backend STREQUAL "native" OR SENTRY_BACKEND STREQUAL "none"
+       OR ANDROID OR EMSCRIPTEN
+       OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        message(WARNING
+            "The Session Replay integration requires a working native crash "
+            "backend on Windows, Linux, or macOS; the optional target will not be built."
+        )
+    else()
+        find_package(Qt6 6.8 QUIET COMPONENTS Multimedia)
+        if(TARGET Qt6::Multimedia)
+            add_subdirectory(integrations/session-replay)
+        else()
+            message(WARNING
+                "The Session Replay integration was requested, but Qt 6.8 "
+                "Multimedia was not found. Install Qt Multimedia with its "
+                "FFmpeg backend and H.264 encoder support."
+            )
+        endif()
+    endif()
+endif()
 
 if(TARGET Qt6::QuickControls2)
     add_subdirectory(example)

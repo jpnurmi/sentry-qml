@@ -66,12 +66,6 @@ public final class SentryQmlBridge {
                 if (json.has("debug")) {
                     options.setDebug(json.optBoolean("debug"));
                 }
-                if (json.has("enableLogs")) {
-                    options.getLogs().setEnabled(json.optBoolean("enableLogs"));
-                }
-                if (json.has("enableMetrics")) {
-                    options.getMetrics().setEnabled(json.optBoolean("enableMetrics"));
-                }
                 if (json.has("sendClientReports")) {
                     options.setSendClientReports(json.optBoolean("sendClientReports"));
                 }
@@ -107,6 +101,9 @@ public final class SentryQmlBridge {
                 if (sdkName != null && !sdkName.isEmpty()) {
                     options.setNativeSdkName(sdkName);
                 }
+                // TODO: Remove once sentry-android enables logs by default:
+                // https://github.com/getsentry/sentry-java/blob/8.53.0/sentry/src/main/java/io/sentry/SentryOptions.java#L3957-L3958
+                options.getLogs().setEnabled(true);
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
             });

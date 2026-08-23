@@ -1,5 +1,5 @@
 [versions]
-sentry = "8.41.0"
+sentry = "8.53.0"
 
 [libraries]
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }

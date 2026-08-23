@@ -1,0 +1,10 @@
+{
+    "Id": "smoke",
+    "Name": "Sentry QML Smoke Integration",
+    "Version": "0.1.0",
+    "IntegrationApi": 1,
+    "MinimumSentryQmlVersion": "0.1.0",
+    "Platforms": ["windows", "linux", "macos", "ios", "android", "wasm"],
+    "Backends": ["native", "cocoa", "android", "wasm"],
+    "RequiredServices": []
+}

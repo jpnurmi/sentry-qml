@@ -19,6 +19,8 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 include(GNUInstallDirs)
 include(CTest)
+include(CMakePackageConfigHelpers)
+include("${PROJECT_SOURCE_DIR}/cmake/SentryQmlIntegration.cmake")
 
 set(SENTRY_QML_IMPORT_URI Sentry)
 set(SENTRY_QML_IMPORT_VERSION 1.0)

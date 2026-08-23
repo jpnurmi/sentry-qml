@@ -1,3 +1,4 @@
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/private/sentrysdk_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
@@ -12,6 +13,7 @@
 #include <SentryQml/sentryspan.h>
 #include <SentryQml/sentryuser.h>
 
+#include "sentrynativemetadata_p.h"
 #include "sentryqttransport_p.h"
 
 extern "C" {
@@ -661,7 +663,7 @@ SentrySdk *SentrySdk::instance()
 }
 
 SentrySdk::SentrySdk(QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_integrationManager(std::make_unique<SentryIntegrationManager>(this))
 {
 }
 
@@ -776,8 +778,14 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     crashHookState->sdk = this;
     crashHookState->qmlHook = onCrashState.get();
 
+    m_integrationManager->beginInitialization(sentry, options, QStringLiteral("native"));
+    if (!m_integrationManager->prepare(options)) {
+        return false;
+    }
+
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
+        m_integrationManager->stop();
         return false;
     }
 
@@ -791,6 +799,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
             sentry_transport_t *transport = sentryQtTransportNew(factory);
             if (!transport) {
                 sentry_options_free(nativeOptions);
+                m_integrationManager->stop();
                 return false;
             }
             sentry_options_set_transport(nativeOptions, transport);
@@ -816,6 +825,12 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     sentry_options_set_max_breadcrumbs(nativeOptions, static_cast<size_t>(options->maxBreadcrumbs()));
     sentry_options_set_shutdown_timeout(nativeOptions, static_cast<uint64_t>(options->shutdownTimeout()));
     sentry_options_set_sdk_name(nativeOptions, SENTRY_QML_SDK_NAME);
+    if (!sentryQmlAddIntegrationNames(nativeOptions, m_integrationManager->preparedIntegrationIds())) {
+        sentry_options_free(nativeOptions);
+        m_integrationManager->stop();
+        emit sentry->errorOccurred(QStringLiteral("Sentry integration metadata could not be allocated."));
+        return false;
+    }
 
     if (beforeBreadcrumbState) {
         sentry_options_set_before_breadcrumb(nativeOptions, beforeBreadcrumbCallback, beforeBreadcrumbState.get());
@@ -857,6 +872,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
 
     const int result = sentry_init(nativeOptions);
     if (result != 0) {
+        m_integrationManager->stop();
         beforeBreadcrumbState.reset();
         beforeSendLogState.reset();
         beforeSendMetricState.reset();
@@ -885,6 +901,24 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     if (user && !user->isEmpty()) {
         sentry_set_user(nativeValueFromVariant(user->toVariantMap()));
     }
+    if (!m_integrationManager->start()) {
+        sentry_close();
+        m_beforeBreadcrumbState.reset();
+        m_beforeSendLogState.reset();
+        m_beforeSendMetricState.reset();
+        m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
+        m_onCrashState.reset();
+        m_crashHookState.reset();
+        clearLocalScope();
+        return false;
+    }
+    if (m_integrationManager->preparedIntegrationIds() != m_integrationManager->activeIntegrationIds()) {
+        sentryQmlReplaceIntegrationNames(m_integrationManager->preparedIntegrationIds(),
+                                         m_integrationManager->activeIntegrationIds());
+    }
     setInitialized(true);
     emit userConsentRequiredChanged();
     emit userConsentChanged();
@@ -898,7 +932,10 @@ bool SentrySdk::flush(int timeoutMs)
         return true;
     }
 
-    return sentry_flush(timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs)) == 0;
+    int remainingTimeoutMs = timeoutMs;
+    const bool integrationsFlushed = m_integrationManager->flush(timeoutMs, &remainingTimeoutMs);
+    const bool backendFlushed = sentry_flush(static_cast<uint64_t>(remainingTimeoutMs)) == 0;
+    return integrationsFlushed && backendFlushed;
 }
 
 bool SentrySdk::close()
@@ -907,6 +944,7 @@ bool SentrySdk::close()
         return true;
     }
 
+    m_integrationManager->stop();
     sentry_close();
     QObject::disconnect(m_applicationShutdownConnection);
     m_applicationShutdownConnection = {};
@@ -985,7 +1023,7 @@ bool SentrySdk::ensureCanCall(Sentry *sentry,
 
 bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 {
-    if (m_initialized) {
+    if (m_initialized || m_integrationOperation) {
         return true;
     }
 

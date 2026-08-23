@@ -1,3 +1,4 @@
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/private/sentrysdk_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
@@ -341,6 +342,9 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                 _metadata: {
                     sdk: {
                         name: sdkName || "sentry.javascript.qml",
+                        integrations: Array.isArray(options.integrations)
+                            ? options.integrations.slice()
+                            : [],
                     },
                 },
             };
@@ -418,6 +422,23 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                     return S.close(timeoutMs);
                 });
             }
+            return true;
+        },
+
+        setIntegrations: function (integrationsJson) {
+            var names = parseJson(integrationsJson, []);
+            if (!Array.isArray(names)) {
+                return false;
+            }
+            var S = sentry();
+            var client = S && S.getClient ? S.getClient() : null;
+            var options = client && client.getOptions ? client.getOptions() : null;
+            if (!options) {
+                return false;
+            }
+            options._metadata = options._metadata || {};
+            options._metadata.sdk = options._metadata.sdk || {};
+            options._metadata.sdk.integrations = names.slice();
             return true;
         },
 
@@ -1370,6 +1391,11 @@ void setBridgeUserConsent(bool required, int consent)
     sentry_qml_wasm_set_user_consent(required ? 1 : 0, consent);
 }
 
+void setBridgeIntegrations(const QStringList &integrations)
+{
+    callBridgeString("setIntegrations", jsonStringFromVariant(integrations));
+}
+
 QString captureEventBridge(const QVariantMap &event, const QList<SentrySdkAttachmentState> &attachments)
 {
     sentry_qml_wasm_ensure_bridge();
@@ -1535,6 +1561,7 @@ SentrySdk *SentrySdk::instance()
 
 SentrySdk::SentrySdk(QObject *parent)
     : QObject(parent)
+    , m_integrationManager(std::make_unique<SentryIntegrationManager>(this))
 {
 }
 
@@ -1650,6 +1677,11 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
                                "and will be ignored.";
     }
 
+    m_integrationManager->beginInitialization(sentry, options, QStringLiteral("wasm"));
+    if (!m_integrationManager->prepare(options)) {
+        return false;
+    }
+
     const bool didChangeUserConsentRequired = m_requireUserConsent != options->requireUserConsent();
     m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
     m_beforeSendLogState = std::move(beforeSendLogState);
@@ -1692,12 +1724,14 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("orgId"), options->orgId()},
         {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},
         {QStringLiteral("maxBreadcrumbs"), options->maxBreadcrumbs()},
+        {QStringLiteral("integrations"), m_integrationManager->preparedIntegrationIds()},
     };
     if (!m_user.isEmpty()) {
         nativeOptions.insert(QStringLiteral("user"), m_user);
     }
 
     if (!m_dsn.isEmpty() && !initBridge(nativeOptions)) {
+        m_integrationManager->stop();
         clearLocalScope();
         m_beforeBreadcrumbState.reset();
         m_beforeSendLogState.reset();
@@ -1712,6 +1746,27 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    if (!m_integrationManager->start()) {
+        if (!m_dsn.isEmpty()) {
+            closeBridge(0);
+        }
+        clearLocalScope();
+        m_beforeBreadcrumbState.reset();
+        m_beforeSendLogState.reset();
+        m_beforeSendMetricState.reset();
+        m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
+        m_onCrashState.reset();
+        m_crashHookState.reset();
+        return false;
+    }
+
+    if (!m_dsn.isEmpty()) {
+        setBridgeIntegrations(m_integrationManager->activeIntegrationIds());
+    }
+
     setInitialized(true);
     if (didChangeUserConsentRequired) {
         emit userConsentRequiredChanged();
@@ -1723,11 +1778,14 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
 
 bool SentrySdk::flush(int timeoutMs)
 {
-    if (!m_initialized || m_dsn.isEmpty()) {
+    if (!m_initialized) {
         return true;
     }
 
-    return flushBridge(timeoutMs);
+    int remainingTimeoutMs = timeoutMs;
+    const bool integrationsFlushed = m_integrationManager->flush(timeoutMs, &remainingTimeoutMs);
+    const bool backendFlushed = m_dsn.isEmpty() || flushBridge(remainingTimeoutMs);
+    return integrationsFlushed && backendFlushed;
 }
 
 bool SentrySdk::close()
@@ -1736,6 +1794,7 @@ bool SentrySdk::close()
         return true;
     }
 
+    m_integrationManager->stop();
     if (!m_dsn.isEmpty()) {
         closeBridge(0);
     }
@@ -1824,7 +1883,7 @@ bool SentrySdk::ensureCanCall(Sentry *sentry,
 
 bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 {
-    if (m_initialized) {
+    if (m_initialized || m_integrationOperation) {
         return true;
     }
 

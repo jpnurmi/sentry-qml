@@ -282,6 +282,84 @@ int SentryOptions::shutdownTimeout() const
     return m_shutdownTimeout;
 }
 
+QStringList SentryOptions::integrationPaths() const
+{
+    return m_integrationPaths;
+}
+
+void SentryOptions::setIntegrationPaths(const QStringList &integrationPaths)
+{
+    if (m_integrationPaths == integrationPaths) {
+        return;
+    }
+
+    m_integrationPaths = integrationPaths;
+    emit integrationPathsChanged();
+}
+
+QQmlListProperty<SentryIntegration> SentryOptions::integrations()
+{
+    return QQmlListProperty<SentryIntegration>(this, this, appendIntegration, integrationCount, integrationAt,
+                                               clearIntegrationList);
+}
+
+void SentryOptions::addIntegration(SentryIntegration *integration)
+{
+    if (!integration || m_integrations.contains(integration)) {
+        return;
+    }
+
+    m_integrations.append(integration);
+    connect(integration, &QObject::destroyed, this, [this]() {
+        if (m_integrations.removeIf([](const QPointer<SentryIntegration> &entry) { return entry.isNull(); }) > 0) {
+            emit integrationsChanged();
+        }
+    });
+    emit integrationsChanged();
+}
+
+QList<SentryIntegration *> SentryOptions::integrationList() const
+{
+    QList<SentryIntegration *> result;
+    result.reserve(m_integrations.size());
+    for (SentryIntegration *integration : m_integrations) {
+        if (integration) {
+            result.append(integration);
+        }
+    }
+    return result;
+}
+
+void SentryOptions::clearIntegrations()
+{
+    if (m_integrations.isEmpty()) {
+        return;
+    }
+
+    m_integrations.clear();
+    emit integrationsChanged();
+}
+
+void SentryOptions::appendIntegration(QQmlListProperty<SentryIntegration> *property, SentryIntegration *integration)
+{
+    static_cast<SentryOptions *>(property->data)->addIntegration(integration);
+}
+
+qsizetype SentryOptions::integrationCount(QQmlListProperty<SentryIntegration> *property)
+{
+    return static_cast<SentryOptions *>(property->data)->integrationList().size();
+}
+
+SentryIntegration *SentryOptions::integrationAt(QQmlListProperty<SentryIntegration> *property, qsizetype index)
+{
+    return static_cast<SentryOptions *>(property->data)->integrationList().value(index);
+}
+
+void SentryOptions::clearIntegrationList(QQmlListProperty<SentryIntegration> *property)
+{
+    static_cast<SentryOptions *>(property->data)->clearIntegrations();
+}
+
 void SentryOptions::setShutdownTimeout(int shutdownTimeout)
 {
     if (m_shutdownTimeout == shutdownTimeout) {

@@ -28,7 +28,9 @@ import io.sentry.clientreport.DiscardReason;
 import io.sentry.logger.SentryLogParameters;
 import io.sentry.metrics.SentryMetricsParameters;
 import io.sentry.protocol.Feedback;
+import io.sentry.protocol.SdkVersion;
 import io.sentry.protocol.SentryId;
+import io.sentry.protocol.SentryPackage;
 import io.sentry.protocol.User;
 import java.io.File;
 import java.io.StringReader;
@@ -50,6 +52,7 @@ public final class SentryQmlBridge {
     private static final String VIEW_HIERARCHY_ATTACHMENT_TYPE = "event.view_hierarchy";
     private static final AtomicLong NEXT_SPAN_HANDLE = new AtomicLong(1);
     private static final Map<Long, ISpan> SPANS = new ConcurrentHashMap<>();
+    private static volatile List<String> integrationNames = Collections.emptyList();
 
     private SentryQmlBridge() {
     }
@@ -57,6 +60,7 @@ public final class SentryQmlBridge {
     public static boolean init(Context context, String optionsJson, String sdkName) {
         try {
             final JSONObject json = object(optionsJson);
+            setIntegrationNames(json.optJSONArray("integrations"));
             SentryAndroid.init(context, options -> {
                 setStringOption(json, "dsn", options::setDsn);
                 setStringOption(json, "databasePath", options::setCacheDirPath);
@@ -106,6 +110,7 @@ public final class SentryQmlBridge {
                 options.getLogs().setEnabled(true);
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
+                options.setBeforeSend((event, hint) -> applyIntegrationMetadata(event, options));
             });
 
             if (json.has("user") && !json.isNull("user")) {
@@ -130,7 +135,69 @@ public final class SentryQmlBridge {
 
     public static void close() {
         SPANS.clear();
+        integrationNames = Collections.emptyList();
         Sentry.close();
+    }
+
+    public static boolean setIntegrations(String integrationsJson) {
+        try {
+            Object value = new JSONTokener(integrationsJson).nextValue();
+            if (!(value instanceof JSONArray)) {
+                return false;
+            }
+            setIntegrationNames((JSONArray) value);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not update integration metadata.", t);
+            return false;
+        }
+    }
+
+    private static void setIntegrationNames(JSONArray integrations) {
+        integrationNames = integrations == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(stringList(integrations));
+    }
+
+    private static SentryEvent applyIntegrationMetadata(SentryEvent event, io.sentry.SentryOptions options) {
+        try {
+            SdkVersion sdk = event.getSdk();
+            if (sdk == null) {
+                sdk = options.getSdkVersion();
+            }
+            if (sdk == null || integrationNames.isEmpty()) {
+                return event;
+            }
+
+            JSONObject value = new JSONObject();
+            value.put("name", sdk.getName());
+            value.put("version", sdk.getVersion());
+            JSONArray packages = new JSONArray();
+            for (SentryPackage item : sdk.getPackageSet()) {
+                JSONObject entry = new JSONObject();
+                entry.put("name", item.getName());
+                entry.put("version", item.getVersion());
+                packages.put(entry);
+            }
+            value.put("packages", packages);
+            JSONArray integrations = new JSONArray();
+            for (String name : sdk.getIntegrationSet()) {
+                integrations.put(name);
+            }
+            for (String name : integrationNames) {
+                integrations.put(name);
+            }
+            value.put("integrations", integrations);
+
+            SdkVersion decorated = options.getSerializer()
+                    .deserialize(new StringReader(value.toString()), SdkVersion.class);
+            if (decorated != null) {
+                event.setSdk(decorated);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not apply integration metadata.", t);
+        }
+        return event;
     }
 
     public static boolean setRelease(String release) {

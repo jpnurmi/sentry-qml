@@ -66,6 +66,7 @@ struct Options
     bool strictTraceContinuation = false;
     int maxBreadcrumbs = 100;
     int shutdownTimeout = 2000;
+    QStringList integrations;
     Hook beforeBreadcrumb;
     Hook beforeSendLog;
     Hook beforeSendMetric;
@@ -78,6 +79,7 @@ bool isEnabled();
 bool start(const Options &options);
 void flush(int timeoutMs);
 void close();
+void setIntegrations(const QStringList &integrations);
 
 void setRelease(const QString &release);
 void setEnvironment(const QString &environment);

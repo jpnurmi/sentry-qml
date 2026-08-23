@@ -1,13 +1,17 @@
 #pragma once
 
+#include <SentryQml/sentryintegration.h>
 #include <SentryQml/sentryqmlglobal.h>
 #include <SentryQml/sentryuser.h>
 
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
+#include <QtCore/qpointer.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 #include <QtQml/qjsvalue.h>
 #include <QtQml/qqmlengine.h>
+#include <QtQml/qqmllist.h>
 
 class SENTRYQML_EXPORT SentryOptions : public QObject
 {
@@ -33,6 +37,8 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool strictTraceContinuation READ strictTraceContinuation WRITE setStrictTraceContinuation NOTIFY strictTraceContinuationChanged)
     Q_PROPERTY(int maxBreadcrumbs READ maxBreadcrumbs WRITE setMaxBreadcrumbs NOTIFY maxBreadcrumbsChanged)
     Q_PROPERTY(int shutdownTimeout READ shutdownTimeout WRITE setShutdownTimeout NOTIFY shutdownTimeoutChanged)
+    Q_PROPERTY(QStringList integrationPaths READ integrationPaths WRITE setIntegrationPaths NOTIFY integrationPathsChanged)
+    Q_PROPERTY(QQmlListProperty<SentryIntegration> integrations READ integrations NOTIFY integrationsChanged)
     Q_PROPERTY(QJSValue beforeBreadcrumb READ beforeBreadcrumb WRITE setBeforeBreadcrumb NOTIFY beforeBreadcrumbChanged)
     Q_PROPERTY(QJSValue beforeSendLog READ beforeSendLog WRITE setBeforeSendLog NOTIFY beforeSendLogChanged)
     Q_PROPERTY(QJSValue beforeSendMetric READ beforeSendMetric WRITE setBeforeSendMetric NOTIFY beforeSendMetricChanged)
@@ -102,6 +108,14 @@ public:
     int shutdownTimeout() const;
     void setShutdownTimeout(int shutdownTimeout);
 
+    QStringList integrationPaths() const;
+    void setIntegrationPaths(const QStringList &integrationPaths);
+
+    QQmlListProperty<SentryIntegration> integrations();
+    void addIntegration(SentryIntegration *integration);
+    QList<SentryIntegration *> integrationList() const;
+    void clearIntegrations();
+
     QJSValue beforeBreadcrumb() const;
     void setBeforeBreadcrumb(const QJSValue &beforeBreadcrumb);
 
@@ -146,6 +160,8 @@ signals:
     void strictTraceContinuationChanged();
     void maxBreadcrumbsChanged();
     void shutdownTimeoutChanged();
+    void integrationPathsChanged();
+    void integrationsChanged();
     void beforeBreadcrumbChanged();
     void beforeSendLogChanged();
     void beforeSendMetricChanged();
@@ -156,6 +172,11 @@ signals:
     void onCrashChanged();
 
 private:
+    static void appendIntegration(QQmlListProperty<SentryIntegration> *property, SentryIntegration *integration);
+    static qsizetype integrationCount(QQmlListProperty<SentryIntegration> *property);
+    static SentryIntegration *integrationAt(QQmlListProperty<SentryIntegration> *property, qsizetype index);
+    static void clearIntegrationList(QQmlListProperty<SentryIntegration> *property);
+
     QString m_dsn;
     QString m_databasePath;
     QString m_release;
@@ -175,6 +196,8 @@ private:
     bool m_strictTraceContinuation = false;
     int m_maxBreadcrumbs = 100;
     int m_shutdownTimeout = 2000;
+    QStringList m_integrationPaths;
+    QList<QPointer<SentryIntegration>> m_integrations;
     QJSValue m_beforeBreadcrumb;
     QJSValue m_beforeSendLog;
     QJSValue m_beforeSendMetric;

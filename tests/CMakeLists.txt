@@ -91,6 +91,11 @@ function(add_sentry_qml_test target)
         endforeach()
     endif()
 
+    get_target_property(sentry_qml_test_core_type SentryQml TYPE)
+    if(sentry_qml_test_core_type STREQUAL "STATIC_LIBRARY" AND TARGET SentryQmlplugin)
+        target_link_libraries(${target} PRIVATE SentryQmlplugin)
+    endif()
+
     if(ANDROID)
         target_link_libraries(${target} PRIVATE Qt6::Gui)
     endif()
@@ -175,9 +180,44 @@ option(SENTRY_QML_BUILD_E2E_TESTS "Build the opt-in E2E app that sends events to
 
 file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/qml" SENTRY_QML_TEST_QML_DIR)
 
+sentry_qml_add_integration(
+    TARGET SentryQmlSmokeIntegration
+    ID smoke
+    NO_INSTALL
+    CLASS_NAME SentryQmlSmokeIntegration
+    METADATA "${CMAKE_CURRENT_SOURCE_DIR}/integrations/smoke/sentryqmlsmokeintegration.json"
+    SOURCES
+        integrations/smoke/sentryqmlsmokeintegration.cpp
+        integrations/smoke/sentryqmlsmokeintegration.json
+)
+
+sentry_qml_add_integration(
+    TARGET SentryQmlServiceIntegration
+    ID service-smoke
+    CLASS_NAME SentryQmlServiceIntegration
+    NO_INSTALL
+    METADATA "${CMAKE_CURRENT_SOURCE_DIR}/integrations/service/sentryqmlserviceintegration.json"
+    SOURCES
+        integrations/service/sentryqmlserviceintegration.cpp
+        integrations/service/sentryqmlserviceintegration.json
+)
+
 add_sentry_qml_test(tst_unit
     tst_unit.cpp
 )
+
+add_dependencies(tst_unit SentryQmlSmokeIntegration SentryQmlServiceIntegration)
+target_compile_definitions(tst_unit PRIVATE
+    SENTRY_QML_SMOKE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlSmokeIntegration>"
+    SENTRY_QML_SERVICE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlServiceIntegration>"
+)
+get_target_property(sentry_qml_smoke_type SentryQmlSmokeIntegration TYPE)
+if(sentry_qml_smoke_type STREQUAL "STATIC_LIBRARY")
+    target_link_libraries(tst_unit PRIVATE
+        SentryQmlSmokeIntegration
+        SentryQmlServiceIntegration
+    )
+endif()
 
 if(TARGET Qt6::QmlPrivate)
     target_compile_definitions(tst_unit PRIVATE
@@ -294,4 +334,15 @@ if(SENTRY_QML_BUILD_E2E_TESTS)
         FILES
             e2e/E2EApp.qml
     )
+endif()
+
+if(NOT CMAKE_CROSSCOMPILING)
+    add_test(NAME tst_installed_consumer
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DBINARY_DIR=${CMAKE_BINARY_DIR}
+            -DQT_DIR=${Qt6_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/installed/run.cmake
+    )
+    set_tests_properties(tst_installed_consumer PROPERTIES TIMEOUT 180)
 endif()

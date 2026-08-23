@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SentryQml/sentryqmlglobal.h>
+
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
@@ -11,7 +13,7 @@ class SentryIntegrationManagerPrivate;
 class SentryOptions;
 class SentrySdk;
 
-class SentryIntegrationManager
+class SENTRYQML_EXPORT SentryIntegrationManager
 {
 public:
     explicit SentryIntegrationManager(SentrySdk *sdk);

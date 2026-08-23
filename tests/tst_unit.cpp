@@ -1,5 +1,4 @@
 #include <SentryQml/private/sentryintegrationmanager_p.h>
-#include <SentryQml/private/sentrysdk_p.h>
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryintegration.h>
 #include <SentryQml/sentryoptions.h>
@@ -508,7 +507,7 @@ void SentryQmlUnitTest::providesIntegrationService()
     options.addIntegration(&integration);
 
     QObject service;
-    SentryIntegrationManager manager(SentrySdk::instance());
+    SentryIntegrationManager manager(nullptr);
     manager.beginInitialization(&sentry, &options, QStringLiteral("native"));
     QVERIFY(!manager.registerService(QStringLiteral("unversioned-service"), &service));
     QVERIFY(manager.registerService(QStringLiteral("io.sentry.qml.missing-test-service/1"), &service));

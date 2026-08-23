@@ -61,6 +61,25 @@ if(NOT EXISTS "${executable}")
     message(FATAL_ERROR "The installed consumer executable was not found for configuration '${CONFIG}'.")
 endif()
 
+if(WIN32)
+    set(handler_name "crashpad_handler.exe")
+else()
+    set(handler_name "crashpad_handler")
+endif()
+set(handler "${install_dir}/bin/${handler_name}")
+if(EXISTS "${handler}")
+    get_filename_component(executable_dir "${executable}" DIRECTORY)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${handler}"
+            "${executable_dir}/${handler_name}"
+        RESULT_VARIABLE result
+    )
+    if(result)
+        message(FATAL_ERROR "Deploying the installed crash handler failed with code ${result}.")
+    endif()
+endif()
+
 get_filename_component(qt_prefix "${QT_DIR}/../../.." ABSOLUTE)
 if(WIN32)
     set(runtime_path "PATH=${qt_prefix}/bin;$ENV{PATH}")

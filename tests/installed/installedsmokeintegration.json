@@ -5,6 +5,6 @@
     "IntegrationApi": 1,
     "MinimumSentryQmlVersion": "0.1.0",
     "Platforms": ["windows", "linux", "macos"],
-    "Backends": ["native"],
+    "Backends": ["native", "cocoa"],
     "RequiredServices": []
 }

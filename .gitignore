@@ -1,5 +1,6 @@
 build*/
 .qt/
+.gradle/
 CMakeUserPresets.json
 *.user
 *.qmlc

@@ -428,18 +428,18 @@ public:
         }
 
         QObject *instance = nullptr;
+        std::unique_ptr<QPluginLoader> loader;
         if (candidate.isStatic()) {
             instance = candidate.staticInstance();
         } else {
-            auto loader = std::make_unique<QPluginLoader>(candidate.path);
-            loader->setLoadHints(QLibrary::PreventUnloadHint);
+            loader = std::make_unique<QPluginLoader>(candidate.path);
+            loader->setLoadHints({});
             instance = loader->instance();
             if (!instance) {
                 *error = QStringLiteral("could not load %1: %2").arg(candidate.path, loader->errorString());
-                retainedLoaders.push_back(std::move(loader));
+                loader->unload();
                 return nullptr;
             }
-            retainedLoaders.push_back(std::move(loader));
         }
 
         if (!instance) {
@@ -450,7 +450,13 @@ public:
         if (!plugin) {
             *error = QStringLiteral("plugin root object does not implement the v1 "
                                     "integration interface.");
+            if (loader) {
+                loader->unload();
+            }
             return nullptr;
+        }
+        if (loader) {
+            retainedLoaders.push_back(std::move(loader));
         }
 
         auto loaded = std::make_unique<SentryLoadedIntegration>();

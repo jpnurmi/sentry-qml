@@ -790,6 +790,21 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             return true;
         },
 
+        recordBeforeSendError: function () {
+            var S = sentry();
+            var client = S && S.getClient ? S.getClient() : null;
+            if (!client || !client.recordDroppedEvent) {
+                return false;
+            }
+            try {
+                client.recordDroppedEvent("before_send", "error");
+                return true;
+            } catch (error) {
+                console.error("Sentry QML: Could not record beforeSend client report.", error);
+                return false;
+            }
+        },
+
         captureEvent: function (eventJson, attachmentsJson) {
             var S = sentry();
             if (!S || !S.captureEvent) {
@@ -924,6 +939,10 @@ EM_JS(char *, sentry_qml_wasm_span_trace_headers, (int handle), {
 
 EM_JS(void, sentry_qml_wasm_release_span, (int handle), {
     globalThis.__sentryQmlWasmBridge.releaseSpan(handle);
+});
+
+EM_JS(int, sentry_qml_wasm_record_before_send_error, (), {
+    return globalThis.__sentryQmlWasmBridge.recordBeforeSendError() ? 1 : 0;
 });
 
 EM_JS(char *, sentry_qml_wasm_capture_event, (const char *eventJson, const char *attachmentsJson), {
@@ -1499,6 +1518,12 @@ void releaseSpanBridge(int handle)
 {
     sentry_qml_wasm_ensure_bridge();
     sentry_qml_wasm_release_span(handle);
+}
+
+bool recordBeforeSendErrorBridge()
+{
+    sentry_qml_wasm_ensure_bridge();
+    return sentry_qml_wasm_record_before_send_error() != 0;
 }
 
 bool hasConsent(bool requireUserConsent, int userConsent)
@@ -2735,6 +2760,9 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
 
     const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
     if (result.action == HookResult::Drop) {
+        if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+            recordBeforeSendErrorBridge();
+        }
         return {};
     }
     if (result.action == HookResult::Replace) {

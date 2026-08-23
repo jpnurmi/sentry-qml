@@ -74,6 +74,7 @@ target_compile_definitions(SentryQml
     PRIVATE
         SENTRYQML_LIBRARY
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
+        ${sentry_qml_backend_compile_definitions}
 )
 
 target_compile_definitions(SentryQml

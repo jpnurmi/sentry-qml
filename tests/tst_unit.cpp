@@ -8,16 +8,56 @@
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qregularexpression.h>
 #include <QtCore/qtemporarydir.h>
-#include <QtNetwork/qhostaddress.h>
-#include <QtNetwork/qtcpserver.h>
-#include <QtNetwork/qtcpsocket.h>
+#if defined(SENTRY_QML_SDK_NATIVE)
+#include <QtNetwork/qnetworkaccessmanager.h>
+#endif
 #include <QtQml/qqmlcomponent.h>
 #include <QtQml/qqmlcontext.h>
 #include <QtQml/qqmlengine.h>
+#if defined(SENTRY_QML_SDK_NATIVE)
+#include <QtQml/qqmlnetworkaccessmanagerfactory.h>
+#endif
 #include <QtTest/qsignalspy.h>
 #include <QtTest/qtest.h>
 
+#if defined(SENTRY_QML_SDK_NATIVE)
+#include <atomic>
+#endif
 #include <memory>
+
+using SentryQmlTest::EnvelopeServer;
+
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+class TestNetworkAccessManager final : public QNetworkAccessManager
+{
+public:
+    using QNetworkAccessManager::QNetworkAccessManager;
+
+protected:
+    QNetworkReply *createRequest(Operation operation,
+        const QNetworkRequest &request, QIODevice *outgoingData) override
+    {
+        QNetworkRequest testRequest(request);
+        testRequest.setRawHeader("X-Sentry-Qml-Test", "true");
+        return QNetworkAccessManager::createRequest(operation, testRequest, outgoingData);
+    }
+};
+
+class TestNetworkAccessManagerFactory final : public QQmlNetworkAccessManagerFactory
+{
+public:
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        m_createCount.fetch_add(1, std::memory_order_relaxed);
+        return new TestNetworkAccessManager(parent);
+    }
+
+    int createCount() const { return m_createCount.load(std::memory_order_relaxed); }
+
+private:
+    std::atomic_int m_createCount = 0;
+};
+#endif
 
 class SentryQmlUnitTest : public QObject
 {
@@ -47,74 +87,6 @@ private slots:
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
-};
-
-class EnvelopeServer : public QTcpServer
-{
-    Q_OBJECT
-
-public:
-    using QTcpServer::QTcpServer;
-
-    QByteArray request() const { return m_request; }
-    QByteArray body() const { return m_body; }
-    QString path() const { return m_path; }
-    bool receivedRequest() const { return m_receivedRequest; }
-
-protected:
-    void incomingConnection(qintptr socketDescriptor) override
-    {
-        auto *socket = new QTcpSocket(this);
-        if (!socket->setSocketDescriptor(socketDescriptor)) {
-            socket->deleteLater();
-            return;
-        }
-
-        auto request = std::make_shared<QByteArray>();
-        connect(socket, &QTcpSocket::readyRead, this,
-                [this, socket, request]
-                {
-                    request->append(socket->readAll());
-
-                    const qsizetype headerEnd = request->indexOf("\r\n\r\n");
-                    if (headerEnd < 0) {
-                        return;
-                    }
-
-                    const QByteArray headers = request->left(headerEnd);
-                    const QByteArray body = request->mid(headerEnd + 4);
-                    const qsizetype contentLength =
-                        SentryQmlTest::httpHeaderValue(headers, QByteArrayLiteral("content-length")).toLongLong();
-
-                    if (body.size() < contentLength) {
-                        return;
-                    }
-
-                    const QList<QByteArray> lines = headers.split('\n');
-                    const QList<QByteArray> requestLine = lines.value(0).trimmed().split(' ');
-                    m_path = QString::fromUtf8(requestLine.value(1));
-                    m_request += *request;
-                    if (!m_body.isEmpty()) {
-                        m_body += '\n';
-                    }
-                    m_body += SentryQmlTest::decodedHttpBody(headers, body.left(contentLength));
-                    m_receivedRequest = true;
-
-                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                    socket->disconnectFromHost();
-                    emit received();
-                });
-        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
-    }
-
-signals:
-    void received();
-
-private:
-    QByteArray m_request;
-    QByteArray m_body;
-    QString m_path;
-    bool m_receivedRequest = false;
 };
 
 void SentryQmlUnitTest::importsQmlModule()
@@ -308,13 +280,27 @@ void SentryQmlUnitTest::sendsEnvelope()
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
 
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+    auto networkFactory = std::make_unique<TestNetworkAccessManagerFactory>();
+    QQmlEngine engine;
+    engine.setNetworkAccessManagerFactory(networkFactory.get());
+#endif
+
     Sentry sentry;
     SentryOptions options;
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+    QQmlEngine::setContextForObject(&options, engine.rootContext());
+#endif
     options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
     options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     options.setShutdownTimeout(2000);
 
     QVERIFY(sentry.init(&options));
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+    QCOMPARE(networkFactory->createCount(), 1);
+    engine.setNetworkAccessManagerFactory(nullptr);
+    networkFactory.reset();
+#endif
 
     const QString eventId = sentry.captureMessage(QStringLiteral("Sent through QtNetwork"));
     QCOMPARE(eventId.size(), 36);
@@ -324,8 +310,10 @@ void SentryQmlUnitTest::sendsEnvelope()
     const QByteArray request = server.request().toLower();
     QVERIFY(request.contains("x-sentry-auth:"));
     QVERIFY(request.contains("application/x-sentry-envelope"));
+#if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
+    QVERIFY(request.contains("x-sentry-qml-test: true"));
+#endif
     QVERIFY(server.body().contains("Sent through QtNetwork"));
-
     QVERIFY(sentry.close());
 }
 

@@ -91,6 +91,7 @@ set(sentry_qml_backend_libraries)
 set(sentry_qml_backend_include_directories)
 set(sentry_qml_backend_dependencies)
 set(sentry_qml_backend_link_options)
+set(sentry_qml_backend_compile_definitions)
 
 include("${PROJECT_SOURCE_DIR}/cmake/${sentry_qml_backend}.cmake")
 

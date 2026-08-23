@@ -62,31 +62,41 @@ if(NOT EXISTS "${executable}")
 endif()
 
 if(WIN32)
-    set(handler_name "crashpad_handler.exe")
-else()
-    set(handler_name "crashpad_handler")
-endif()
-set(handler "${install_dir}/bin/${handler_name}")
-if(EXISTS "${handler}")
-    get_filename_component(executable_dir "${executable}" DIRECTORY)
-    execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${handler}"
-            "${executable_dir}/${handler_name}"
-        RESULT_VARIABLE result
+    set(runtime_files
+        crashpad_handler.exe
+        crashpad_wer.dll
+        sentry-crash.exe
+        sentry-wer.dll
     )
-    if(result)
-        message(FATAL_ERROR "Deploying the installed crash handler failed with code ${result}.")
-    endif()
+else()
+    set(runtime_files
+        crashpad_handler
+        sentry-crash
+    )
 endif()
+get_filename_component(executable_dir "${executable}" DIRECTORY)
+foreach(runtime_file IN LISTS runtime_files)
+    set(runtime_path "${install_dir}/bin/${runtime_file}")
+    if(EXISTS "${runtime_path}")
+        execute_process(
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${runtime_path}"
+                "${executable_dir}/${runtime_file}"
+            RESULT_VARIABLE result
+        )
+        if(result)
+            message(FATAL_ERROR "Deploying '${runtime_file}' failed with code ${result}.")
+        endif()
+    endif()
+endforeach()
 
 get_filename_component(qt_prefix "${QT_DIR}/../../.." ABSOLUTE)
 if(WIN32)
-    set(runtime_path "PATH=${qt_prefix}/bin;$ENV{PATH}")
+    set(runtime_path "PATH=${install_dir}/bin;${qt_prefix}/bin;$ENV{PATH}")
 elseif(APPLE)
-    set(runtime_path "DYLD_LIBRARY_PATH=${qt_prefix}/lib:$ENV{DYLD_LIBRARY_PATH}")
+    set(runtime_path "DYLD_LIBRARY_PATH=${install_dir}/lib:${qt_prefix}/lib:$ENV{DYLD_LIBRARY_PATH}")
 else()
-    set(runtime_path "LD_LIBRARY_PATH=${qt_prefix}/lib:$ENV{LD_LIBRARY_PATH}")
+    set(runtime_path "LD_LIBRARY_PATH=${install_dir}/lib:${qt_prefix}/lib:$ENV{LD_LIBRARY_PATH}")
 endif()
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env "${runtime_path}" "${executable}"

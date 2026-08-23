@@ -21,6 +21,9 @@ sentry_qml_add_integration(
 )
 
 qt_add_executable(sentry_qml_installed_consumer main.cpp)
+set_target_properties(sentry_qml_installed_consumer PROPERTIES
+    QT_QML_MODULE_NO_IMPORT_SCAN TRUE
+)
 target_link_libraries(sentry_qml_installed_consumer PRIVATE SentryQml::SentryQml)
 sentry_qml_deploy_integrations(
     TARGET sentry_qml_installed_consumer

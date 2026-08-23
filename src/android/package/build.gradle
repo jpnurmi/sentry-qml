@@ -1,0 +1,12 @@
+repositories {
+    google()
+    mavenCentral()
+}
+
+configurations {
+    implementation
+}
+
+dependencies {
+    implementation libs.sentry.android
+}

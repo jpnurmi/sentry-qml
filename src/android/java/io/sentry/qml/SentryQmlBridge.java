@@ -101,6 +101,9 @@ public final class SentryQmlBridge {
                 if (sdkName != null && !sdkName.isEmpty()) {
                     options.setNativeSdkName(sdkName);
                 }
+                // TODO: Remove once sentry-android enables logs by default:
+                // https://github.com/getsentry/sentry-java/blob/8.53.0/sentry/src/main/java/io/sentry/SentryOptions.java#L3957-L3958
+                options.getLogs().setEnabled(true);
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
             });

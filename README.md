@@ -29,6 +29,9 @@ Optional native features can be packaged as explicitly selected integration
 plugins. See [Integration plugins](docs/integrations.md) for the API, lifecycle,
 deployment, and security model.
 
+Experimental native desktop crash replay is available as a separately built
+plugin. See [Session Replay](docs/session-replay.md).
+
 ## Backends
 
 The default backend is inferred from the target platform: `android` on Android,

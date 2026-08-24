@@ -211,6 +211,15 @@ target_compile_definitions(tst_unit PRIVATE
     SENTRY_QML_SMOKE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlSmokeIntegration>"
     SENTRY_QML_SERVICE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlServiceIntegration>"
 )
+if(TARGET SentryQmlSessionReplayIntegration)
+    get_target_property(sentry_qml_session_replay_type SentryQmlSessionReplayIntegration TYPE)
+    if(NOT sentry_qml_session_replay_type STREQUAL "STATIC_LIBRARY")
+        add_dependencies(tst_unit SentryQmlSessionReplayIntegration)
+        target_compile_definitions(tst_unit PRIVATE
+            SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlSessionReplayIntegration>"
+        )
+    endif()
+endif()
 get_target_property(sentry_qml_smoke_type SentryQmlSmokeIntegration TYPE)
 if(sentry_qml_smoke_type STREQUAL "STATIC_LIBRARY")
     target_compile_definitions(tst_unit PRIVATE SENTRY_QML_TEST_INTEGRATIONS_STATIC)

@@ -1,7 +1,10 @@
-set(SENTRY_QML_STATIC_LIBRARY OFF)
+set(sentry_qml_static_default OFF)
 if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    set(SENTRY_QML_STATIC_LIBRARY ON)
+    set(sentry_qml_static_default ON)
 endif()
+option(SENTRY_QML_STATIC_LIBRARY "Build Sentry QML as a static library"
+    ${sentry_qml_static_default}
+)
 
 if(SENTRY_QML_STATIC_LIBRARY)
     qt_add_library(SentryQml STATIC)
@@ -13,16 +16,21 @@ qt_add_qml_module(SentryQml
     URI ${SENTRY_QML_IMPORT_URI}
     VERSION ${SENTRY_QML_IMPORT_VERSION}
     OUTPUT_DIRECTORY "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}"
+    OUTPUT_TARGETS sentry_qml_module_targets
     SOURCES
         ../include/SentryQml/sentryattachment.h
         ../include/SentryQml/sentry.h
         ../include/SentryQml/sentryhint.h
+        ../include/SentryQml/sentryintegration.h
+        ../include/SentryQml/sentryintegrationcontext.h
+        ../include/SentryQml/sentryintegrationplugin.h
         ../include/SentryQml/sentryoptions.h
         ../include/SentryQml/sentryqmlglobal.h
         ../include/SentryQml/sentryspan.h
         ../include/SentryQml/sentryuser.h
         ../include/SentryQml/private/sentryevent_p.h
         ../include/SentryQml/private/sentryhint_p.h
+        ../include/SentryQml/private/sentryintegrationmanager_p.h
         ../include/SentryQml/private/sentryqmlengine_p.h
         ../include/SentryQml/private/sentrysdk_p.h
         ../include/SentryQml/private/sentryscreenshot_p.h
@@ -32,6 +40,8 @@ qt_add_qml_module(SentryQml
         sentryattachment.cpp
         sentryevent.cpp
         sentryhint.cpp
+        sentryintegration.cpp
+        sentryintegrationmanager.cpp
         sentryoptions.cpp
         sentryqmlengine.cpp
         sentryspan.cpp
@@ -44,9 +54,9 @@ if(sentry_qml_backend_dependencies)
     add_dependencies(SentryQml ${sentry_qml_backend_dependencies})
 endif()
 
+set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
 get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
 if(SENTRY_QML_MULTI_CONFIG AND TARGET SentryQmlplugin)
-    set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
     add_custom_command(TARGET SentryQmlplugin POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "${sentry_qml_module_output_dir}"
@@ -73,6 +83,7 @@ target_include_directories(SentryQml
 target_compile_definitions(SentryQml
     PRIVATE
         SENTRYQML_LIBRARY
+        SENTRY_QML_VERSION="${PROJECT_VERSION}"
         SENTRY_QML_SDK_NAME="${SENTRY_SDK_NAME}"
         ${sentry_qml_backend_compile_definitions}
 )
@@ -102,7 +113,9 @@ if(SENTRY_QML_STATIC_LIBRARY)
     )
 endif()
 
+set(SENTRY_QML_HAS_QML_PRIVATE OFF)
 if(TARGET Qt6::QmlPrivate)
+    set(SENTRY_QML_HAS_QML_PRIVATE ON)
     target_compile_definitions(SentryQml
         PRIVATE
             SENTRY_QML_HAS_QML_PRIVATE
@@ -137,20 +150,61 @@ set_target_properties(SentryQml PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-if(NOT SENTRY_QML_STATIC_LIBRARY)
-    install(TARGETS SentryQml
-        EXPORT SentryQmlTargets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/SentryQml"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "private" EXCLUDE
+)
 
-    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
+set(sentry_qml_install_targets SentryQml)
+if(SENTRY_QML_STATIC_LIBRARY)
+    list(APPEND sentry_qml_install_targets ${sentry_qml_module_targets})
+endif()
 
-    install(EXPORT SentryQmlTargets
-        NAMESPACE SentryQml::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
+install(TARGETS ${sentry_qml_install_targets}
+    EXPORT SentryQmlTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    OBJECTS DESTINATION ${CMAKE_INSTALL_LIBDIR}/sentry-qml/objects
+)
+
+if(NOT SENTRY_QML_STATIC_LIBRARY AND TARGET SentryQmlplugin)
+    set(sentry_qml_module_install_dir "${CMAKE_INSTALL_LIBDIR}/qml/${SENTRY_QML_IMPORT_URI}")
+    if(APPLE)
+        set_property(TARGET SentryQmlplugin APPEND PROPERTY INSTALL_RPATH "@loader_path/../..")
+    elseif(UNIX)
+        set_property(TARGET SentryQmlplugin APPEND PROPERTY INSTALL_RPATH "$ORIGIN/../..")
+    endif()
+    install(TARGETS SentryQmlplugin
+        ARCHIVE DESTINATION ${sentry_qml_module_install_dir}
+        LIBRARY DESTINATION ${sentry_qml_module_install_dir}
+        RUNTIME DESTINATION ${sentry_qml_module_install_dir}
+    )
+    install(FILES
+        "${sentry_qml_module_output_dir}/qmldir"
+        "${sentry_qml_module_output_dir}/SentryQml.qmltypes"
+        DESTINATION ${sentry_qml_module_install_dir}
     )
 endif()
+
+install(EXPORT SentryQmlTargets
+    NAMESPACE SentryQml::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/SentryQmlConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/SentryQmlConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/SentryQmlConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
+)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/SentryQmlConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/SentryQmlConfigVersion.cmake"
+    "${PROJECT_SOURCE_DIR}/cmake/SentryQmlIntegration.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SentryQml
+)

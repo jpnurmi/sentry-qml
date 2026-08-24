@@ -1,3 +1,4 @@
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/private/sentrysdk_p.h>
 
 #include <SentryQml/private/sentryevent_p.h>
@@ -50,12 +51,14 @@ struct SentrySdkEventHookState
     QJSValue callback;
     QThread *thread = nullptr;
     QString propertyName;
+    QStringList integrationNames;
 };
 
 struct SentrySdkCrashHookState
 {
     SentrySdk *sdk = nullptr;
     SentrySdkEventHookState *qmlHook = nullptr;
+    QStringList integrationNames;
 };
 
 struct SentrySdkSpanState
@@ -308,9 +311,35 @@ sentry_value_t invokeValueHook(sentry_value_t value, SentrySdkEventHookState *st
     return replacement;
 }
 
+sentry_value_t applyIntegrationMetadata(sentry_value_t event, const QStringList &names)
+{
+    if (names.isEmpty()) {
+        return event;
+    }
+
+    const QVariant eventValue = nativeValueToVariant(event);
+    if (eventValue.metaType().id() != QMetaType::QVariantMap) {
+        return event;
+    }
+    QVariantMap eventMap = eventValue.toMap();
+    QVariantMap sdk = eventMap.value(QStringLiteral("sdk")).toMap();
+    QVariantList integrations = sdk.value(QStringLiteral("integrations")).toList();
+    for (const QString &name : names) {
+        if (!integrations.contains(name)) {
+            integrations.append(name);
+        }
+    }
+    sdk.insert(QStringLiteral("integrations"), integrations);
+    eventMap.insert(QStringLiteral("sdk"), sdk);
+    sentry_value_decref(event);
+    return nativeValueFromVariant(eventMap);
+}
+
 sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
 {
-    return invokeValueHook(event, static_cast<SentrySdkEventHookState *>(userData));
+    auto *state = static_cast<SentrySdkEventHookState *>(userData);
+    event = invokeValueHook(event, state);
+    return state ? applyIntegrationMetadata(event, state->integrationNames) : event;
 }
 
 sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
@@ -327,7 +356,8 @@ sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, 
             event = nativeValueFromVariant(eventMap);
         }
     }
-    return invokeValueHook(event, state->qmlHook);
+    event = invokeValueHook(event, state->qmlHook);
+    return applyIntegrationMetadata(event, state->integrationNames);
 }
 
 sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
@@ -661,7 +691,7 @@ SentrySdk *SentrySdk::instance()
 }
 
 SentrySdk::SentrySdk(QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_integrationManager(std::make_unique<SentryIntegrationManager>(this))
 {
 }
 
@@ -776,8 +806,19 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     crashHookState->sdk = this;
     crashHookState->qmlHook = onCrashState.get();
 
+    m_integrationManager->beginInitialization(sentry, options, QStringLiteral("native"));
+    if (!m_integrationManager->prepare(options)) {
+        return false;
+    }
+    if (!beforeSendState) {
+        beforeSendState = std::make_unique<SentrySdkEventHookState>();
+    }
+    beforeSendState->integrationNames = m_integrationManager->preparedIntegrationIds();
+    crashHookState->integrationNames = m_integrationManager->preparedIntegrationIds();
+
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
+        m_integrationManager->stop();
         return false;
     }
 
@@ -791,6 +832,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
             sentry_transport_t *transport = sentryQtTransportNew(factory);
             if (!transport) {
                 sentry_options_free(nativeOptions);
+                m_integrationManager->stop();
                 return false;
             }
             sentry_options_set_transport(nativeOptions, transport);
@@ -829,9 +871,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         sentry_options_set_before_send_metric(nativeOptions, beforeSendMetricCallback, beforeSendMetricState.get());
     }
 
-    if (beforeSendState) {
-        sentry_options_set_before_send(nativeOptions, beforeSendCallback, beforeSendState.get());
-    }
+    sentry_options_set_before_send(nativeOptions, beforeSendCallback, beforeSendState.get());
 
     if (beforeSendTransactionState) {
         sentry_options_set_before_transaction(
@@ -857,6 +897,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
 
     const int result = sentry_init(nativeOptions);
     if (result != 0) {
+        m_integrationManager->stop();
         beforeBreadcrumbState.reset();
         beforeSendLogState.reset();
         beforeSendMetricState.reset();
@@ -885,6 +926,22 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     if (user && !user->isEmpty()) {
         sentry_set_user(nativeValueFromVariant(user->toVariantMap()));
     }
+    if (!m_integrationManager->start()) {
+        sentry_close();
+        m_beforeBreadcrumbState.reset();
+        m_beforeSendLogState.reset();
+        m_beforeSendMetricState.reset();
+        m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
+        m_onCrashState.reset();
+        m_crashHookState.reset();
+        clearLocalScope();
+        return false;
+    }
+    m_beforeSendState->integrationNames = m_integrationManager->activeIntegrationIds();
+    m_crashHookState->integrationNames = m_integrationManager->activeIntegrationIds();
     setInitialized(true);
     emit userConsentRequiredChanged();
     emit userConsentChanged();
@@ -898,7 +955,10 @@ bool SentrySdk::flush(int timeoutMs)
         return true;
     }
 
-    return sentry_flush(timeoutMs < 0 ? 0 : static_cast<uint64_t>(timeoutMs)) == 0;
+    int remainingTimeoutMs = timeoutMs;
+    const bool integrationsFlushed = m_integrationManager->flush(timeoutMs, &remainingTimeoutMs);
+    const bool backendFlushed = sentry_flush(static_cast<uint64_t>(std::max(remainingTimeoutMs, 0))) == 0;
+    return integrationsFlushed && backendFlushed;
 }
 
 bool SentrySdk::close()
@@ -907,6 +967,7 @@ bool SentrySdk::close()
         return true;
     }
 
+    m_integrationManager->stop();
     sentry_close();
     QObject::disconnect(m_applicationShutdownConnection);
     m_applicationShutdownConnection = {};
@@ -985,7 +1046,7 @@ bool SentrySdk::ensureCanCall(Sentry *sentry,
 
 bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 {
-    if (m_initialized) {
+    if (m_initialized || m_integrationOperation) {
         return true;
     }
 

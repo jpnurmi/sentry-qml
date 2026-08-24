@@ -28,10 +28,12 @@ import io.sentry.clientreport.DiscardReason;
 import io.sentry.logger.SentryLogParameters;
 import io.sentry.metrics.SentryMetricsParameters;
 import io.sentry.protocol.Feedback;
+import io.sentry.protocol.SdkVersion;
 import io.sentry.protocol.SentryId;
 import io.sentry.protocol.User;
 import java.io.File;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,6 +52,7 @@ public final class SentryQmlBridge {
     private static final String VIEW_HIERARCHY_ATTACHMENT_TYPE = "event.view_hierarchy";
     private static final AtomicLong NEXT_SPAN_HANDLE = new AtomicLong(1);
     private static final Map<Long, ISpan> SPANS = new ConcurrentHashMap<>();
+    private static volatile List<String> integrationNames = Collections.emptyList();
 
     private SentryQmlBridge() {
     }
@@ -57,6 +60,7 @@ public final class SentryQmlBridge {
     public static boolean init(Context context, String optionsJson, String sdkName) {
         try {
             final JSONObject json = object(optionsJson);
+            setIntegrationNames(json.optJSONArray("integrations"));
             SentryAndroid.init(context, options -> {
                 setStringOption(json, "dsn", options::setDsn);
                 setStringOption(json, "databasePath", options::setCacheDirPath);
@@ -106,6 +110,8 @@ public final class SentryQmlBridge {
                 options.getLogs().setEnabled(true);
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
+                // This bridge owns beforeSend; keep future decoration and user hooks in this callback.
+                options.setBeforeSend((event, hint) -> applyIntegrationMetadata(event, options));
             });
 
             if (json.has("user") && !json.isNull("user")) {
@@ -130,7 +136,70 @@ public final class SentryQmlBridge {
 
     public static void close() {
         SPANS.clear();
+        integrationNames = Collections.emptyList();
         Sentry.close();
+    }
+
+    public static boolean setIntegrations(String integrationsJson) {
+        try {
+            Object value = new JSONTokener(integrationsJson).nextValue();
+            if (!(value instanceof JSONArray)) {
+                return false;
+            }
+            setIntegrationNames((JSONArray) value);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not update integration metadata.", t);
+            return false;
+        }
+    }
+
+    private static void setIntegrationNames(JSONArray integrations) {
+        integrationNames = integrations == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(stringList(integrations));
+    }
+
+    private static SentryEvent applyIntegrationMetadata(SentryEvent event, io.sentry.SentryOptions options) {
+        try {
+            SdkVersion sdk = event.getSdk();
+            if (sdk == null) {
+                sdk = options.getSdkVersion();
+            }
+            if (sdk == null || integrationNames.isEmpty()) {
+                return event;
+            }
+
+            StringWriter serialized = new StringWriter();
+            options.getSerializer().serialize(sdk, serialized);
+            JSONObject value = new JSONObject(serialized.toString());
+            JSONArray integrations = value.optJSONArray("integrations");
+            if (integrations == null) {
+                integrations = new JSONArray();
+                value.put("integrations", integrations);
+            }
+            for (String name : integrationNames) {
+                boolean present = false;
+                for (int index = 0; index < integrations.length(); index++) {
+                    if (name.equals(integrations.optString(index))) {
+                        present = true;
+                        break;
+                    }
+                }
+                if (!present) {
+                    integrations.put(name);
+                }
+            }
+
+            SdkVersion decorated = options.getSerializer()
+                    .deserialize(new StringReader(value.toString()), SdkVersion.class);
+            if (decorated != null) {
+                event.setSdk(decorated);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not apply integration metadata.", t);
+        }
+        return event;
     }
 
     public static boolean setRelease(String release) {

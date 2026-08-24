@@ -25,6 +25,10 @@ ctest --test-dir build --output-on-failure
 
 The example runs from the build tree without installing the QML module.
 
+Optional native features can be packaged as explicitly selected integration
+plugins. See [Integration plugins](docs/integrations.md) for the API, lifecycle,
+deployment, and security model.
+
 ## Backends
 
 The default backend is inferred from the target platform: `android` on Android,

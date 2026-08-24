@@ -1,4 +1,6 @@
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/sentry.h>
+#include <SentryQml/sentryintegration.h>
 #include <SentryQml/sentryoptions.h>
 
 #include "sentryqmltest.h"
@@ -7,6 +9,7 @@
 #include <QtCore/qfile.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qregularexpression.h>
+#include <QtCore/qscopeguard.h>
 #include <QtCore/qtemporarydir.h>
 #if defined(SENTRY_QML_SDK_NATIVE)
 #include <QtNetwork/qnetworkaccessmanager.h>
@@ -67,6 +70,15 @@ private slots:
     void importsQmlModule();
     void importsTracingApi();
     void configuresClientReports();
+    void configuresIntegrations();
+    void rejectsAmbiguousIntegrations();
+    void discoversIntegrationById();
+    void runsIntegrationLifecycle();
+    void reportsIntegrationFlushFailure();
+    void rejectsUnavailableIntegrationService();
+    void providesIntegrationService();
+    void reportsActiveIntegration();
+    void handlesIntegrationFailures();
     void initializesAndCapturesMessage();
     void sendsEnvelope();
     void handlesUserConsent();
@@ -106,10 +118,25 @@ void SentryQmlUnitTest::importsQmlModule()
                 sendClientReports: false
                 requireUserConsent: true
                 sampleRate: 1.0
+                integrationPaths: ["/tmp/sentry-integrations"]
+                integrations: [
+                    SentryIntegration {
+                        name: "disabled"
+                        enabled: false
+                        required: true
+                        configuration: { "answer": 42 }
+                    }
+                ]
                 onCrash: function(event) { return event }
             }
             property bool ready: !Sentry.initialized && options.debug && !options.sendClientReports
                 && !options.attachViewHierarchy && !options.attachScreenshot
+                && options.integrationPaths.length === 1
+                && options.integrations.length === 1
+                && options.integrations[0].name === "disabled"
+                && !options.integrations[0].enabled
+                && options.integrations[0].required
+                && options.integrations[0].configuration.answer === 42
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0
@@ -134,7 +161,8 @@ void SentryQmlUnitTest::importsQmlModule()
                 options.shutdownTimeout = 100
             }
         }
-    )", QUrl(QStringLiteral("memory:/SentryImportTest.qml")));
+    )",
+                      QUrl(QStringLiteral("memory:/SentryImportTest.qml")));
 
     if (component.isLoading()) {
         QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
@@ -262,6 +290,368 @@ void SentryQmlUnitTest::configuresClientReports()
     options.setSendClientReports(true);
     QCOMPARE(options.sendClientReports(), true);
     QCOMPARE(clientReportsSpy.count(), 2);
+}
+
+void SentryQmlUnitTest::configuresIntegrations()
+{
+    SentryOptions options;
+    QSignalSpy pathsSpy(&options, &SentryOptions::integrationPathsChanged);
+    QSignalSpy integrationsSpy(&options, &SentryOptions::integrationsChanged);
+    SentryIntegration first;
+    SentryIntegration second;
+
+    QCOMPARE(first.enabled(), true);
+    QCOMPARE(first.required(), false);
+    first.setName(QStringLiteral("smoke"));
+    first.setPath(QStringLiteral("/tmp/smoke"));
+    first.setEnabled(false);
+    first.setRequired(true);
+    first.setConfiguration({{QStringLiteral("answer"), 42}});
+    QCOMPARE(first.name(), QStringLiteral("smoke"));
+    QCOMPARE(first.path(), QStringLiteral("/tmp/smoke"));
+    QCOMPARE(first.enabled(), false);
+    QCOMPARE(first.required(), true);
+    QCOMPARE(first.configuration().value(QStringLiteral("answer")).toInt(), 42);
+
+    options.setIntegrationPaths({QStringLiteral("/tmp/one"), QStringLiteral("/tmp/two")});
+    QCOMPARE(pathsSpy.count(), 1);
+    options.setIntegrationPaths(options.integrationPaths());
+    QCOMPARE(pathsSpy.count(), 1);
+
+    options.addIntegration(&first);
+    options.addIntegration(&first);
+    options.addIntegration(nullptr);
+    options.addIntegration(&second);
+    QCOMPARE(options.integrationList(), QList<SentryIntegration *>({&first, &second}));
+    QCOMPARE(integrationsSpy.count(), 2);
+    options.clearIntegrations();
+    QVERIFY(options.integrationList().isEmpty());
+    QCOMPARE(integrationsSpy.count(), 3);
+
+    auto *temporary = new SentryIntegration;
+    options.addIntegration(temporary);
+    QCOMPARE(options.integrationList().size(), 1);
+    delete temporary;
+    QVERIFY(options.integrationList().isEmpty());
+    QCOMPARE(integrationsSpy.count(), 5);
+}
+
+void SentryQmlUnitTest::reportsIntegrationFlushFailure()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    Sentry sentry;
+    QSignalSpy errorSpy(&sentry, &Sentry::errorOccurred);
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    integration.setPath(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH));
+#endif
+    integration.setRequired(true);
+    integration.setConfiguration({{QStringLiteral("failFlush"), true}});
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    QTest::ignoreMessage(QtCriticalMsg, "Sentry integration 'smoke': configured flush failure");
+    QVERIFY(!sentry.flush(2000));
+    QCOMPARE(errorSpy.count(), 1);
+    QVERIFY(sentry.close());
+}
+
+void SentryQmlUnitTest::rejectsAmbiguousIntegrations()
+{
+#if defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    QSKIP("Dynamic directory discovery does not apply to a static Sentry QML "
+          "build.");
+#else
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+    const QString firstDir = QDir(temporaryDir.path()).filePath(QStringLiteral("first integration"));
+    const QString secondDir = QDir(temporaryDir.path()).filePath(QStringLiteral("second-å-integration"));
+    QVERIFY(QDir().mkpath(firstDir));
+    QVERIFY(QDir().mkpath(secondDir));
+    const QString fileName = QFileInfo(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH)).fileName();
+    QVERIFY(QFile::copy(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH), QDir(firstDir).filePath(fileName)));
+    QVERIFY(QFile::copy(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH), QDir(secondDir).filePath(fileName)));
+
+    Sentry sentry;
+    QSignalSpy errorSpy(&sentry, &Sentry::errorOccurred);
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    options.setIntegrationPaths({firstDir, secondDir});
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("smoke"));
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    QCOMPARE(errorSpy.count(), 1);
+    QVERIFY(sentry.close());
+#endif
+}
+
+void SentryQmlUnitTest::discoversIntegrationById()
+{
+#if defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    QSKIP("Dynamic directory discovery does not apply to a static Sentry QML "
+          "build.");
+#else
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+    const QString tracePath = QDir(temporaryDir.path()).filePath(QStringLiteral("discovery.txt"));
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    options.setIntegrationPaths({QFileInfo(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH)).absolutePath()});
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("smoke"));
+    integration.setRequired(true);
+    integration.setConfiguration({{QStringLiteral("tracePath"), tracePath}});
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    QVERIFY(sentry.close());
+
+    QFile trace(tracePath);
+    QVERIFY(trace.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(trace.readAll()), QStringLiteral("prepare:\nstart:\nstop:\n"));
+#endif
+}
+
+void SentryQmlUnitTest::runsIntegrationLifecycle()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+    const QString tracePath = QDir(temporaryDir.path()).filePath(QStringLiteral("lifecycle.txt"));
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    integration.setPath(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH));
+#endif
+    integration.setRequired(true);
+    integration.setConfiguration({
+        {QStringLiteral("tracePath"), tracePath},
+        {QStringLiteral("marker"), QStringLiteral("first")},
+    });
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    integration.setConfiguration({
+        {QStringLiteral("tracePath"), tracePath},
+        {QStringLiteral("marker"), QStringLiteral("mutated")},
+    });
+    QVERIFY(sentry.flush(2000));
+    QVERIFY(sentry.close());
+
+    integration.setConfiguration({
+        {QStringLiteral("tracePath"), tracePath},
+        {QStringLiteral("marker"), QStringLiteral("second")},
+    });
+    QVERIFY(sentry.init(&options));
+    QVERIFY(sentry.close());
+
+    QFile trace(tracePath);
+    QVERIFY(trace.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QStringList lines = QString::fromUtf8(trace.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    QCOMPARE(lines.size(), 7);
+    QCOMPARE(lines.at(0), QStringLiteral("prepare:first"));
+    QCOMPARE(lines.at(1), QStringLiteral("start:first"));
+    QVERIFY(lines.at(2).startsWith(QStringLiteral("flush:")));
+    QCOMPARE(lines.at(3), QStringLiteral("stop:first"));
+    QCOMPARE(lines.at(4), QStringLiteral("prepare:second"));
+    QCOMPARE(lines.at(5), QStringLiteral("start:second"));
+    QCOMPARE(lines.at(6), QStringLiteral("stop:second"));
+}
+
+void SentryQmlUnitTest::rejectsUnavailableIntegrationService()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+    const QString markerPath = QDir(temporaryDir.path()).filePath(QStringLiteral("constructed"));
+    QVERIFY(qputenv("SENTRY_QML_SERVICE_CONSTRUCTION_MARKER", markerPath.toUtf8()));
+    const auto environmentGuard = qScopeGuard([]() { qunsetenv("SENTRY_QML_SERVICE_CONSTRUCTION_MARKER"); });
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("service-smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    integration.setPath(QStringLiteral(SENTRY_QML_SERVICE_INTEGRATION_PATH));
+#endif
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    QVERIFY(!QFileInfo::exists(markerPath));
+    QVERIFY(sentry.close());
+}
+
+void SentryQmlUnitTest::providesIntegrationService()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("service-smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    integration.setPath(QStringLiteral(SENTRY_QML_SERVICE_INTEGRATION_PATH));
+#endif
+    integration.setRequired(true);
+    options.addIntegration(&integration);
+
+    QObject service;
+    SentryIntegrationManager manager(nullptr);
+    manager.beginInitialization(&sentry, &options, QStringLiteral("native"));
+    QVERIFY(!manager.registerService(QStringLiteral("unversioned-service"), &service));
+    QVERIFY(manager.registerService(QStringLiteral("io.sentry.qml.missing-test-service/1"), &service));
+    QVERIFY(!manager.registerService(QStringLiteral("io.sentry.qml.missing-test-service/1"), &service));
+    QVERIFY(manager.prepare(&options));
+    QCOMPARE(manager.preparedIntegrationIds(), QStringList({QStringLiteral("service-smoke")}));
+    QVERIFY(manager.start());
+    QCOMPARE(manager.activeIntegrationIds(), QStringList({QStringLiteral("service-smoke")}));
+    manager.stop();
+}
+
+void SentryQmlUnitTest::reportsActiveIntegration()
+{
+#if !defined(SENTRY_QML_SDK_NATIVE) || !defined(SENTRY_TRANSPORT_CUSTOM)
+    QSKIP("The focused SDK integration metadata adapter test uses sentry-native "
+          "with the Qt transport.");
+#else
+    SENTRY_QML_SKIP_CRASHPAD("crashpad uses /minidump endpoint, not /envelope");
+
+    EnvelopeServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    auto networkFactory = std::make_unique<TestNetworkAccessManagerFactory>();
+    QQmlEngine engine;
+    engine.setNetworkAccessManagerFactory(networkFactory.get());
+
+    Sentry sentry;
+    SentryOptions options;
+    QQmlEngine::setContextForObject(&options, engine.rootContext());
+    options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    integration.setPath(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH));
+#endif
+    integration.setRequired(true);
+    options.addIntegration(&integration);
+
+    QVERIFY(sentry.init(&options));
+    QCOMPARE(sentry.captureMessage(QStringLiteral("Integration metadata")).size(), 36);
+    QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
+    QVERIFY(server.body().contains("\"smoke\""));
+#if defined(SENTRY_QML_BACKEND_NATIVE)
+    QVERIFY(server.body().contains("\"native\""));
+#endif
+    QVERIFY(sentry.close());
+
+    integration.setRequired(false);
+    integration.setConfiguration({{QStringLiteral("failStart"), true}});
+    QVERIFY(sentry.init(&options));
+    QCOMPARE(sentry.captureMessage(QStringLiteral("Failed integration metadata")).size(), 36);
+    QTRY_VERIFY_WITH_TIMEOUT(server.bodies().size() >= 2, 5000);
+    QVERIFY(!server.bodies().constLast().contains("\"smoke\""));
+    QVERIFY(sentry.close());
+
+    integration.setRequired(true);
+    integration.setConfiguration({});
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    QQmlComponent optionsComponent(&engine);
+    optionsComponent.setData("import Sentry 1.0\nSentryOptions {}", QUrl());
+    const std::unique_ptr<QObject> optionsObject(optionsComponent.create());
+    QVERIFY2(optionsObject, qPrintable(optionsComponent.errorString()));
+    auto *hookOptions = qobject_cast<SentryOptions *>(optionsObject.get());
+    QVERIFY(hookOptions);
+    hookOptions->setDsn(options.dsn());
+    hookOptions->setDatabasePath(options.databasePath());
+    hookOptions->setBeforeSend(engine.evaluate(QStringLiteral("(function() { return {}; })")));
+    hookOptions->addIntegration(&integration);
+    QVERIFY(sentry.init(hookOptions));
+    QCOMPARE(sentry.captureMessage(QStringLiteral("Empty replacement metadata")).size(), 36);
+    QTRY_VERIFY_WITH_TIMEOUT(server.bodies().size() >= 3, 5000);
+    QVERIFY(server.bodies().constLast().contains("\"smoke\""));
+    QVERIFY(sentry.close());
+
+    engine.setNetworkAccessManagerFactory(nullptr);
+    networkFactory.reset();
+#endif
+}
+
+void SentryQmlUnitTest::handlesIntegrationFailures()
+{
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+    Sentry sentry;
+    QSignalSpy errorSpy(&sentry, &Sentry::errorOccurred);
+
+    SentryOptions optionalOptions;
+    optionalOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("optional")));
+    SentryIntegration optional;
+    optional.setName(QStringLiteral("missing"));
+    optionalOptions.addIntegration(&optional);
+    QVERIFY(sentry.init(&optionalOptions));
+    QVERIFY(sentry.close());
+    QCOMPARE(errorSpy.count(), 1);
+
+    SentryOptions requiredOptions;
+    requiredOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("required")));
+    SentryIntegration required;
+    required.setName(QStringLiteral("missing"));
+    required.setRequired(true);
+    requiredOptions.addIntegration(&required);
+    QVERIFY(!sentry.init(&requiredOptions));
+    QVERIFY(!sentry.isInitialized());
+
+    SentryOptions duplicateOptions;
+    duplicateOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("duplicate")));
+    SentryIntegration duplicateFirst;
+    SentryIntegration duplicateSecond;
+    duplicateFirst.setName(QStringLiteral("duplicate"));
+    duplicateSecond.setName(QStringLiteral("duplicate"));
+    duplicateOptions.addIntegration(&duplicateFirst);
+    duplicateOptions.addIntegration(&duplicateSecond);
+    QVERIFY(!sentry.init(&duplicateOptions));
+    QVERIFY(!sentry.isInitialized());
+
+    SentryOptions relativePathOptions;
+    relativePathOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("relative-path")));
+    relativePathOptions.setIntegrationPaths({QStringLiteral("relative/integrations")});
+    QVERIFY(!sentry.init(&relativePathOptions));
+    QVERIFY(!sentry.isInitialized());
+
+    SentryOptions startFailureOptions;
+    startFailureOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("start-failure")));
+    SentryIntegration startFailure;
+    startFailure.setName(QStringLiteral("smoke"));
+#if !defined(SENTRY_QML_TEST_INTEGRATIONS_STATIC)
+    startFailure.setPath(QStringLiteral(SENTRY_QML_SMOKE_INTEGRATION_PATH));
+#endif
+    startFailure.setRequired(true);
+    startFailure.setConfiguration({{QStringLiteral("failStart"), true}});
+    startFailureOptions.addIntegration(&startFailure);
+    QVERIFY(!sentry.init(&startFailureOptions));
+    QVERIFY(!sentry.isInitialized());
+
+    SentryOptions reusableOptions;
+    reusableOptions.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("reusable")));
+    QVERIFY(sentry.init(&reusableOptions));
+    QVERIFY(sentry.close());
 }
 
 void SentryQmlUnitTest::initializesAndCapturesMessage()

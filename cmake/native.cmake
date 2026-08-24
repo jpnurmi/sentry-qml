@@ -13,6 +13,9 @@ endif()
 set(SENTRY_BUILD_TESTS OFF CACHE BOOL "Build sentry-native tests" FORCE)
 set(SENTRY_BUILD_EXAMPLES OFF CACHE BOOL "Build sentry-native examples" FORCE)
 set(SENTRY_BUILD_BENCHMARKS OFF CACHE BOOL "Build sentry-native benchmarks" FORCE)
+if(SENTRY_QML_STATIC_LIBRARY)
+    set(SENTRY_ENABLE_INSTALL ON CACHE BOOL "Install sentry-native for static Sentry QML consumers" FORCE)
+endif()
 
 if(NOT DEFINED SENTRY_TRANSPORT)
     set(SENTRY_TRANSPORT "custom" CACHE STRING
@@ -39,7 +42,9 @@ if(NOT DEFINED SENTRY_SDK_NAME)
     set(SENTRY_SDK_NAME "sentry.native.qml" CACHE STRING "SDK name reported by sentry-native")
 endif()
 
-list(APPEND sentry_qml_backend_sources "${PROJECT_SOURCE_DIR}/src/native/sentrynativesdk.cpp")
+list(APPEND sentry_qml_backend_sources
+    "${PROJECT_SOURCE_DIR}/src/native/sentrynativesdk.cpp"
+)
 list(APPEND sentry_qml_backend_libraries sentry::sentry)
 list(APPEND sentry_qml_backend_include_directories "${SENTRY_NATIVE_DIR}")
 

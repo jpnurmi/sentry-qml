@@ -1,3 +1,4 @@
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/private/sentrysdk_p.h>
 
 #include "sentryobjcbridge_p.h"
@@ -249,7 +250,7 @@ SentrySdk *SentrySdk::instance()
 }
 
 SentrySdk::SentrySdk(QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_integrationManager(std::make_unique<SentryIntegrationManager>(this))
 {
 }
 
@@ -366,6 +367,11 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    m_integrationManager->beginInitialization(sentry, options, QStringLiteral("cocoa"));
+    if (!m_integrationManager->prepare(options)) {
+        return false;
+    }
+
     m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
     m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendMetricState = std::move(beforeSendMetricState);
@@ -397,6 +403,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.strictTraceContinuation = options->strictTraceContinuation();
     nativeOptions.maxBreadcrumbs = options->maxBreadcrumbs();
     nativeOptions.shutdownTimeout = options->shutdownTimeout();
+    nativeOptions.integrations = m_integrationManager->preparedIntegrationIds();
     nativeOptions.beforeBreadcrumb = m_applyHooksLocally ? SentryObjCBridge::Hook {}
                                                         : hookFromState(m_beforeBreadcrumbState.get());
     nativeOptions.beforeSendLog = hookFromState(m_beforeSendLogState.get());
@@ -416,6 +423,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_attachViewHierarchy = options->attachViewHierarchy();
 
     if (!SentryObjCBridge::start(nativeOptions)) {
+        m_integrationManager->stop();
         m_applyHooksLocally = false;
         clearLocalScope();
         m_beforeBreadcrumbState.reset();
@@ -431,6 +439,24 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
+    if (!m_integrationManager->start()) {
+        SentryObjCBridge::close();
+        m_applyHooksLocally = false;
+        clearLocalScope();
+        m_beforeBreadcrumbState.reset();
+        m_beforeSendLogState.reset();
+        m_beforeSendMetricState.reset();
+        m_beforeSendState.reset();
+        m_beforeSendTransactionState.reset();
+        m_beforeSendSpanState.reset();
+        m_tracesSamplerState.reset();
+        m_onCrashState.reset();
+        m_crashHookState.reset();
+        return false;
+    }
+
+    SentryObjCBridge::setIntegrations(m_integrationManager->activeIntegrationIds());
+
     setInitialized(true);
     connectToApplicationShutdown();
     return true;
@@ -442,8 +468,10 @@ bool SentrySdk::flush(int timeoutMs)
         return true;
     }
 
-    SentryObjCBridge::flush(timeoutMs);
-    return true;
+    int remainingTimeoutMs = timeoutMs;
+    const bool integrationsFlushed = m_integrationManager->flush(timeoutMs, &remainingTimeoutMs);
+    SentryObjCBridge::flush(remainingTimeoutMs);
+    return integrationsFlushed;
 }
 
 bool SentrySdk::close()
@@ -452,6 +480,7 @@ bool SentrySdk::close()
         return true;
     }
 
+    m_integrationManager->stop();
     SentryObjCBridge::close();
 
     if (m_applicationShutdownConnection) {
@@ -533,7 +562,7 @@ bool SentrySdk::ensureCanCall(Sentry *sentry,
 
 bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 {
-    if (m_initialized) {
+    if (m_initialized || m_integrationOperation) {
         return true;
     }
 

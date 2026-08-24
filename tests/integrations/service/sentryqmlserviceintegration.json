@@ -1,0 +1,10 @@
+{
+    "Id": "service-smoke",
+    "Name": "Sentry QML Service Smoke Integration",
+    "Version": "0.1.0",
+    "IntegrationApi": 1,
+    "MinimumSentryQmlVersion": "0.1.0",
+    "Platforms": ["windows", "linux", "macos", "ios", "android", "wasm"],
+    "Backends": ["native", "cocoa", "android", "wasm"],
+    "RequiredServices": ["io.sentry.qml.missing-test-service/1"]
+}

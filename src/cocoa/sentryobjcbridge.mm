@@ -6,6 +6,7 @@
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qmetatype.h>
+#include <QtCore/qmutex.h>
 #include <QtCore/qurl.h>
 
 #include <cmath>
@@ -15,6 +16,8 @@ namespace {
 
 QString currentRelease;
 QString currentTransaction;
+QStringList currentIntegrations;
+QMutex integrationMutex;
 
 NSString *nsString(const QString &value)
 {
@@ -1184,6 +1187,27 @@ SentryObjCEvent *runEventHook(SentryObjCEvent *event, const SentryObjCBridge::Ho
     if (result.action == SentryObjCBridge::HookResult::Replace) {
         applyVariantMapToEvent(event, result.value.toMap());
     }
+
+    QStringList integrationsSnapshot;
+    {
+        QMutexLocker locker(&integrationMutex);
+        integrationsSnapshot = currentIntegrations;
+    }
+    if (!integrationsSnapshot.isEmpty()) {
+        NSMutableDictionary<NSString *, id> *sdk =
+            event.sdk ? [event.sdk mutableCopy] : [NSMutableDictionary dictionary];
+        NSArray *existing = sdk[@"integrations"];
+        NSMutableArray<NSString *> *integrations =
+            [existing isKindOfClass:NSArray.class] ? [existing mutableCopy] : [NSMutableArray array];
+        for (const QString &name : integrationsSnapshot) {
+            NSString *nativeName = nsString(name);
+            if (![integrations containsObject:nativeName]) {
+                [integrations addObject:nativeName];
+            }
+        }
+        sdk[@"integrations"] = integrations;
+        event.sdk = sdk;
+    }
     return event;
 }
 
@@ -1283,6 +1307,10 @@ bool start(const Options &options)
 {
     @autoreleasepool {
         currentRelease = options.release;
+        {
+            QMutexLocker locker(&integrationMutex);
+            currentIntegrations = options.integrations;
+        }
 
         SentryObjCOptions *nativeOptions = [[SentryObjCOptions alloc] init];
         nativeOptions.dsn = nsStringOrNil(options.dsn);
@@ -1379,7 +1407,15 @@ void close()
 {
     @autoreleasepool {
         [SentryObjCSDK close];
+        QMutexLocker locker(&integrationMutex);
+        currentIntegrations.clear();
     }
+}
+
+void setIntegrations(const QStringList &integrations)
+{
+    QMutexLocker locker(&integrationMutex);
+    currentIntegrations = integrations;
 }
 
 void setRelease(const QString &release)

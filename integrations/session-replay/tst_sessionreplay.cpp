@@ -167,8 +167,7 @@ void SessionReplayTest::encoderProducesVideo()
 {
     QString supportError;
     if (!ReplayEncoder::probe(&supportError)) {
-        QVERIFY(!supportError.isEmpty());
-        return;
+        QSKIP(qPrintable(supportError));
     }
 
     QTemporaryDir temporary;

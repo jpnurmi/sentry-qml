@@ -53,6 +53,12 @@ Multiple enabled descriptors or multiple candidates for one ID are errors.
 Disabled descriptors are ignored. A missing or incompatible optional
 integration emits a warning; a required integration prevents initialization.
 
+`Sentry.availableIntegrations` lists the integration names discoverable as
+imported static plugins or in the application deployment directory. It can be
+used before initialization to conditionally expose configuration UI. It does
+not include custom `integrationPaths` and does not imply that a plugin will
+pass backend, service, or configuration validation during initialization.
+
 The SDK snapshots configuration during `Sentry.init()`. Changing a descriptor
 does not reconfigure a running integration. Call `Sentry.close()` and then
 `Sentry.init()` to start a new cycle. Plugin root objects and dynamic libraries
@@ -115,9 +121,8 @@ deployment tooling to collect Qt and platform runtime dependencies on other
 platforms.
 
 With a static SDK, the helper builds a static Qt plugin and the deployment
-helper links only integrations named by the application. Import each selected
-plugin using `Q_IMPORT_PLUGIN(MinimalIntegration)` or the corresponding
-`qt_import_plugins()` configuration. Optional feature dependencies therefore
+helper links integrations named by the application. Qt's plugin target carries
+its static import into the application. Optional feature dependencies therefore
 enter a static application only when their integration target is selected.
 
 Platform-specific integration features may still restrict their `Platforms`,

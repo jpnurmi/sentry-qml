@@ -37,6 +37,10 @@ QtObject {
     property bool requireUserConsentEnabled: false
     property bool screenshotEnabled: false
     property bool viewHierarchyEnabled: false
+    property bool sessionReplayEnabled: false
+    property real sessionReplaySampleRate: 1.0
+    property int sessionReplayDurationMs: 5000
+    property int sessionReplayFrameRate: 1
     property string tagKey: qsTr("backend")
     property string tagValue: qsTr("qml")
     property string contextKey: qsTr("example")
@@ -73,6 +77,10 @@ QtObject {
         property alias requireUserConsent: state.requireUserConsentEnabled
         property alias screenshot: state.screenshotEnabled
         property alias viewHierarchy: state.viewHierarchyEnabled
+        property alias sessionReplay: state.sessionReplayEnabled
+        property alias sessionReplaySampleRate: state.sessionReplaySampleRate
+        property alias sessionReplayDurationMs: state.sessionReplayDurationMs
+        property alias sessionReplayFrameRate: state.sessionReplayFrameRate
         property alias sampleRate: state.sampleRate
         property alias maxBreadcrumbs: state.maxBreadcrumbs
         property alias shutdownTimeout: state.shutdownTimeout

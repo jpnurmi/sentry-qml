@@ -1,5 +1,6 @@
 #include <SentryQml/sentry.h>
 
+#include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/private/sentryqmlengine_p.h>
 
 #include <SentryQml/sentryoptions.h>
@@ -34,6 +35,11 @@ Sentry *Sentry::create(QQmlEngine *engine, QJSEngine *scriptEngine)
 bool Sentry::isInitialized() const
 {
     return SentrySdk::instance()->isInitialized();
+}
+
+QStringList Sentry::availableIntegrations() const
+{
+    return SentryIntegrationManager::availableIntegrations();
 }
 
 Sentry::UserConsent Sentry::userConsent() const

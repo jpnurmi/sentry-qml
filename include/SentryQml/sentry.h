@@ -26,6 +26,7 @@ class SENTRYQML_EXPORT Sentry : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(bool initialized READ isInitialized NOTIFY initializedChanged)
+    Q_PROPERTY(QStringList availableIntegrations READ availableIntegrations CONSTANT)
     Q_PROPERTY(UserConsent userConsent READ userConsent NOTIFY userConsentChanged)
     Q_PROPERTY(bool userConsentRequired READ isUserConsentRequired NOTIFY userConsentRequiredChanged)
 
@@ -72,6 +73,7 @@ public:
     static Sentry *create(QQmlEngine *engine, QJSEngine *scriptEngine);
 
     bool isInitialized() const;
+    QStringList availableIntegrations() const;
     UserConsent userConsent() const;
     bool isUserConsentRequired() const;
 

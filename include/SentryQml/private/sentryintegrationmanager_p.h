@@ -19,6 +19,8 @@ public:
     explicit SentryIntegrationManager(SentrySdk *sdk);
     ~SentryIntegrationManager();
 
+    static QStringList availableIntegrations();
+
     void beginInitialization(Sentry *sentry, SentryOptions *options, const QString &backend);
     bool prepare(SentryOptions *options);
     bool start();

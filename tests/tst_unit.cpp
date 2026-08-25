@@ -33,6 +33,7 @@
 #if defined(SENTRY_QML_SDK_NATIVE)
 #include <atomic>
 #endif
+#include <algorithm>
 #include <memory>
 
 using SentryQmlTest::EnvelopeServer;
@@ -99,6 +100,7 @@ private slots:
     void importsTracingApi();
     void configuresClientReports();
     void configuresIntegrations();
+    void listsAvailableIntegrations();
     void rejectsAmbiguousIntegrations();
     void discoversIntegrationById();
     void runsIntegrationLifecycle();
@@ -166,6 +168,7 @@ void SentryQmlUnitTest::importsQmlModule()
                 && !options.integrations[0].enabled
                 && options.integrations[0].required
                 && options.integrations[0].configuration.answer === 42
+                && Sentry.availableIntegrations.indexOf("service-smoke") !== -1
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0
@@ -365,6 +368,14 @@ void SentryQmlUnitTest::configuresIntegrations()
     QCOMPARE(integrationsSpy.count(), 5);
 }
 
+void SentryQmlUnitTest::listsAvailableIntegrations()
+{
+    Sentry sentry;
+    const QStringList integrations = sentry.availableIntegrations();
+    QVERIFY(integrations.contains(QStringLiteral("service-smoke")));
+    QVERIFY(std::is_sorted(integrations.cbegin(), integrations.cend()));
+}
+
 void SentryQmlUnitTest::reportsIntegrationFlushFailure()
 {
     QTemporaryDir temporaryDir;
@@ -560,6 +571,7 @@ void SentryQmlUnitTest::preparesSessionReplayIntegration()
     QVERIFY(temporaryDir.isValid());
 
     Sentry sentry;
+    QSignalSpy errorSpy(&sentry, &Sentry::errorOccurred);
     SentryOptions options;
     options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     SentryIntegration integration;
@@ -576,7 +588,14 @@ void SentryQmlUnitTest::preparesSessionReplayIntegration()
         QString::fromLatin1(SentryPreviousCrashService::ServiceId), &previousCrashes));
     QVERIFY(manager.registerService(
         QString::fromLatin1(SentryReplayVideoService::ServiceId), &replayVideo));
-    QVERIFY(manager.prepare(&options));
+    if (!manager.prepare(&options)) {
+        QVERIFY(!errorSpy.isEmpty());
+        const QString error = errorSpy.constLast().constFirst().toString();
+        if (error.contains(QStringLiteral("H.264/MPEG-4 encoder failed its runtime check"))) {
+            QSKIP(qPrintable(error));
+        }
+        QFAIL(qPrintable(error));
+    }
     QCOMPARE(manager.preparedIntegrationIds(), QStringList({QStringLiteral("session-replay")}));
     QVERIFY(manager.start());
     QCOMPARE(manager.activeIntegrationIds(), QStringList({QStringLiteral("session-replay")}));

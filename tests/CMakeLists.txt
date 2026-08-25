@@ -207,6 +207,11 @@ add_sentry_qml_test(tst_unit
 )
 
 add_dependencies(tst_unit SentryQmlSmokeIntegration SentryQmlServiceIntegration)
+sentry_qml_deploy_integrations(
+    TARGET tst_unit
+    INTEGRATIONS
+        SentryQmlServiceIntegration
+)
 target_compile_definitions(tst_unit PRIVATE
     SENTRY_QML_SMOKE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlSmokeIntegration>"
     SENTRY_QML_SERVICE_INTEGRATION_PATH="$<TARGET_FILE:SentryQmlServiceIntegration>"
@@ -223,10 +228,7 @@ endif()
 get_target_property(sentry_qml_smoke_type SentryQmlSmokeIntegration TYPE)
 if(sentry_qml_smoke_type STREQUAL "STATIC_LIBRARY")
     target_compile_definitions(tst_unit PRIVATE SENTRY_QML_TEST_INTEGRATIONS_STATIC)
-    target_link_libraries(tst_unit PRIVATE
-        SentryQmlSmokeIntegration
-        SentryQmlServiceIntegration
-    )
+    target_link_libraries(tst_unit PRIVATE SentryQmlSmokeIntegration)
 endif()
 
 if(TARGET Qt6::QmlPrivate)

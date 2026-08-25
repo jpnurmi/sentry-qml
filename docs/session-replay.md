@@ -19,12 +19,16 @@ backend or codec disables an optional integration with a diagnostic; it does
 not prevent the core SDK from initializing. A required integration makes the
 same failure fatal to SDK initialization.
 
-Build the plugin explicitly:
+The plugin is built automatically when these requirements are available. The
+core SDK still builds when Qt Multimedia is absent. To disable discovery and
+the plugin explicitly, configure with
+`-DSENTRY_QML_BUILD_SESSION_REPLAY_INTEGRATION=OFF`.
+
+Build the plugin with a Qt installation that provides Qt Multimedia:
 
 ```sh
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.1/gcc_64" \
-  -DSENTRY_QML_BUILD_SESSION_REPLAY_INTEGRATION=ON
+  -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.1/gcc_64"
 cmake --build build --target SentryQmlSessionReplayIntegration
 ```
 
@@ -33,6 +37,10 @@ without the plugin does not acquire a Qt Multimedia dependency. Use
 `sentry_qml_deploy_integrations()` to copy the integration beside the
 application, and use the normal Qt deployment tooling to include Qt
 Multimedia's FFmpeg plugin and runtime libraries.
+
+When it is available, the bundled example deploys the integration and exposes
+its sampling, duration, and frame-rate settings. Replay sampling remains off
+until Session Replay is enabled in the example.
 
 For a static build, explicitly link `SentryQmlSessionReplayIntegration` and
 import `SentryQmlSessionReplayIntegration` with `Q_IMPORT_PLUGIN` or

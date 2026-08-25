@@ -9,6 +9,8 @@ import "controls"
 Item {
     id: page
 
+    readonly property bool sessionReplayAvailable: Sentry.availableIntegrations.indexOf("session-replay") !== -1
+
     signal failed
     signal initialized
 
@@ -56,6 +58,17 @@ Item {
         strictTraceContinuation: AppState.strictTraceContinuation
         maxBreadcrumbs: AppState.maxBreadcrumbs
         shutdownTimeout: AppState.shutdownTimeout
+        integrations: [
+            SentryIntegration {
+                name: "session-replay"
+                enabled: page.sessionReplayAvailable && AppState.sessionReplayEnabled
+                configuration: {
+                    "crashSampleRate": AppState.sessionReplaySampleRate,
+                    "durationMs": AppState.sessionReplayDurationMs,
+                    "frameRate": AppState.sessionReplayFrameRate
+                }
+            }
+        ]
         user: SentryUser {
             userId: AppState.userId
             username: AppState.username
@@ -191,6 +204,48 @@ Item {
                         uniformCellWidths: true
                         rowSpacing: AppTheme.formSpacing
                         columnSpacing: AppTheme.formSpacing
+                        visible: page.sessionReplayAvailable
+                        enabled: AppState.sessionReplayEnabled
+
+                        LabeledDoubleSpinBox {
+                            label: qsTr("Replay sample rate")
+                            value: AppState.sessionReplaySampleRate
+                            from: 0.0
+                            to: 1.0
+                            stepSize: 0.1
+                            decimals: 1
+                            locale: Qt.locale("en_US")
+                            Layout.fillWidth: true
+                            onValueModified: AppState.sessionReplaySampleRate = value
+                        }
+
+                        LabeledSpinBox {
+                            label: qsTr("Replay duration (ms)")
+                            value: AppState.sessionReplayDurationMs
+                            from: 1000
+                            to: 20000
+                            stepSize: 1000
+                            Layout.fillWidth: true
+                            onValueModified: AppState.sessionReplayDurationMs = value
+                        }
+
+                        LabeledSpinBox {
+                            label: qsTr("Replay frame rate")
+                            value: AppState.sessionReplayFrameRate
+                            from: 1
+                            to: 2
+                            stepSize: 1
+                            Layout.fillWidth: true
+                            onValueModified: AppState.sessionReplayFrameRate = value
+                        }
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: AppTheme.compact ? 1 : 3
+                        uniformCellWidths: true
+                        rowSpacing: AppTheme.formSpacing
+                        columnSpacing: AppTheme.formSpacing
 
                         LabeledDoubleSpinBox {
                             label: qsTr("Sample rate")
@@ -316,6 +371,16 @@ Item {
                             checked: AppState.viewHierarchyEnabled
                             Layout.fillWidth: true
                             onToggled: AppState.viewHierarchyEnabled = checked
+                        }
+
+                        CheckBox {
+                            text: page.sessionReplayAvailable
+                                  ? qsTr("Session replay")
+                                  : qsTr("Session replay (unavailable)")
+                            enabled: page.sessionReplayAvailable
+                            checked: page.sessionReplayAvailable && AppState.sessionReplayEnabled
+                            Layout.fillWidth: true
+                            onToggled: AppState.sessionReplayEnabled = checked
                         }
                     }
                 }

@@ -107,6 +107,13 @@ target_link_libraries(sentry_qml_example
 
 add_dependencies(sentry_qml_example SentryQmlplugin)
 
+if(TARGET SentryQmlSessionReplayIntegration)
+    sentry_qml_deploy_integrations(
+        TARGET sentry_qml_example
+        INTEGRATIONS SentryQmlSessionReplayIntegration
+    )
+endif()
+
 if(TARGET sentry-crash)
     add_custom_target(sentry_qml_example_deploy_sentry_crash
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

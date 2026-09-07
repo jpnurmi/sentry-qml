@@ -1,0 +1,13 @@
+{
+    "Id": "session-replay",
+    "Name": "Sentry QML Session Replay",
+    "Version": "0.1.0",
+    "IntegrationApi": 1,
+    "MinimumSentryQmlVersion": "0.1.0",
+    "Platforms": ["windows", "linux", "macos"],
+    "Backends": ["native"],
+    "RequiredServices": [
+        "io.sentry.qml.previous-crash/1",
+        "io.sentry.qml.replay-video/1"
+    ]
+}

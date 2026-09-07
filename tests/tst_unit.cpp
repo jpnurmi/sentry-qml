@@ -1,7 +1,14 @@
 #include <SentryQml/private/sentryintegrationmanager_p.h>
+#if defined(SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH)
+#include <SentryQml/private/sentrysdk_p.h>
+#endif
 #include <SentryQml/sentry.h>
 #include <SentryQml/sentryintegration.h>
 #include <SentryQml/sentryoptions.h>
+#if defined(SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH)
+#include <SentryQml/sentrypreviouscrashservice.h>
+#include <SentryQml/sentryreplayvideoservice.h>
+#endif
 
 #include "sentryqmltest.h"
 
@@ -26,9 +33,31 @@
 #if defined(SENTRY_QML_SDK_NATIVE)
 #include <atomic>
 #endif
+#include <algorithm>
 #include <memory>
 
 using SentryQmlTest::EnvelopeServer;
+
+#if defined(SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH)
+class TestPreviousCrashService final : public SentryPreviousCrashService
+{
+public:
+    QList<SentryPreviousCrashRecord> records() const override { return {}; }
+    void acknowledge(const QString &) override { }
+};
+
+class TestReplayVideoService final : public SentryReplayVideoService
+{
+public:
+    Result submit(const QString &,
+                  const QVariantMap &,
+                  const SentryPreviousCrashRecord &,
+                  QString *) override
+    {
+        return Accepted;
+    }
+};
+#endif
 
 #if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
 class TestNetworkAccessManager final : public QNetworkAccessManager
@@ -71,12 +100,14 @@ private slots:
     void importsTracingApi();
     void configuresClientReports();
     void configuresIntegrations();
+    void listsAvailableIntegrations();
     void rejectsAmbiguousIntegrations();
     void discoversIntegrationById();
     void runsIntegrationLifecycle();
     void reportsIntegrationFlushFailure();
     void rejectsUnavailableIntegrationService();
     void providesIntegrationService();
+    void preparesSessionReplayIntegration();
     void reportsActiveIntegration();
     void handlesIntegrationFailures();
     void initializesAndCapturesMessage();
@@ -137,6 +168,7 @@ void SentryQmlUnitTest::importsQmlModule()
                 && !options.integrations[0].enabled
                 && options.integrations[0].required
                 && options.integrations[0].configuration.answer === 42
+                && Sentry.availableIntegrations.indexOf("service-smoke") !== -1
             property bool levelsReady: Sentry.Trace === -2
                 && Sentry.Debug === -1
                 && Sentry.Info === 0
@@ -336,6 +368,14 @@ void SentryQmlUnitTest::configuresIntegrations()
     QCOMPARE(integrationsSpy.count(), 5);
 }
 
+void SentryQmlUnitTest::listsAvailableIntegrations()
+{
+    Sentry sentry;
+    const QStringList integrations = sentry.availableIntegrations();
+    QVERIFY(integrations.contains(QStringLiteral("service-smoke")));
+    QVERIFY(std::is_sorted(integrations.cbegin(), integrations.cend()));
+}
+
 void SentryQmlUnitTest::reportsIntegrationFlushFailure()
 {
     QTemporaryDir temporaryDir;
@@ -520,6 +560,47 @@ void SentryQmlUnitTest::providesIntegrationService()
     QVERIFY(manager.start());
     QCOMPARE(manager.activeIntegrationIds(), QStringList({QStringLiteral("service-smoke")}));
     manager.stop();
+}
+
+void SentryQmlUnitTest::preparesSessionReplayIntegration()
+{
+#if !defined(SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH)
+    QSKIP("The optional Session Replay integration is not built.");
+#else
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    Sentry sentry;
+    QSignalSpy errorSpy(&sentry, &Sentry::errorOccurred);
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    SentryIntegration integration;
+    integration.setName(QStringLiteral("session-replay"));
+    integration.setPath(QStringLiteral(SENTRY_QML_SESSION_REPLAY_INTEGRATION_PATH));
+    integration.setRequired(true);
+    options.addIntegration(&integration);
+
+    TestPreviousCrashService previousCrashes;
+    TestReplayVideoService replayVideo;
+    SentryIntegrationManager manager(SentrySdk::instance());
+    manager.beginInitialization(&sentry, &options, QStringLiteral("native"));
+    QVERIFY(manager.registerService(
+        QString::fromLatin1(SentryPreviousCrashService::ServiceId), &previousCrashes));
+    QVERIFY(manager.registerService(
+        QString::fromLatin1(SentryReplayVideoService::ServiceId), &replayVideo));
+    if (!manager.prepare(&options)) {
+        QVERIFY(!errorSpy.isEmpty());
+        const QString error = errorSpy.constLast().constFirst().toString();
+        if (error.contains(QStringLiteral("H.264/MPEG-4 encoder failed its runtime check"))) {
+            QSKIP(qPrintable(error));
+        }
+        QFAIL(qPrintable(error));
+    }
+    QCOMPARE(manager.preparedIntegrationIds(), QStringList({QStringLiteral("session-replay")}));
+    QVERIFY(manager.start());
+    QCOMPARE(manager.activeIntegrationIds(), QStringList({QStringLiteral("session-replay")}));
+    manager.stop();
+#endif
 }
 
 void SentryQmlUnitTest::reportsActiveIntegration()

@@ -624,6 +624,37 @@ SentryIntegrationManager::SentryIntegrationManager(SentrySdk *sdk)
 
 SentryIntegrationManager::~SentryIntegrationManager() = default;
 
+QStringList SentryIntegrationManager::availableIntegrations()
+{
+    QSet<QString> integrations;
+    const auto addPlugin = [&integrations](const QJsonObject &metadata) {
+        if (metadata.value(QStringLiteral("IID")).toString() != QStringLiteral(SENTRY_QML_INTEGRATION_IID)) {
+            return;
+        }
+        const QString name = pluginId(metadata);
+        if (isIntegrationId(name)) {
+            integrations.insert(name);
+        }
+    };
+
+    for (const QStaticPlugin &plugin : QPluginLoader::staticPlugins()) {
+        addPlugin(plugin.metaData());
+    }
+
+    const QDir directory(deploymentDirectory());
+    const QFileInfoList entries =
+        directory.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo &entry : entries) {
+        if (entry.isFile() && QLibrary::isLibrary(entry.fileName())) {
+            addPlugin(QPluginLoader(entry.absoluteFilePath()).metaData());
+        }
+    }
+
+    QStringList result = integrations.values();
+    result.sort();
+    return result;
+}
+
 void SentryIntegrationManager::beginInitialization(Sentry *sentry, SentryOptions *options, const QString &backend)
 {
     Q_ASSERT(d->cycle.empty());

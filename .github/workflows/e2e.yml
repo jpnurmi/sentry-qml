@@ -162,7 +162,7 @@ jobs:
 
       - name: Install Qt
         if: matrix.qt.target != 'ios'
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}
@@ -175,7 +175,7 @@ jobs:
 
       - name: Install host Qt ICU archive
         if: matrix.host_qt.arch
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.host_qt.host }}
@@ -189,7 +189,7 @@ jobs:
 
       - name: Install iOS Qt
         if: matrix.qt.target == 'ios'
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}

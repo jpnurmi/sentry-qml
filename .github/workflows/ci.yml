@@ -85,7 +85,7 @@ jobs:
           "sentry-cocoa-sha=$sentryCocoaSha" >> $env:GITHUB_OUTPUT
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}
@@ -204,7 +204,7 @@ jobs:
           "version=$qtVersion" >> $env:GITHUB_OUTPUT
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}
@@ -216,7 +216,7 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Install host Qt ICU archive
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.host_qt.host }}
@@ -394,8 +394,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: {track: LTS, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28}
-          - {qt: {track: latest, host: linux, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36}
+          - {qt: {track: LTS, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28}
+          - {qt: {track: latest, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36}
 
     steps:
       - name: Check out sources
@@ -416,7 +416,7 @@ jobs:
           "version=$qtVersion" >> $env:GITHUB_OUTPUT
 
       - name: Install Android Qt
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}
@@ -429,7 +429,7 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@75ea7944aeac985e226df0a882cd5b3470e51a97 # 3.3.1.dev107
 
       - name: Install host Qt ICU archive
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.host_qt.host }}
@@ -566,7 +566,7 @@ jobs:
           "version=$qtVersion" >> $env:GITHUB_OUTPUT
 
       - name: Install iOS Qt
-        uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4.4.0
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}

@@ -81,7 +81,7 @@ jobs:
             android_api: 35
             qt:
               track: LTS
-              host: linux
+              host: all_os
               target: android
               arch: android_x86_64
               archives: qtbase qtdeclarative
@@ -162,7 +162,7 @@ jobs:
 
       - name: Install Qt
         if: matrix.qt.target != 'ios'
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}
@@ -175,7 +175,7 @@ jobs:
 
       - name: Install host Qt ICU archive
         if: matrix.host_qt.arch
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.host_qt.host }}
@@ -189,7 +189,7 @@ jobs:
 
       - name: Install iOS Qt
         if: matrix.qt.target == 'ios'
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: ${{ steps.qt.outputs.version }}
           host: ${{ matrix.qt.host }}

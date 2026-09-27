@@ -25,7 +25,7 @@ jobs:
             path: modules/sentry-cocoa
             pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+$'
     steps:
-      - uses: getsentry/github-workflows/updater@607fed74f812e69201531a5185b6c3c57caa4e89 # 3.4.0
+      - uses: getsentry/github-workflows/updater@959162c159b866489d3fabe93327f48f9b8cb7ee # 3.4.1
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}
@@ -48,7 +48,7 @@ jobs:
             path: modules/qt-latest.properties
             pattern: '^v?6\.\d+\.\d+$'
     steps:
-      - uses: getsentry/github-workflows/updater@607fed74f812e69201531a5185b6c3c57caa4e89 # 3.4.0
+      - uses: getsentry/github-workflows/updater@959162c159b866489d3fabe93327f48f9b8cb7ee # 3.4.1
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}

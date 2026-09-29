@@ -18,9 +18,9 @@ class SENTRYQML_EXPORT SentryAttachment : public QObject
     QML_UNCREATABLE("SentryAttachment is returned by Sentry.attachFile() and Sentry.attachBytes().")
 
     Q_PROPERTY(bool valid READ isValid NOTIFY validChanged)
-    Q_PROPERTY(QString filename READ filename WRITE setFilename NOTIFY filenameChanged)
-    Q_PROPERTY(QString contentType READ contentType WRITE setContentType NOTIFY contentTypeChanged)
-    Q_PROPERTY(qint64 size READ size NOTIFY sizeChanged)
+    Q_PROPERTY(QString filename READ filename CONSTANT)
+    Q_PROPERTY(QString contentType READ contentType CONSTANT)
+    Q_PROPERTY(qint64 size READ size CONSTANT)
 
 public:
     explicit SentryAttachment(QObject *parent = nullptr);
@@ -29,27 +29,25 @@ public:
     bool isValid() const;
 
     QString filename() const;
-    void setFilename(const QString &filename);
 
     QString contentType() const;
-    void setContentType(const QString &contentType);
 
     qint64 size() const;
 
 signals:
     void validChanged();
-    void filenameChanged();
-    void contentTypeChanged();
-    void sizeChanged();
 
 private:
     friend class SentrySdk;
 
-    explicit SentryAttachment(void *handle, QObject *parent = nullptr);
+    SentryAttachment(void *handle,
+                     const QString &filename,
+                     const QString &contentType,
+                     qint64 size,
+                     QObject *parent = nullptr);
 
     void *handle() const;
     void invalidate();
-    void setSize(qint64 size);
 
     std::unique_ptr<SentryAttachmentPrivate> d;
 };

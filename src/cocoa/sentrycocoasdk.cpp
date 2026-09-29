@@ -819,12 +819,14 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
     auto *state = new SentrySdkAttachmentState;
     state->attachment.type = SentryObjCBridge::Attachment::File;
     state->attachment.path = path;
-    auto *wrapper = new SentryAttachment(state, sentry);
     const QFileInfo fileInfo(path);
-    wrapper->setSize(fileInfo.exists() ? fileInfo.size() : -1);
-    if (!contentType.isEmpty()) {
-        wrapper->setContentType(contentType);
-    }
+    state->attachment.filename = fileInfo.fileName();
+    state->attachment.contentType = contentType;
+    auto *wrapper = new SentryAttachment(state,
+                                         state->attachment.filename,
+                                         contentType,
+                                         fileInfo.exists() ? fileInfo.size() : -1,
+                                         sentry);
     trackAttachment(wrapper);
     return wrapper;
 }
@@ -852,12 +854,8 @@ SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
     state->attachment.type = SentryObjCBridge::Attachment::Bytes;
     state->attachment.bytes = bytes;
     state->attachment.filename = filename;
-    auto *wrapper = new SentryAttachment(state, sentry);
-    wrapper->setFilename(filename);
-    wrapper->setSize(bytes.size());
-    if (!contentType.isEmpty()) {
-        wrapper->setContentType(contentType);
-    }
+    state->attachment.contentType = contentType;
+    auto *wrapper = new SentryAttachment(state, filename, contentType, bytes.size(), sentry);
     trackAttachment(wrapper);
     return wrapper;
 }
@@ -920,26 +918,6 @@ void SentrySdk::updateAttachments()
         }
     }
     SentryObjCBridge::setAttachments(attachments);
-}
-
-void SentrySdk::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
-{
-    if (auto *state = attachment ? static_cast<SentrySdkAttachmentState *>(attachment->handle()) : nullptr) {
-        state->attachment.filename = filename;
-        if (m_attachments.contains(attachment)) {
-            updateAttachments();
-        }
-    }
-}
-
-void SentrySdk::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
-{
-    if (auto *state = attachment ? static_cast<SentrySdkAttachmentState *>(attachment->handle()) : nullptr) {
-        state->attachment.contentType = contentType;
-        if (m_attachments.contains(attachment)) {
-            updateAttachments();
-        }
-    }
 }
 
 bool SentrySdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)

@@ -16,11 +16,18 @@ SentryAttachment::SentryAttachment(QObject *parent)
 {
 }
 
-SentryAttachment::SentryAttachment(void *handle, QObject *parent)
+SentryAttachment::SentryAttachment(void *handle,
+                                 const QString &filename,
+                                 const QString &contentType,
+                                 qint64 size,
+                                 QObject *parent)
     : QObject(parent)
     , d(std::make_unique<SentryAttachmentPrivate>())
 {
     d->handle = handle;
+    d->filename = filename;
+    d->contentType = contentType;
+    d->size = size;
 }
 
 SentryAttachment::~SentryAttachment()
@@ -38,31 +45,9 @@ QString SentryAttachment::filename() const
     return d->filename;
 }
 
-void SentryAttachment::setFilename(const QString &filename)
-{
-    if (d->filename == filename) {
-        return;
-    }
-
-    d->filename = filename;
-    SentrySdk::instance()->setAttachmentFilename(this, filename);
-    emit filenameChanged();
-}
-
 QString SentryAttachment::contentType() const
 {
     return d->contentType;
-}
-
-void SentryAttachment::setContentType(const QString &contentType)
-{
-    if (d->contentType == contentType) {
-        return;
-    }
-
-    d->contentType = contentType;
-    SentrySdk::instance()->setAttachmentContentType(this, contentType);
-    emit contentTypeChanged();
 }
 
 qint64 SentryAttachment::size() const
@@ -83,14 +68,4 @@ void SentryAttachment::invalidate()
 
     d->handle = nullptr;
     emit validChanged();
-}
-
-void SentryAttachment::setSize(qint64 size)
-{
-    if (d->size == size) {
-        return;
-    }
-
-    d->size = size;
-    emit sizeChanged();
 }

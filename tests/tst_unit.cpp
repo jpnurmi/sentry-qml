@@ -1,5 +1,6 @@
 #include <SentryQml/private/sentryintegrationmanager_p.h>
 #include <SentryQml/sentry.h>
+#include <SentryQml/sentryattachment.h>
 #include <SentryQml/sentryintegration.h>
 #include <SentryQml/sentryoptions.h>
 
@@ -1428,9 +1429,7 @@ void SentryQmlUnitTest::attachesFilesAndBytes()
                 clearedInvalidated = !!clearedAttachment && !clearedAttachment.valid
                 fileAttachment = Sentry.attachFile(testAttachmentPath, "text/plain")
                 fileAttached = !!fileAttachment && fileAttachment.valid
-                bytesAttachment = Sentry.attachBytes("inline attachment payload", "inline.tmp", "application/octet-stream")
-                bytesAttachment.filename = "inline.txt"
-                bytesAttachment.contentType = "text/plain"
+                bytesAttachment = Sentry.attachBytes("inline attachment payload", "inline.txt", "text/plain")
                 bytesAttached = !!bytesAttachment && bytesAttachment.valid
                 eventId = Sentry.captureMessage("Attachment event")
                 flushed = Sentry.flush(2000)
@@ -1462,6 +1461,14 @@ void SentryQmlUnitTest::attachesFilesAndBytes()
     QCOMPARE(object->property("closed").toBool(), true);
     QCOMPARE(object->property("fileInvalidated").toBool(), true);
     QCOMPARE(object->property("bytesInvalidated").toBool(), true);
+
+    auto *fileAttachment = object->property("fileAttachment").value<SentryAttachment *>();
+    QVERIFY(fileAttachment);
+    QVERIFY(!fileAttachment->setProperty("filename", QStringLiteral("changed.log")));
+    QVERIFY(!fileAttachment->setProperty("contentType", QStringLiteral("application/octet-stream")));
+    QCOMPARE(fileAttachment->filename(), QStringLiteral("diagnostic.log"));
+    QCOMPARE(fileAttachment->contentType(), QStringLiteral("text/plain"));
+    QCOMPARE(fileAttachment->size(), 23);
 
     QTRY_VERIFY_WITH_TIMEOUT(server.receivedRequest(), 5000);
     const QByteArray body = server.body();

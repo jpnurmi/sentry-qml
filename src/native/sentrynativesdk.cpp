@@ -335,14 +335,14 @@ sentry_value_t applyIntegrationMetadata(sentry_value_t event, const QStringList 
     return nativeValueFromVariant(eventMap);
 }
 
-sentry_value_t beforeSendCallback(sentry_value_t event, void *, void *userData)
+sentry_value_t beforeSendCallback(sentry_value_t event, sentry_hint_t *, void *userData)
 {
     auto *state = static_cast<SentrySdkEventHookState *>(userData);
     event = invokeValueHook(event, state);
     return state ? applyIntegrationMetadata(event, state->integrationNames) : event;
 }
 
-sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, void *userData)
+sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, sentry_hint_t *, void *userData)
 {
     auto *state = static_cast<SentrySdkCrashHookState *>(userData);
     if (!state) {
@@ -562,9 +562,9 @@ struct NativeHintDeleter
     void operator()(sentry_hint_t *hint) const { sentry__hint_free(hint); }
 };
 
-void setNativeAttachmentFilename(sentry_attachment_t *attachment, const QString &filename)
+void setNativeAttachmentFilename(sentry_value_t attachment, const QString &filename)
 {
-    if (!attachment || filename.isEmpty()) {
+    if (sentry_value_is_null(attachment) || filename.isEmpty()) {
         return;
     }
 
@@ -578,9 +578,9 @@ void setNativeAttachmentFilename(sentry_attachment_t *attachment, const QString 
 #endif
 }
 
-void setNativeAttachmentContentType(sentry_attachment_t *attachment, const QString &contentType)
+void setNativeAttachmentContentType(sentry_value_t attachment, const QString &contentType)
 {
-    if (!attachment || contentType.isEmpty()) {
+    if (sentry_value_is_null(attachment) || contentType.isEmpty()) {
         return;
     }
 
@@ -589,31 +589,30 @@ void setNativeAttachmentContentType(sentry_attachment_t *attachment, const QStri
         attachment, utf8ContentType.constData(), static_cast<size_t>(utf8ContentType.size()));
 }
 
-sentry_attachment_t *attachHintFile(sentry_hint_t *hint, const QString &path)
+sentry_value_t nativeAttachmentFromFile(const QString &path)
 {
     const QString nativePath = QDir::toNativeSeparators(path);
 #if defined(Q_OS_WIN)
     const std::wstring widePath = nativePath.toStdWString();
-    return sentry_hint_attach_filew_n(hint, widePath.c_str(), widePath.size());
+    return sentry_attachment_from_filew_n(widePath.c_str(), widePath.size());
 #else
     const QByteArray encodedPath = QFile::encodeName(nativePath);
-    return sentry_hint_attach_file_n(hint, encodedPath.constData(), static_cast<size_t>(encodedPath.size()));
+    return sentry_attachment_from_file_n(encodedPath.constData(), static_cast<size_t>(encodedPath.size()));
 #endif
 }
 
-sentry_attachment_t *attachHintBytes(sentry_hint_t *hint, const QByteArray &bytes, const QString &filename)
+sentry_value_t nativeAttachmentFromBytes(const QByteArray &bytes, const QString &filename)
 {
 #if defined(Q_OS_WIN)
     const std::wstring wideFilename = filename.toStdWString();
-    return sentry_hint_attach_bytesw_n(
-        hint, bytes.constData(), static_cast<size_t>(bytes.size()), wideFilename.c_str(), wideFilename.size());
+    return sentry_attachment_from_bytesw_n(
+        bytes.constData(), static_cast<size_t>(bytes.size()), wideFilename.c_str(), wideFilename.size());
 #else
     const QByteArray encodedFilename = QFile::encodeName(filename);
-    return sentry_hint_attach_bytes_n(hint,
-                                      bytes.constData(),
-                                      static_cast<size_t>(bytes.size()),
-                                      encodedFilename.constData(),
-                                      static_cast<size_t>(encodedFilename.size()));
+    return sentry_attachment_from_bytes_n(bytes.constData(),
+                                          static_cast<size_t>(bytes.size()),
+                                          encodedFilename.constData(),
+                                          static_cast<size_t>(encodedFilename.size()));
 #endif
 }
 
@@ -623,17 +622,14 @@ void attachViewHierarchyToScope(sentry_scope_t *scope, const QByteArray &json)
         return;
     }
 
-    sentry_attachment_t *attachment = sentry_scope_attach_bytes_n(scope,
-                                                                  json.constData(),
-                                                                  static_cast<size_t>(json.size()),
-                                                                  "view-hierarchy.json",
-                                                                  std::strlen("view-hierarchy.json"));
-    if (!attachment) {
+    sentry_value_t attachment = nativeAttachmentFromBytes(json, QStringLiteral("view-hierarchy.json"));
+    if (sentry_value_is_null(attachment)) {
         return;
     }
 
     sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
     setNativeAttachmentContentType(attachment, QStringLiteral("application/json"));
+    sentry_scope_add_attachment(scope, attachment);
 }
 
 void attachScreenshotToScope(sentry_scope_t *scope, const QByteArray &png)
@@ -642,16 +638,13 @@ void attachScreenshotToScope(sentry_scope_t *scope, const QByteArray &png)
         return;
     }
 
-    sentry_attachment_t *attachment = sentry_scope_attach_bytes_n(scope,
-                                                                  png.constData(),
-                                                                  static_cast<size_t>(png.size()),
-                                                                  "screenshot.png",
-                                                                  std::strlen("screenshot.png"));
-    if (!attachment) {
+    sentry_value_t attachment = nativeAttachmentFromBytes(png, QStringLiteral("screenshot.png"));
+    if (sentry_value_is_null(attachment)) {
         return;
     }
 
     setNativeAttachmentContentType(attachment, QStringLiteral("image/png"));
+    sentry_scope_add_attachment(scope, attachment);
 }
 
 sentry_level_t logLevelFromInt(int level)
@@ -1366,29 +1359,23 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
         return nullptr;
     }
 
-    sentry_attachment_t *attachment = nullptr;
-    const QString nativePath = QDir::toNativeSeparators(path);
-#if defined(Q_OS_WIN)
-    const std::wstring widePath = nativePath.toStdWString();
-    attachment = sentry_attach_filew_n(widePath.c_str(), widePath.size());
-#else
-    const QByteArray encodedPath = QFile::encodeName(nativePath);
-    attachment = sentry_attach_file_n(encodedPath.constData(), static_cast<size_t>(encodedPath.size()));
-#endif
+    sentry_value_t attachment = nativeAttachmentFromFile(path);
+    setNativeAttachmentContentType(attachment, contentType);
+    const sentry_uuid_t id = sentry_add_attachment(attachment);
 
-    if (!attachment) {
+    if (sentry_uuid_is_nil(&id)) {
         if (sentry) {
             emit sentry->errorOccurred(QStringLiteral("Sentry file attachment could not be added."));
         }
         return nullptr;
     }
 
-    auto *wrapper = new SentryAttachment(attachment, sentry);
-    const QFileInfo fileInfo(nativePath);
-    wrapper->setSize(fileInfo.exists() ? fileInfo.size() : -1);
-    if (!contentType.isEmpty()) {
-        wrapper->setContentType(contentType);
-    }
+    const QFileInfo fileInfo(path);
+    auto *wrapper = new SentryAttachment(new sentry_uuid_t(id),
+                                         fileInfo.fileName(),
+                                         contentType,
+                                         fileInfo.exists() ? fileInfo.size() : -1,
+                                         sentry);
     trackAttachment(wrapper);
     return wrapper;
 }
@@ -1416,32 +1403,18 @@ SentryAttachment *SentrySdk::attachBytes(Sentry *sentry,
         return nullptr;
     }
 
-    sentry_attachment_t *attachment = nullptr;
-#if defined(Q_OS_WIN)
-    const std::wstring wideFilename = filename.toStdWString();
-    attachment = sentry_attach_bytesw_n(
-        bytes.constData(), static_cast<size_t>(bytes.size()), wideFilename.c_str(), wideFilename.size());
-#else
-    const QByteArray encodedFilename = QFile::encodeName(filename);
-    attachment = sentry_attach_bytes_n(bytes.constData(),
-                                       static_cast<size_t>(bytes.size()),
-                                       encodedFilename.constData(),
-                                       static_cast<size_t>(encodedFilename.size()));
-#endif
+    sentry_value_t attachment = nativeAttachmentFromBytes(bytes, filename);
+    setNativeAttachmentContentType(attachment, contentType);
+    const sentry_uuid_t id = sentry_add_attachment(attachment);
 
-    if (!attachment) {
+    if (sentry_uuid_is_nil(&id)) {
         if (sentry) {
             emit sentry->errorOccurred(QStringLiteral("Sentry byte attachment could not be added."));
         }
         return nullptr;
     }
 
-    auto *wrapper = new SentryAttachment(attachment, sentry);
-    wrapper->setFilename(filename);
-    wrapper->setSize(bytes.size());
-    if (!contentType.isEmpty()) {
-        wrapper->setContentType(contentType);
-    }
+    auto *wrapper = new SentryAttachment(new sentry_uuid_t(id), filename, contentType, bytes.size(), sentry);
     trackAttachment(wrapper);
     return wrapper;
 }
@@ -1468,7 +1441,13 @@ void SentrySdk::trackAttachment(SentryAttachment *attachment)
 
 void SentrySdk::detachAttachment(SentryAttachment *attachment)
 {
+    if (!attachment) {
+        return;
+    }
+
     m_attachments.removeAll(attachment);
+    delete static_cast<sentry_uuid_t *>(attachment->handle());
+    attachment->invalidate();
 }
 
 void SentrySdk::invalidateAttachments()
@@ -1477,38 +1456,10 @@ void SentrySdk::invalidateAttachments()
     m_attachments.clear();
     for (SentryAttachment *attachment : attachments) {
         if (attachment) {
+            delete static_cast<sentry_uuid_t *>(attachment->handle());
             attachment->invalidate();
         }
     }
-}
-
-void SentrySdk::setAttachmentFilename(SentryAttachment *attachment, const QString &filename)
-{
-    if (!attachment || !attachment->handle()) {
-        return;
-    }
-
-    auto *handle = static_cast<sentry_attachment_t *>(attachment->handle());
-#if defined(Q_OS_WIN)
-    const std::wstring wideFilename = filename.toStdWString();
-    sentry_attachment_set_filenamew_n(handle, wideFilename.c_str(), wideFilename.size());
-#else
-    const QByteArray encodedFilename = QFile::encodeName(filename);
-    sentry_attachment_set_filename_n(
-        handle, encodedFilename.constData(), static_cast<size_t>(encodedFilename.size()));
-#endif
-}
-
-void SentrySdk::setAttachmentContentType(SentryAttachment *attachment, const QString &contentType)
-{
-    if (!attachment || !attachment->handle()) {
-        return;
-    }
-
-    const QByteArray utf8ContentType = contentType.toUtf8();
-    sentry_attachment_set_content_type_n(static_cast<sentry_attachment_t *>(attachment->handle()),
-                                         utf8ContentType.constData(),
-                                         static_cast<size_t>(utf8ContentType.size()));
 }
 
 bool SentrySdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
@@ -1524,9 +1475,8 @@ bool SentrySdk::removeAttachment(Sentry *sentry, SentryAttachment *attachment)
         return false;
     }
 
-    sentry_remove_attachment(static_cast<sentry_attachment_t *>(attachment->handle()));
+    sentry_remove_attachment(*static_cast<sentry_uuid_t *>(attachment->handle()));
     detachAttachment(attachment);
-    attachment->invalidate();
     return true;
 }
 
@@ -2087,23 +2037,23 @@ bool SentrySdk::captureFeedback(Sentry *sentry, const QVariantMap &feedback, Sen
         }
 
         for (const SentryHintAttachment &attachment : hint->d->attachments) {
-            sentry_attachment_t *nativeAttachment = nullptr;
+            sentry_value_t nativeAttachment;
             if (attachment.type == SentryHintAttachmentType::File) {
-                nativeAttachment = attachHintFile(nativeHint.get(), attachment.path);
+                nativeAttachment = nativeAttachmentFromFile(attachment.path);
                 setNativeAttachmentFilename(nativeAttachment, attachment.filename);
             } else {
-                nativeAttachment = attachHintBytes(nativeHint.get(), attachment.bytes, attachment.filename);
+                nativeAttachment = nativeAttachmentFromBytes(attachment.bytes, attachment.filename);
             }
 
-            if (!nativeAttachment) {
+            setNativeAttachmentContentType(nativeAttachment, attachment.contentType);
+            const sentry_uuid_t id = sentry_hint_add_attachment(nativeHint.get(), nativeAttachment);
+            if (sentry_uuid_is_nil(&id)) {
                 sentry_value_decref(nativeFeedback);
                 if (sentry) {
                     emit sentry->errorOccurred(QStringLiteral("Sentry hint attachment could not be added."));
                 }
                 return false;
             }
-
-            setNativeAttachmentContentType(nativeAttachment, attachment.contentType);
         }
     }
 
@@ -2164,7 +2114,7 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
     attachScreenshotToScope(scope, screenshot);
     attachViewHierarchyToScope(scope, viewHierarchy);
-    return eventIdFromUuid(sentry_capture_event_with_scope(nativeValueFromVariant(scopedEvent), scope));
+    return eventIdFromUuid(sentry_scope_capture_event(scope, nativeValueFromVariant(scopedEvent), nullptr));
 }
 
 void SentrySdk::clearLocalScope()

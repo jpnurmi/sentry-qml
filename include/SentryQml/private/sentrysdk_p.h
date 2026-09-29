@@ -120,8 +120,6 @@ private:
     void detachAttachment(SentryAttachment *attachment);
     void invalidateAttachments();
     void updateAttachments();
-    void setAttachmentFilename(SentryAttachment *attachment, const QString &filename);
-    void setAttachmentContentType(SentryAttachment *attachment, const QString &contentType);
     bool finishSpan(SentrySpan *span, const QString &status);
     bool setSpanStatus(SentrySpan *span, const QString &status);
     bool setSpanData(SentrySpan *span, const QString &key, const QVariant &value);

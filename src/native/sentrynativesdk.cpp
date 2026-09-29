@@ -1370,6 +1370,13 @@ SentryAttachment *SentrySdk::attachFile(Sentry *sentry, const QString &path, con
         return nullptr;
     }
 
+    for (SentryAttachment *wrapper : m_attachments) {
+        const auto *existing = static_cast<const sentry_uuid_t *>(wrapper->handle());
+        if (existing && std::memcmp(existing->bytes, id.bytes, sizeof(id.bytes)) == 0) {
+            return wrapper;
+        }
+    }
+
     const QFileInfo fileInfo(path);
     auto *wrapper = new SentryAttachment(new sentry_uuid_t(id),
                                          fileInfo.fileName(),

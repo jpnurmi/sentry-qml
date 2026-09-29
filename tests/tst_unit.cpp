@@ -101,6 +101,7 @@ private slots:
     void capturesUncaughtQmlError();
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
+    void reusesFileAttachments();
 };
 
 void SentryQmlUnitTest::importsQmlModule()
@@ -2338,6 +2339,50 @@ void SentryQmlUnitTest::beforeSendCannotCaptureMessage()
     QCOMPARE(object->property("errorMessage").toString(),
              QStringLiteral("Sentry.capture* cannot be called from Sentry event hooks."));
     QCOMPARE(object->property("closed").toBool(), true);
+}
+
+void SentryQmlUnitTest::reusesFileAttachments()
+{
+#if !defined(SENTRY_QML_SDK_NATIVE)
+    QSKIP("File attachment deduplication is specific to sentry-native.");
+#else
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QFile file(QDir(temporaryDir.path()).filePath(QStringLiteral("diagnostic.log")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write("attachment payload"), qint64(18));
+    file.close();
+
+    Sentry sentry;
+    SentryOptions options;
+    options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+    options.setAutoSessionTracking(false);
+    QVERIFY(sentry.init(&options));
+    const auto cleanup = qScopeGuard([&] { sentry.close(); });
+
+    auto *attachment = sentry.attachFile(file.fileName(), QStringLiteral("text/plain"));
+    QVERIFY(attachment);
+    QVERIFY(attachment->isValid());
+
+    auto *duplicate = sentry.attachFile(file.fileName(), QStringLiteral("application/octet-stream"));
+    QCOMPARE(duplicate, attachment);
+    QCOMPARE(duplicate->filename(), QStringLiteral("diagnostic.log"));
+    QCOMPARE(duplicate->contentType(), QStringLiteral("text/plain"));
+    QCOMPARE(duplicate->size(), 18);
+
+    QSignalSpy validSpy(attachment, &SentryAttachment::validChanged);
+    QVERIFY(sentry.removeAttachment(duplicate));
+    QVERIFY(!attachment->isValid());
+    QVERIFY(!duplicate->isValid());
+    QCOMPARE(validSpy.count(), 1);
+
+    auto *replacement = sentry.attachFile(file.fileName(), QStringLiteral("application/octet-stream"));
+    QVERIFY(replacement);
+    QVERIFY(replacement != attachment);
+    QVERIFY(replacement->isValid());
+    QCOMPARE(replacement->contentType(), QStringLiteral("application/octet-stream"));
+#endif
 }
 
 QTEST_MAIN(SentryQmlUnitTest)

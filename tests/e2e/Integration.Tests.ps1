@@ -440,6 +440,42 @@ BeforeAll {
         }
         throw "Feedback issue '$Message' was not found within $TimeoutSeconds seconds."
     }
+
+    function script:Get-SentryTestSpans {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$TraceId,
+
+            [Parameter(Mandatory = $true)]
+            [string[]]$Fields,
+
+            [int]$ExpectedCount = 1,
+
+            [int]$TimeoutSeconds = 180
+        )
+
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $lastError = $null
+        do {
+            try {
+                $response = Get-SentrySpans -TraceId $TraceId -Fields $Fields
+                if ($response.data -and $response.data.Count -ge $ExpectedCount) {
+                    $response.data | ConvertTo-Json -Depth 16 |
+                        Out-File -FilePath (Get-OutputFilePath "spans-$TraceId.json")
+                    return , @($response.data)
+                }
+            } catch {
+                $lastError = $_
+            }
+
+            Start-Sleep -Seconds 5
+        } while ([DateTime]::UtcNow -lt $deadline)
+
+        if ($lastError) {
+            throw "Spans for trace '$TraceId' were not found. Last API error: $lastError"
+        }
+        throw "Expected $ExpectedCount spans for trace '$TraceId' within $TimeoutSeconds seconds."
+    }
 }
 
 AfterAll {
@@ -729,9 +765,24 @@ Describe 'Sentry QML E2E' {
             $script:TracingEvent = Get-SentryTestEvent `
                 -EventId $script:TracingEventIds[0] `
                 -TimeoutSeconds 180
-            $script:TracingTransaction = Get-SentryTestTransaction `
-                -TraceId $script:TracingTraceIds[0] `
-                -TimeoutSeconds 180
+            if ($script:IsWasmBrowser) {
+                $script:TracingSpans = Get-SentryTestSpans `
+                    -TraceId $script:TracingTraceIds[0] `
+                    -ExpectedCount 2 `
+                    -TimeoutSeconds 180 `
+                    -Fields @(
+                        'id',
+                        'parent_span',
+                        'span.op',
+                        'span.description',
+                        'tags[qml.e2e.transaction_hook,string]',
+                        'tags[qml.e2e.span_hook,boolean]'
+                    )
+            } else {
+                $script:TracingTransaction = Get-SentryTestTransaction `
+                    -TraceId $script:TracingTraceIds[0] `
+                    -TimeoutSeconds 180
+            }
         }
 
         It 'exits cleanly' {
@@ -746,6 +797,27 @@ Describe 'Sentry QML E2E' {
         }
 
         It 'captures the transaction and child span in Sentry' {
+            if ($script:IsWasmBrowser) {
+                $root = @($script:TracingSpans | Where-Object {
+                    (Get-ObjectValue -InputObject $_ -Name 'span.op') -eq 'qml.e2e.transaction'
+                })
+                $child = @($script:TracingSpans | Where-Object {
+                    (Get-ObjectValue -InputObject $_ -Name 'span.op') -eq 'qml.e2e.db'
+                })
+
+                $root | Should -HaveCount 1
+                $child | Should -HaveCount 1
+                Get-ObjectValue -InputObject $root[0] -Name 'span.description' |
+                    Should -Be "Sentry QML E2E transaction $script:RunId"
+                Get-ObjectValue -InputObject $root[0] -Name 'tags[qml.e2e.transaction_hook,string]' |
+                    Should -Be 'yes'
+                Get-ObjectValue -InputObject $child[0] -Name 'tags[qml.e2e.span_hook,boolean]' |
+                    Should -BeTrue
+                Get-ObjectValue -InputObject $child[0] -Name 'parent_span' |
+                    Should -Be (Get-ObjectValue -InputObject $root[0] -Name 'id')
+                return
+            }
+
             $script:TracingTransaction | Should -Not -BeNullOrEmpty
             $transactionJson = $script:TracingTransaction | ConvertTo-Json -Depth 16 -Compress
             $transactionJson.Contains("Sentry QML E2E transaction $script:RunId") | Should -BeTrue

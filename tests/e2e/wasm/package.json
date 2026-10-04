@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@playwright/test": "1.63.0",
-    "@sentry/browser": "11.0.0",
-    "@sentry/wasm": "11.0.0",
+    "@sentry/browser": "11.2.0",
+    "@sentry/wasm": "11.2.0",
     "esbuild": "0.28.2"
   }
 }

@@ -71,7 +71,7 @@ function(_sentry_qml_configure_android_manifest output_file)
     endif()
 
     file(READ "${qt_manifest_template}" manifest)
-    set(auto_init_marker "        android:fullBackupOnly=\"false\">")
+    string(REGEX MATCH "<application[^>]*>" auto_init_marker "${manifest}")
     set(auto_init_replacement
         "${auto_init_marker}\n        <meta-data\n            android:name=\"io.sentry.auto-init\"\n            android:value=\"false\" />"
     )

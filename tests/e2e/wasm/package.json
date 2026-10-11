@@ -8,9 +8,9 @@
     "run-qttest": "node run-qttest.mjs"
   },
   "dependencies": {
-    "@playwright/test": "1.63.0",
-    "@sentry/browser": "11.2.0",
-    "@sentry/wasm": "11.2.0",
+    "@playwright/test": "1.64.0",
+    "@sentry/browser": "11.6.0",
+    "@sentry/wasm": "11.6.0",
     "esbuild": "0.28.2"
   }
 }

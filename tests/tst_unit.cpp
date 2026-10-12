@@ -1041,6 +1041,8 @@ void SentryQmlUnitTest::setsUser()
             property bool userSet: false
             property bool removed: false
             property bool secondHasUser: true
+            property string secondUserId: ""
+            property int secondUserSize: 0
             property bool thirdHasUser: false
             property bool closed: false
             property int beforeSendCount: 0
@@ -1075,7 +1077,10 @@ void SentryQmlUnitTest::setsUser()
                         ipAddress = user.ip_address || ""
                         role = user.role || ""
                     } else if (beforeSendCount === 2) {
+                        const user = event.user || {}
                         secondHasUser = !!event.user
+                        secondUserId = user.id || ""
+                        secondUserSize = Object.keys(user).length
                     } else if (beforeSendCount === 3) {
                         const user = event.user || {}
                         thirdHasUser = !!event.user
@@ -1091,7 +1096,7 @@ void SentryQmlUnitTest::setsUser()
                 initialized = Sentry.init(options)
                 firstEventId = Sentry.captureMessage("Declarative user event")
                 removed = Sentry.removeUser()
-                secondEventId = Sentry.captureMessage("No user event")
+                secondEventId = Sentry.captureMessage("Removed user event")
                 userSet = Sentry.setUser({
                     id: "43",
                     ipAddress: "127.0.0.2",
@@ -1119,7 +1124,14 @@ void SentryQmlUnitTest::setsUser()
     QCOMPARE(object->property("email").toString(), QStringLiteral("ada@example.com"));
     QCOMPARE(object->property("ipAddress").toString(), QStringLiteral("127.0.0.1"));
     QCOMPARE(object->property("role").toString(), QStringLiteral("admin"));
+#if defined(SENTRY_QML_SDK_NATIVE)
+    QCOMPARE(object->property("secondHasUser").toBool(), true);
+    QVERIFY(!object->property("secondUserId").toString().isEmpty());
+    QVERIFY(object->property("secondUserId").toString() != QStringLiteral("42"));
+    QCOMPARE(object->property("secondUserSize").toInt(), 1);
+#else
     QCOMPARE(object->property("secondHasUser").toBool(), false);
+#endif
     QCOMPARE(object->property("thirdHasUser").toBool(), true);
     QCOMPARE(object->property("dynamicUserId").toString(), QStringLiteral("43"));
     QCOMPARE(object->property("dynamicIpAddress").toString(), QStringLiteral("127.0.0.2"));

@@ -65,11 +65,16 @@ struct SentrySdkCrashHookState
 
     void setFingerprint(sentry_value_t value)
     {
-        sentry_value_decref(fingerprint.exchange(value));
+        const sentry_value_t previous = fingerprint.exchange(value);
+        // a crashing thread may still hold the previous value
+        if (!crashing.load()) {
+            sentry_value_decref(previous);
+        }
     }
 
     SentrySdkEventHookState *qmlHook = nullptr;
     std::atomic<sentry_value_t> fingerprint {sentry_value_new_null()};
+    std::atomic<bool> crashing {false};
 };
 
 struct SentrySdkSpanState
@@ -360,6 +365,7 @@ sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, 
         return event;
     }
 
+    state->crashing.store(true);
     const sentry_value_t fingerprint = state->fingerprint.load();
     if (!sentry_value_is_null(fingerprint)) {
         sentry_value_incref(fingerprint);
@@ -1342,7 +1348,9 @@ bool SentrySdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
     }
 
     m_fingerprint = fingerprint;
-    m_crashHookState->setFingerprint(nativeFingerprintFromStringList(fingerprint));
+    if (m_crashHookState) {
+        m_crashHookState->setFingerprint(nativeFingerprintFromStringList(fingerprint));
+    }
     return true;
 }
 
@@ -1353,7 +1361,9 @@ bool SentrySdk::removeFingerprint(Sentry *sentry)
     }
 
     m_fingerprint.clear();
-    m_crashHookState->setFingerprint(sentry_value_new_null());
+    if (m_crashHookState) {
+        m_crashHookState->setFingerprint(sentry_value_new_null());
+    }
     sentry_remove_fingerprint();
     return true;
 }

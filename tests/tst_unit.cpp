@@ -707,6 +707,7 @@ void SentryQmlUnitTest::sendsEnvelope()
     options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
     options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     options.setShutdownTimeout(2000);
+    options.setAutoSessionTracking(false);
 
     QVERIFY(sentry.init(&options));
 #if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)

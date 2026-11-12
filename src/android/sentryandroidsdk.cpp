@@ -736,8 +736,9 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     }
 
     if (options->requireUserConsent()) {
-        qmlWarning(options) << "SentryOptions.requireUserConsent is not supported by the Sentry Android SDK "
-                               "and will be ignored.";
+        emit sentry->errorOccurred(
+            QStringLiteral("SentryOptions.requireUserConsent is not supported by the Sentry Android SDK."));
+        return false;
     }
 
     const double tracesSampleRate = options->tracesSampleRate();

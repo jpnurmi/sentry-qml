@@ -181,10 +181,6 @@ list(APPEND sentry_qml_backend_sources
 )
 list(APPEND sentry_qml_backend_libraries SentryObjC::SentryObjC)
 
-set_source_files_properties("${PROJECT_SOURCE_DIR}/src/cocoa/sentryobjcbridge.mm" PROPERTIES
-    COMPILE_OPTIONS "-fobjc-arc"
-)
-
 function(sentry_qml_configure_ios_target target)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         return()

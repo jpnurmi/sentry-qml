@@ -733,6 +733,7 @@ void SentryQmlUnitTest::sendsEnvelope()
 void SentryQmlUnitTest::handlesUserConsent()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa does not expose user consent.");
+    SENTRY_QML_SKIP_ANDROID("SentryAndroid does not expose user consent.");
     SENTRY_QML_SKIP_CRASHPAD("crashpad transport does not use the HTTP envelope path this test inspects.");
     SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 

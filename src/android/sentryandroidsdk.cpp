@@ -680,11 +680,6 @@ void releaseSpanBridge(qint64 handle)
     QJniObject::callStaticMethod<void>(bridgeClassName, "releaseSpan", "(J)V", jlong(handle));
 }
 
-bool hasConsent(bool requireUserConsent, int userConsent)
-{
-    return !requireUserConsent || userConsent == 1;
-}
-
 } // namespace
 
 SentrySdk *SentrySdk::instance()
@@ -738,6 +733,11 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     if (options->shutdownTimeout() < 0) {
         emit sentry->errorOccurred(QStringLiteral("Sentry shutdownTimeout must not be negative."));
         return false;
+    }
+
+    if (options->requireUserConsent()) {
+        qmlWarning(options) << "SentryOptions.requireUserConsent is not supported by the Sentry Android SDK "
+                               "and will be ignored.";
     }
 
     const double tracesSampleRate = options->tracesSampleRate();
@@ -814,7 +814,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
 
-    const bool didChangeUserConsentRequired = m_requireUserConsent != options->requireUserConsent();
     m_beforeBreadcrumbState = std::move(beforeBreadcrumbState);
     m_beforeSendLogState = std::move(beforeSendLogState);
     m_beforeSendMetricState = std::move(beforeSendMetricState);
@@ -837,8 +836,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_maxBreadcrumbs = options->maxBreadcrumbs();
     m_attachScreenshot = options->attachScreenshot();
     m_attachViewHierarchy = options->attachViewHierarchy();
-    m_requireUserConsent = options->requireUserConsent();
-    m_userConsent = -1;
 
     QVariantMap nativeOptions = {
         {QStringLiteral("dsn"), options->dsn()},
@@ -902,10 +899,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     }
 
     setInitialized(true);
-    if (didChangeUserConsentRequired) {
-        emit userConsentRequiredChanged();
-    }
-    emit userConsentChanged();
     connectToApplicationShutdown();
     return true;
 }
@@ -938,7 +931,6 @@ bool SentrySdk::close()
         m_applicationShutdownConnection = {};
     }
 
-    const bool didChangeUserConsentRequired = m_requireUserConsent;
     m_beforeBreadcrumbState.reset();
     m_beforeSendLogState.reset();
     m_beforeSendMetricState.reset();
@@ -953,10 +945,6 @@ bool SentrySdk::close()
     invalidateAttachments();
     invalidateSpans();
     setInitialized(false);
-    if (didChangeUserConsentRequired) {
-        emit userConsentRequiredChanged();
-    }
-    emit userConsentChanged();
     return true;
 }
 
@@ -1030,12 +1018,12 @@ bool SentrySdk::ensureInitialized(Sentry *sentry, const char *action) const
 
 int SentrySdk::userConsent() const
 {
-    return m_requireUserConsent ? m_userConsent : -1;
+    return -1;
 }
 
 bool SentrySdk::isUserConsentRequired() const
 {
-    return m_requireUserConsent;
+    return false;
 }
 
 bool SentrySdk::giveUserConsent(Sentry *sentry)
@@ -1044,15 +1032,8 @@ bool SentrySdk::giveUserConsent(Sentry *sentry)
         return false;
     }
 
-    if (!m_requireUserConsent) {
-        return false;
-    }
-
-    if (m_userConsent != 1) {
-        m_userConsent = 1;
-        emit userConsentChanged();
-    }
-    return true;
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Android SDK.";
+    return false;
 }
 
 bool SentrySdk::revokeUserConsent(Sentry *sentry)
@@ -1061,15 +1042,8 @@ bool SentrySdk::revokeUserConsent(Sentry *sentry)
         return false;
     }
 
-    if (!m_requireUserConsent) {
-        return false;
-    }
-
-    if (m_userConsent != 0) {
-        m_userConsent = 0;
-        emit userConsentChanged();
-    }
-    return true;
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Android SDK.";
+    return false;
 }
 
 bool SentrySdk::resetUserConsent(Sentry *sentry)
@@ -1078,15 +1052,8 @@ bool SentrySdk::resetUserConsent(Sentry *sentry)
         return false;
     }
 
-    if (!m_requireUserConsent) {
-        return false;
-    }
-
-    if (m_userConsent != -1) {
-        m_userConsent = -1;
-        emit userConsentChanged();
-    }
-    return true;
+    qmlWarning(sentry) << "Sentry user consent is not supported by the Sentry Android SDK.";
+    return false;
 }
 
 bool SentrySdk::setRelease(Sentry *sentry, const QString &release)
@@ -1409,10 +1376,6 @@ bool SentrySdk::startSession(Sentry *sentry)
         return false;
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent)) {
-        return true;
-    }
-
     return m_dsn.isEmpty()
         || QJniObject::callStaticMethod<jboolean>(bridgeClassName, "startSession", "()Z") == JNI_TRUE;
 }
@@ -1421,10 +1384,6 @@ bool SentrySdk::endSession(Sentry *sentry, int status)
 {
     if (!ensureCanCall(sentry, "endSession", "ending sessions")) {
         return false;
-    }
-
-    if (!hasConsent(m_requireUserConsent, m_userConsent)) {
-        return true;
     }
 
     return m_dsn.isEmpty()
@@ -1451,10 +1410,6 @@ bool SentrySdk::addBreadcrumb(Sentry *sentry, const QVariantMap &breadcrumb)
         while (m_breadcrumbs.size() > m_maxBreadcrumbs) {
             m_breadcrumbs.removeFirst();
         }
-    }
-
-    if (!hasConsent(m_requireUserConsent, m_userConsent)) {
-        return true;
     }
 
     return m_dsn.isEmpty()
@@ -1486,7 +1441,7 @@ bool SentrySdk::log(Sentry *sentry, int level, const QString &message, const QVa
         log = result.value.toMap();
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent) || m_dsn.isEmpty()) {
+    if (m_dsn.isEmpty()) {
         return true;
     }
 
@@ -1526,7 +1481,7 @@ bool SentrySdk::count(Sentry *sentry, const QString &name, qint64 value, const Q
         metric = result.value.toMap();
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent) || m_dsn.isEmpty()) {
+    if (m_dsn.isEmpty()) {
         return true;
     }
 
@@ -1569,7 +1524,7 @@ bool SentrySdk::gauge(Sentry *sentry,
         metric = result.value.toMap();
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent) || m_dsn.isEmpty()) {
+    if (m_dsn.isEmpty()) {
         return true;
     }
 
@@ -1614,7 +1569,7 @@ bool SentrySdk::distribution(Sentry *sentry,
         metric = result.value.toMap();
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent) || m_dsn.isEmpty()) {
+    if (m_dsn.isEmpty()) {
         return true;
     }
 
@@ -1663,7 +1618,7 @@ SentrySpan *SentrySdk::startTransaction(Sentry *sentry,
     }
 
     qint64 handle = 0;
-    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+    if (!m_dsn.isEmpty()) {
         handle = startTransactionBridge(name, operation, description, bindToScope, customSamplingContext, sampleRate);
         if (!handle) {
             return nullptr;
@@ -1701,7 +1656,7 @@ SentrySpan *SentrySdk::startSpan(Sentry *sentry,
     }
 
     qint64 handle = 0;
-    if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+    if (!m_dsn.isEmpty()) {
         handle = startSpanBridge(parent ? parent->handle : 0, operation, description, bindToScope);
         if (!handle) {
             emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a parent or active span."));
@@ -1888,7 +1843,7 @@ bool SentrySdk::captureFeedback(Sentry *sentry, const QVariantMap &feedback, Sen
         return false;
     }
 
-    if (!hasConsent(m_requireUserConsent, m_userConsent) || m_dsn.isEmpty()) {
+    if (m_dsn.isEmpty()) {
         return true;
     }
 
@@ -1922,17 +1877,13 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
 
     const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
     if (result.action == HookResult::Drop) {
-        if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
+        if (!m_dsn.isEmpty()) {
             recordBeforeSendErrorBridge();
         }
         return {};
     }
     if (result.action == HookResult::Replace) {
         nativeEvent = result.value.toMap();
-    }
-
-    if (!hasConsent(m_requireUserConsent, m_userConsent)) {
-        return generatedEventId();
     }
 
     QList<SentrySdkAttachmentState> attachments;
@@ -1972,8 +1923,6 @@ void SentrySdk::clearLocalScope()
     m_maxBreadcrumbs = 100;
     m_attachScreenshot = false;
     m_attachViewHierarchy = false;
-    m_requireUserConsent = false;
-    m_userConsent = -1;
 }
 
 void SentrySdk::applyLocalScopeToEvent(QVariantMap *event) const

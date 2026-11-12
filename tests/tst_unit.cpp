@@ -102,6 +102,7 @@ private slots:
     void beforeSendCanDropMessage();
     void beforeSendCannotCaptureMessage();
     void reusesFileAttachments();
+    void beforeSendSeesScopeOnce();
 };
 
 void SentryQmlUnitTest::importsQmlModule()
@@ -2398,6 +2399,74 @@ void SentryQmlUnitTest::reusesFileAttachments()
     QVERIFY(replacement->isValid());
     QCOMPARE(replacement->contentType(), QStringLiteral("application/octet-stream"));
 #endif
+}
+
+void SentryQmlUnitTest::beforeSendSeesScopeOnce()
+{
+    SENTRY_QML_SKIP_COCOA("SentryCocoa beforeSend events do not expose breadcrumbs or users yet.");
+
+    QTemporaryDir temporaryDir;
+    QVERIFY(temporaryDir.isValid());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(SENTRY_QML_IMPORT_PATH));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testDatabasePath"), QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQml
+        import Sentry 1.0
+
+        QtObject {
+            property bool initialized: false
+            property bool beforeSendCalled: false
+            property bool closed: false
+            property int breadcrumbCount: -1
+            property string fingerprint: ""
+            property string userId: ""
+            property SentryOptions options: SentryOptions {
+                dsn: "http://public@127.0.0.1:1/42"
+                databasePath: testDatabasePath
+                autoSessionTracking: false
+                sendClientReports: false
+                shutdownTimeout: 2000
+                beforeSend: function(event) {
+                    const breadcrumbs = JSON.parse(JSON.stringify(event.breadcrumbs || []))
+                    breadcrumbCount = breadcrumbs.filter(function(breadcrumb) {
+                        return breadcrumb.message === "scope breadcrumb"
+                    }).length
+                    fingerprint = JSON.stringify(event.fingerprint || [])
+                    userId = event.user && event.user.id ? event.user.id : ""
+                    beforeSendCalled = true
+                    return null
+                }
+            }
+
+            Component.onCompleted: {
+                initialized = Sentry.init(options)
+                Sentry.setUser({ id: "scope-user" })
+                Sentry.setFingerprint(["{{ default }}", "scope"])
+                Sentry.addBreadcrumb({ message: "scope breadcrumb" })
+                Sentry.captureMessage("Scope event")
+                closed = Sentry.close()
+            }
+        }
+    )", QUrl(QStringLiteral("memory:/SentryBeforeSendScopeTest.qml")));
+
+    if (component.isLoading()) {
+        QTRY_VERIFY_WITH_TIMEOUT(!component.isLoading(), 5000);
+    }
+    QVERIFY2(!component.isError(), qPrintable(component.errorString()));
+
+    const std::unique_ptr<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(component.errorString()));
+    QCOMPARE(object->property("initialized").toBool(), true);
+    QCOMPARE(object->property("beforeSendCalled").toBool(), true);
+    QCOMPARE(object->property("breadcrumbCount").toInt(), 1);
+    QCOMPARE(object->property("fingerprint").toString(), QStringLiteral("[\"{{ default }}\",\"scope\"]"));
+    QCOMPARE(object->property("userId").toString(), QStringLiteral("scope-user"));
+    QCOMPARE(object->property("closed").toBool(), true);
 }
 
 QTEST_MAIN(SentryQmlUnitTest)

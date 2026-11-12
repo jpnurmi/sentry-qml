@@ -218,6 +218,11 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     }
 
     function bindSpan(span) {
+        var S = sentry();
+        if (S && S.setActiveSpanInBrowser) {
+            S.setActiveSpanInBrowser(span);
+            return true;
+        }
         var current = scope();
         if (current && current.setSpan) {
             current.setSpan(span);
@@ -255,11 +260,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         if (!span.setStatus) {
             return false;
         }
-        try {
-            span.setStatus(status);
-        } catch (error) {
-            span.setStatus({ code: status === "ok" ? 1 : 2, message: status });
-        }
+        span.setStatus(status === "ok" ? { code: 1 } : { code: 2, message: status });
         return true;
     }
 
@@ -308,6 +309,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
 
     root.__sentryQmlWasmBridge = {
         nextSpanHandle: 1,
+        nextSampleRate: undefined,
         requireUserConsent: false,
         pending: Promise.resolve(true),
         spans: {},
@@ -380,6 +382,16 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (typeof options.tracesSampleRate === "number" && options.tracesSampleRate >= 0) {
                 sentryOptions.tracesSampleRate = options.tracesSampleRate;
             }
+            if (options.tracesSampler) {
+                sentryOptions.tracesSampler = function (context) {
+                    var sampleRate = root.__sentryQmlWasmBridge.nextSampleRate;
+                    if (typeof sampleRate === "number" && sampleRate >= 0) {
+                        return sampleRate;
+                    }
+                    var fallback = sentryOptions.tracesSampleRate || 0;
+                    return context.inheritOrSampleWith ? context.inheritOrSampleWith(fallback) : fallback;
+                };
+            }
             if (Array.isArray(options.tracePropagationTargets)) {
                 sentryOptions.tracePropagationTargets = options.tracePropagationTargets;
             }
@@ -420,7 +432,14 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
 
         close: function (timeoutMs) {
             var S = sentry();
+            var client = S && S.getClient ? S.getClient() : null;
             this.spans = {};
+            if (client && client.close) {
+                var closed = client.close(timeoutMs);
+                return this.enqueue(function () {
+                    return closed;
+                });
+            }
             if (S && S.close) {
                 return this.enqueue(function () {
                     return S.close(timeoutMs);
@@ -688,13 +707,15 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (description) {
                 options.description = description;
             }
-            if (sampleRate >= 0) {
-                options.sampled = Math.random() < sampleRate;
-            }
 
             var span = null;
             if (S.startInactiveSpan) {
-                span = S.startInactiveSpan(options);
+                this.nextSampleRate = sampleRate;
+                try {
+                    span = S.startInactiveSpan(options);
+                } finally {
+                    this.nextSampleRate = undefined;
+                }
             } else if (S.startTransaction) {
                 var context = {
                     name: name,
@@ -702,7 +723,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                     description: description || undefined,
                 };
                 if (sampleRate >= 0) {
-                    context.sampled = options.sampled;
+                    context.sampled = Math.random() < sampleRate;
                 }
                 span = S.startTransaction(context, parseJson(customSamplingContextJson, {}));
             }
@@ -1726,6 +1747,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
         {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},
+        {QStringLiteral("tracesSampler"), m_tracesSamplerState != nullptr},
         {QStringLiteral("tracePropagationTargets"), options->tracePropagationTargets()},
         {QStringLiteral("orgId"), options->orgId()},
         {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},

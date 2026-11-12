@@ -2,11 +2,13 @@
 
 #import <SentryObjC/SentryObjC.h>
 
+#include <QtCore/qdatetime.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qmutex.h>
+#include <QtCore/qtimezone.h>
 #include <QtCore/qurl.h>
 
 #include <cmath>
@@ -550,6 +552,10 @@ void applyVariantMapToBreadcrumb(SentryObjCBreadcrumb *breadcrumb, const QVarian
     if (map.contains(QStringLiteral("level"))) {
         breadcrumb.level = levelFromString(map.value(QStringLiteral("level")).toString());
     }
+    const QDateTime timestamp = map.value(QStringLiteral("timestamp")).toDateTime();
+    if (timestamp.isValid()) {
+        breadcrumb.timestamp = [NSDate dateWithTimeIntervalSince1970:timestamp.toMSecsSinceEpoch() / 1000.0];
+    }
     breadcrumb.category = stringValue(map, QStringLiteral("category"), breadcrumb.category ? qtString(breadcrumb.category) : QString());
     breadcrumb.type = stringValue(map, QStringLiteral("type"));
     breadcrumb.message = stringValue(map, QStringLiteral("message"));
@@ -567,6 +573,46 @@ SentryObjCBreadcrumb *breadcrumbFromVariantMap(const QVariantMap &map)
                                        category:nsString(map.value(QStringLiteral("category")).toString())];
     applyVariantMapToBreadcrumb(breadcrumb, map);
     return breadcrumb;
+}
+
+NSArray<SentryObjCBreadcrumb *> *breadcrumbsFromVariant(const QVariant &value)
+{
+    QVariantList values = value.toMap().value(QStringLiteral("values")).toList();
+    if (values.isEmpty()) {
+        values = value.toList();
+    }
+
+    NSMutableArray<SentryObjCBreadcrumb *> *breadcrumbs = [NSMutableArray arrayWithCapacity:values.size()];
+    for (const QVariant &breadcrumbValue : values) {
+        const QVariantMap breadcrumbMap = breadcrumbValue.toMap();
+        if (!breadcrumbMap.isEmpty()) {
+            [breadcrumbs addObject:breadcrumbFromVariantMap(breadcrumbMap)];
+        }
+    }
+    return breadcrumbs;
+}
+
+SentryObjCUser *userFromVariantMap(const QVariantMap &map)
+{
+    SentryObjCUser *user = [[SentryObjCUser alloc] init];
+    user.userId = stringValue(map, QStringLiteral("id"), map.value(QStringLiteral("userId")).toString());
+    user.email = stringValue(map, QStringLiteral("email"));
+    user.username = stringValue(map, QStringLiteral("username"));
+    user.ipAddress = stringValue(map, QStringLiteral("ip_address"), map.value(QStringLiteral("ipAddress")).toString());
+    user.name = stringValue(map, QStringLiteral("name"));
+
+    QVariantMap data = map;
+    data.remove(QStringLiteral("id"));
+    data.remove(QStringLiteral("userId"));
+    data.remove(QStringLiteral("email"));
+    data.remove(QStringLiteral("username"));
+    data.remove(QStringLiteral("ip_address"));
+    data.remove(QStringLiteral("ipAddress"));
+    data.remove(QStringLiteral("name"));
+    if (!data.isEmpty()) {
+        user.data = dictionaryFromVariantMap(data);
+    }
+    return user;
 }
 
 SentryObjCMessage *messageFromVariant(const QVariant &value)
@@ -607,6 +653,10 @@ void applyVariantMapToEvent(SentryObjCEvent *event, const QVariantMap &map)
     if (map.contains(QStringLiteral("request"))) {
         event.request = requestFromVariantMap(map.value(QStringLiteral("request")).toMap());
     }
+    const QVariantMap user = map.value(QStringLiteral("user")).toMap();
+    event.user = user.isEmpty() ? nil : userFromVariantMap(user);
+    NSArray<SentryObjCBreadcrumb *> *breadcrumbs = breadcrumbsFromVariant(map.value(QStringLiteral("breadcrumbs")));
+    event.breadcrumbs = breadcrumbs.count > 0 ? breadcrumbs : nil;
     if (map.contains(QStringLiteral("extra"))) {
         event.extra = dictionaryFromVariantMap(map.value(QStringLiteral("extra")).toMap());
     }
@@ -796,6 +846,11 @@ QVariantMap breadcrumbToVariantMap(SentryObjCBreadcrumb *breadcrumb)
     QVariantMap map;
     map.insert(QStringLiteral("level"), levelName(breadcrumb.level));
     map.insert(QStringLiteral("category"), qtString(breadcrumb.category));
+    if (breadcrumb.timestamp) {
+        const qint64 msecs = qRound64(breadcrumb.timestamp.timeIntervalSince1970 * 1000);
+        map.insert(QStringLiteral("timestamp"),
+                   QDateTime::fromMSecsSinceEpoch(msecs, QTimeZone::UTC).toString(Qt::ISODateWithMs));
+    }
     if (breadcrumb.type) {
         map.insert(QStringLiteral("type"), qtString(breadcrumb.type));
     }
@@ -804,6 +859,36 @@ QVariantMap breadcrumbToVariantMap(SentryObjCBreadcrumb *breadcrumb)
     }
     if (breadcrumb.data) {
         map.insert(QStringLiteral("data"), variantFromObject(breadcrumb.data));
+    }
+    return map;
+}
+
+QVariantList breadcrumbsToVariantList(NSArray<SentryObjCBreadcrumb *> *breadcrumbs)
+{
+    QVariantList values;
+    for (SentryObjCBreadcrumb *breadcrumb in breadcrumbs) {
+        values.append(breadcrumbToVariantMap(breadcrumb));
+    }
+    return values;
+}
+
+QVariantMap userToVariantMap(SentryObjCUser *user)
+{
+    QVariantMap map = variantMapFromDictionary(user.data);
+    if (user.userId) {
+        map.insert(QStringLiteral("id"), qtString(user.userId));
+    }
+    if (user.email) {
+        map.insert(QStringLiteral("email"), qtString(user.email));
+    }
+    if (user.username) {
+        map.insert(QStringLiteral("username"), qtString(user.username));
+    }
+    if (user.ipAddress) {
+        map.insert(QStringLiteral("ip_address"), qtString(user.ipAddress));
+    }
+    if (user.name) {
+        map.insert(QStringLiteral("name"), qtString(user.name));
     }
     return map;
 }
@@ -835,6 +920,12 @@ QVariantMap eventToVariantMap(SentryObjCEvent *event)
     if (event.request) {
         map.insert(QStringLiteral("request"), requestToVariantMap(event.request));
     }
+    if (event.user) {
+        map.insert(QStringLiteral("user"), userToVariantMap(event.user));
+    }
+    if (event.breadcrumbs.count > 0) {
+        map.insert(QStringLiteral("breadcrumbs"), breadcrumbsToVariantList(event.breadcrumbs));
+    }
     if (event.extra) {
         map.insert(QStringLiteral("extra"), variantFromObject(event.extra));
     }
@@ -851,29 +942,6 @@ QVariantMap eventToVariantMap(SentryObjCEvent *event)
         map.insert(QStringLiteral("transaction"), qtString(event.transaction));
     }
     return map;
-}
-
-SentryObjCUser *userFromVariantMap(const QVariantMap &map)
-{
-    SentryObjCUser *user = [[SentryObjCUser alloc] init];
-    user.userId = stringValue(map, QStringLiteral("id"), map.value(QStringLiteral("userId")).toString());
-    user.email = stringValue(map, QStringLiteral("email"));
-    user.username = stringValue(map, QStringLiteral("username"));
-    user.ipAddress = stringValue(map, QStringLiteral("ip_address"), map.value(QStringLiteral("ipAddress")).toString());
-    user.name = stringValue(map, QStringLiteral("name"));
-
-    QVariantMap data = map;
-    data.remove(QStringLiteral("id"));
-    data.remove(QStringLiteral("userId"));
-    data.remove(QStringLiteral("email"));
-    data.remove(QStringLiteral("username"));
-    data.remove(QStringLiteral("ip_address"));
-    data.remove(QStringLiteral("ipAddress"));
-    data.remove(QStringLiteral("name"));
-    if (!data.isEmpty()) {
-        user.data = dictionaryFromVariantMap(data);
-    }
-    return user;
 }
 
 SentryObjCAttribute *logAttributeFromVariant(const QVariant &value)

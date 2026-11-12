@@ -31,6 +31,7 @@
 #include <QtQml/qjsvalue.h>
 #include <QtQml/qqmlinfo.h>
 
+#include <atomic>
 #include <cmath>
 
 #ifndef SENTRY_QML_SDK_NAME
@@ -76,6 +77,7 @@ namespace {
 
 constexpr const char *bridgeClassName = "io/sentry/qml/SentryQmlBridge";
 thread_local int hookDepth = 0;
+std::atomic<SentrySdkEventHookState *> bridgeBeforeSendState {nullptr};
 
 struct HookResult
 {
@@ -450,7 +452,33 @@ bool callBridgeBool(const char *method, const char *signature, const QString &fi
         == JNI_TRUE;
 }
 
-bool initBridge(const QVariantMap &options, Sentry *sentry)
+jstring JNICALL beforeSendFromBridge(JNIEnv *env, jclass, jstring eventJson)
+{
+    // sentry-java may call beforeSend on any thread, but QML hooks only run on their engine thread
+    SentrySdkEventHookState *state = bridgeBeforeSendState.load();
+    if (!state || QThread::currentThread() != state->thread) {
+        return nullptr;
+    }
+
+    const HookResult result = invokeValueHook(variantMapFromJsonString(QJniObject(eventJson).toString()), state);
+    if (result.action == HookResult::Keep) {
+        return nullptr;
+    }
+
+    const QString json = result.action == HookResult::Replace ? jsonStringFromVariant(result.value.toMap()) : QString();
+    return env->NewString(reinterpret_cast<const jchar *>(json.constData()), json.size());
+}
+
+bool registerBridgeNatives()
+{
+    const JNINativeMethod methods[] = {
+        {"beforeSend", "(Ljava/lang/String;)Ljava/lang/String;", reinterpret_cast<void *>(beforeSendFromBridge)},
+    };
+    QJniEnvironment env;
+    return env.registerNativeMethods(bridgeClassName, methods, 1);
+}
+
+bool initBridge(const QVariantMap &options, SentrySdkEventHookState *beforeSendState, Sentry *sentry)
 {
     const QJniObject context = QNativeInterface::QAndroidApplication::context();
     if (!context.isValid()) {
@@ -460,15 +488,25 @@ bool initBridge(const QVariantMap &options, Sentry *sentry)
         return false;
     }
 
+    if (beforeSendState && !registerBridgeNatives()) {
+        return false;
+    }
+
+    bridgeBeforeSendState = beforeSendState;
     const QJniObject optionsJson = QJniObject::fromString(jsonStringFromVariant(options));
     const QJniObject sdkName = QJniObject::fromString(QStringLiteral(SENTRY_QML_SDK_NAME));
-    return QJniObject::callStaticMethod<jboolean>(bridgeClassName,
-                                                  "init",
-                                                  "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
-                                                  context.object<jobject>(),
-                                                  optionsJson.object<jstring>(),
-                                                  sdkName.object<jstring>())
+    const bool initialized =
+        QJniObject::callStaticMethod<jboolean>(bridgeClassName,
+                                               "init",
+                                               "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
+                                               context.object<jobject>(),
+                                               optionsJson.object<jstring>(),
+                                               sdkName.object<jstring>())
         == JNI_TRUE;
+    if (!initialized) {
+        bridgeBeforeSendState = nullptr;
+    }
+    return initialized;
 }
 
 bool flushBridge(int timeoutMs)
@@ -479,16 +517,12 @@ bool flushBridge(int timeoutMs)
 void closeBridge()
 {
     QJniObject::callStaticMethod<void>(bridgeClassName, "close", "()V");
+    bridgeBeforeSendState = nullptr;
 }
 
 void setBridgeIntegrations(const QStringList &integrations)
 {
     callBridgeBool("setIntegrations", "(Ljava/lang/String;)Z", jsonStringFromVariant(integrations));
-}
-
-bool recordBeforeSendErrorBridge()
-{
-    return QJniObject::callStaticMethod<jboolean>(bridgeClassName, "recordBeforeSendError", "()Z") == JNI_TRUE;
 }
 
 QString captureEventBridge(const QVariantMap &event, const QList<SentrySdkAttachmentState> &attachments)
@@ -824,7 +858,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_tracesSamplerState = std::move(tracesSamplerState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
-    m_applyHooksLocally = true;
+    m_applyHooksLocally = options->dsn().isEmpty();
     m_dsn = options->dsn();
     m_release = options->release();
     m_environment = options->environment();
@@ -857,12 +891,13 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
         {QStringLiteral("attachViewHierarchy"), options->attachViewHierarchy()},
         {QStringLiteral("integrations"), m_integrationManager->preparedIntegrationIds()},
+        {QStringLiteral("beforeSend"), m_beforeSendState != nullptr},
     };
     if (!m_user.isEmpty()) {
         nativeOptions.insert(QStringLiteral("user"), m_user);
     }
 
-    if (!m_dsn.isEmpty() && !initBridge(nativeOptions, sentry)) {
+    if (!m_dsn.isEmpty() && !initBridge(nativeOptions, m_beforeSendState.get(), sentry)) {
         m_integrationManager->stop();
         clearLocalScope();
         m_beforeBreadcrumbState.reset();
@@ -1873,18 +1908,16 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     QVariantMap nativeEvent = event;
-    applyLocalScopeToEvent(&nativeEvent);
-    applyFingerprintToEvent(&nativeEvent);
-
-    const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
-    if (result.action == HookResult::Drop) {
-        if (!m_dsn.isEmpty()) {
-            recordBeforeSendErrorBridge();
+    if (m_applyHooksLocally) {
+        applyLocalScopeToEvent(&nativeEvent);
+        applyFingerprintToEvent(&nativeEvent);
+        const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
+        if (result.action == HookResult::Drop) {
+            return {};
         }
-        return {};
-    }
-    if (result.action == HookResult::Replace) {
-        nativeEvent = result.value.toMap();
+        if (result.action == HookResult::Replace) {
+            nativeEvent = result.value.toMap();
+        }
     }
 
     QList<SentrySdkAttachmentState> attachments;

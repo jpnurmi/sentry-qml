@@ -429,6 +429,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("messageEventId").toString().size(), 36);
     QCOMPARE(object->property("rawEventId").toString().size(), 36);
     QCOMPARE(object->property("exceptionEventId").toString().size(), 36);
+    QCOMPARE(object->property("privateEventId").toString().size(), 36);
 
     QTest::ignoreMessage(QtWarningMsg,
                          QRegularExpression(QStringLiteral(".*missingIntegrationFunction is not defined")));
@@ -455,6 +456,7 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
         const QByteArray body = serverBodyExcerpt(server);
         QVERIFY2(false, body.constData());
     }
+    QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration private message"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration raw event"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration exception"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(server.contains("Integration bare feedback"), 5000);
@@ -522,10 +524,18 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(event.payload.contains("\"retries\":3"));
     QVERIFY(event.payload.contains("\"enabled\":true"));
     QVERIFY(event.payload.contains("\"fingerprint\":[\"{{ default }}\",\"integration\"]"));
-    QVERIFY(event.payload.contains("integration breadcrumb"));
+    QCOMPARE(event.payload.count("integration breadcrumb"), 1);
     QVERIFY(event.payload.contains("beforeBreadcrumb"));
     QVERIFY(!event.payload.contains("removed_tag"));
     QVERIFY(!event.payload.contains("removed_context"));
+
+    const QList<EnvelopeItem> privateItems = findEnvelopeItems(server.bodies(), "Integration private message");
+    QVERIFY(!privateItems.isEmpty());
+
+    const EnvelopeItem privateEvent = findItem(privateItems, QStringLiteral("event"), "Integration private message");
+    QVERIFY(!privateEvent.payload.isEmpty());
+    QVERIFY(!privateEvent.payload.contains("integration-user"));
+    QVERIFY(!privateEvent.payload.contains("\"tags\""));
 
     const QList<EnvelopeItem> rawItems = findEnvelopeItems(server.bodies(), "Integration raw event");
     QVERIFY(!rawItems.isEmpty());

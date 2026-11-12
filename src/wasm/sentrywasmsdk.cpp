@@ -345,12 +345,17 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             }
 
             var options = parseJson(optionsJson, {});
+            var qmlBeforeSend = !!options.beforeSend;
             this.requireUserConsent = !!options.requireUserConsent;
             this.userConsent = -1;
 
             var sentryOptions = {
                 beforeSend: function (event) {
-                    return root.__sentryQmlWasmBridge.hasConsent() ? event : null;
+                    var bridge = root.__sentryQmlWasmBridge;
+                    if (!bridge.hasConsent()) {
+                        return null;
+                    }
+                    return qmlBeforeSend ? bridge.applyBeforeSend(event) : event;
                 },
                 _metadata: {
                     sdk: {
@@ -858,18 +863,23 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             }
         },
 
-        recordBeforeSendError: function () {
-            var S = sentry();
-            var client = S && S.getClient ? S.getClient() : null;
-            if (!client || !client.recordDroppedEvent) {
-                return false;
-            }
+        applyBeforeSend: function (event) {
+            var metadata = event.sdkProcessingMetadata;
             try {
-                client.recordDroppedEvent("before_send", "error");
-                return true;
+                var copy = Object.assign({}, event);
+                delete copy.sdkProcessingMetadata;
+                var result = _sentry_qml_wasm_before_send(stringToNewUTF8(JSON.stringify(copy)));
+                if (!result) {
+                    return event;
+                }
+                var replacement = JSON.parse(UTF8ToString(result));
+                if (replacement && metadata) {
+                    replacement.sdkProcessingMetadata = metadata;
+                }
+                return replacement;
             } catch (error) {
-                console.error("Sentry QML: Could not record beforeSend client report.", error);
-                return false;
+                console.error("Sentry QML: beforeSend failed.", error);
+                return event;
             }
         },
 
@@ -1012,10 +1022,6 @@ EM_JS(void, sentry_qml_wasm_release_span, (int handle), {
     globalThis.__sentryQmlWasmBridge.releaseSpan(handle);
 });
 
-EM_JS(int, sentry_qml_wasm_record_before_send_error, (), {
-    return globalThis.__sentryQmlWasmBridge.recordBeforeSendError() ? 1 : 0;
-});
-
 EM_JS(char *, sentry_qml_wasm_capture_event, (const char *eventJson, const char *attachmentsJson), {
     var eventId = globalThis.__sentryQmlWasmBridge.captureEvent(
         UTF8ToString(eventJson), UTF8ToString(attachmentsJson));
@@ -1032,6 +1038,7 @@ EM_JS(int, sentry_qml_wasm_capture_feedback, (const char *feedbackJson, const ch
 namespace {
 
 thread_local int hookDepth = 0;
+SentrySdkEventHookState *bridgeBeforeSendState = nullptr;
 
 struct HookResult
 {
@@ -1421,13 +1428,19 @@ bool callBridgeStrings(const char *method, const QString &first, const QString &
     return sentry_qml_wasm_call_two_strings(methodUtf8.constData(), firstUtf8.constData(), secondUtf8.constData()) != 0;
 }
 
-bool initBridge(const QVariantMap &options)
+bool initBridge(const QVariantMap &options, SentrySdkEventHookState *beforeSendState)
 {
     sentry_qml_wasm_ensure_bridge();
+    bridgeBeforeSendState = beforeSendState;
     const QByteArray optionsJson = jsonFromVariant(options);
     const QByteArray sdkName(SENTRY_QML_SDK_NAME);
     const QByteArray sdkVersion(SENTRY_QML_VERSION);
-    return sentry_qml_wasm_init(optionsJson.constData(), sdkName.constData(), sdkVersion.constData()) != 0;
+    const bool initialized =
+        sentry_qml_wasm_init(optionsJson.constData(), sdkName.constData(), sdkVersion.constData()) != 0;
+    if (!initialized) {
+        bridgeBeforeSendState = nullptr;
+    }
+    return initialized;
 }
 
 bool flushBridge(int timeoutMs)
@@ -1440,6 +1453,7 @@ void closeBridge(int timeoutMs)
 {
     sentry_qml_wasm_ensure_bridge();
     sentry_qml_wasm_close(timeoutMs);
+    bridgeBeforeSendState = nullptr;
 }
 
 void setBridgeUserConsent(bool required, int consent)
@@ -1597,18 +1611,28 @@ void releaseSpanBridge(int handle)
     sentry_qml_wasm_release_span(handle);
 }
 
-bool recordBeforeSendErrorBridge()
-{
-    sentry_qml_wasm_ensure_bridge();
-    return sentry_qml_wasm_record_before_send_error() != 0;
-}
-
 bool hasConsent(bool requireUserConsent, int userConsent)
 {
     return !requireUserConsent || userConsent == 1;
 }
 
 } // namespace
+
+extern "C" EMSCRIPTEN_KEEPALIVE const char *sentry_qml_wasm_before_send(char *eventJson)
+{
+    // nullptr keeps the event, "null" drops it, and other JSON replaces it
+    static QByteArray json;
+    const QVariantMap event = variantMapFromJsonString(QString::fromUtf8(eventJson));
+    std::free(eventJson);
+
+    const HookResult result = invokeValueHook(event, bridgeBeforeSendState);
+    if (result.action == HookResult::Keep) {
+        return nullptr;
+    }
+
+    json = result.action == HookResult::Replace ? jsonFromVariant(result.value.toMap()) : QByteArrayLiteral("null");
+    return json.constData();
+}
 
 SentrySdk *SentrySdk::instance()
 {
@@ -1749,7 +1773,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     m_tracesSamplerState = std::move(tracesSamplerState);
     m_onCrashState = std::move(onCrashState);
     m_crashHookState = std::make_unique<SentrySdkCrashHookState>();
-    m_applyHooksLocally = true;
+    m_applyHooksLocally = options->dsn().isEmpty();
     m_dsn = options->dsn();
     m_release = options->release();
     m_environment = options->environment();
@@ -1783,12 +1807,13 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},
         {QStringLiteral("maxBreadcrumbs"), options->maxBreadcrumbs()},
         {QStringLiteral("integrations"), m_integrationManager->preparedIntegrationIds()},
+        {QStringLiteral("beforeSend"), m_beforeSendState != nullptr},
     };
     if (!m_user.isEmpty()) {
         nativeOptions.insert(QStringLiteral("user"), m_user);
     }
 
-    if (!m_dsn.isEmpty() && !initBridge(nativeOptions)) {
+    if (!m_dsn.isEmpty() && !initBridge(nativeOptions, m_beforeSendState.get())) {
         m_integrationManager->stop();
         clearLocalScope();
         m_beforeBreadcrumbState.reset();
@@ -2855,18 +2880,16 @@ QString SentrySdk::captureEvent(Sentry *sentry, const QVariantMap &event, Sentry
     }
 
     QVariantMap nativeEvent = event;
-    applyLocalScopeToEvent(&nativeEvent);
-    applyFingerprintToEvent(&nativeEvent);
-
-    const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
-    if (result.action == HookResult::Drop) {
-        if (!m_dsn.isEmpty() && hasConsent(m_requireUserConsent, m_userConsent)) {
-            recordBeforeSendErrorBridge();
+    if (m_applyHooksLocally) {
+        applyLocalScopeToEvent(&nativeEvent);
+        applyFingerprintToEvent(&nativeEvent);
+        const HookResult result = invokeValueHook(nativeEvent, m_beforeSendState.get());
+        if (result.action == HookResult::Drop) {
+            return {};
         }
-        return {};
-    }
-    if (result.action == HookResult::Replace) {
-        nativeEvent = result.value.toMap();
+        if (result.action == HookResult::Replace) {
+            nativeEvent = result.value.toMap();
+        }
     }
 
     if (!hasConsent(m_requireUserConsent, m_userConsent)) {

@@ -132,7 +132,7 @@ void SentryQmlUnitTest::importsQmlModule()
                 onCrash: function(event) { return event }
             }
             property bool ready: !Sentry.initialized && options.debug && !options.sendClientReports
-                && !options.attachViewHierarchy && !options.attachScreenshot
+                && !options.attachViewHierarchy && !options.attachScreenshot && !options.attachStacktrace
                 && options.integrationPaths.length === 1
                 && options.integrations.length === 1
                 && options.integrations[0].name === "disabled"
@@ -2170,6 +2170,7 @@ void SentryQmlUnitTest::capturesUncaughtQmlError()
             property SentryOptions options: SentryOptions {
                 databasePath: testDatabasePath
                 shutdownTimeout: 2000
+                attachStacktrace: true
                 beforeSend: function(event) {
                     const exception = event.exception && event.exception.values
                         ? event.exception.values[0]

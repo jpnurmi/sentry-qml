@@ -1161,7 +1161,7 @@ SentryObjCSpan *spanFromHandle(void *handle)
 
 void *retainedHandleFromSpan(SentryObjCSpan *span)
 {
-    return span ? [span retain] : nullptr;
+    return span ? (void *)CFBridgingRetain(span) : nullptr;
 }
 
 QVariantMap samplingContextMap(SentryObjCSamplingContext *context)
@@ -1314,7 +1314,9 @@ bool start(const Options &options)
 
         SentryObjCOptions *nativeOptions = [[SentryObjCOptions alloc] init];
         nativeOptions.dsn = nsStringOrNil(options.dsn);
-        nativeOptions.cacheDirectoryPath = nsStringOrNil(options.databasePath);
+        if (!options.databasePath.isEmpty()) {
+            nativeOptions.cacheDirectoryPath = nsString(options.databasePath);
+        }
         nativeOptions.releaseName = nsStringOrNil(options.release);
         if (!options.environment.isEmpty()) {
             nativeOptions.environment = nsString(options.environment);
@@ -1768,7 +1770,7 @@ QVariantMap spanTraceHeaders(void *spanHandle)
 void releaseSpan(void *spanHandle)
 {
     if (spanHandle) {
-        [(id)spanHandle release];
+        (void)CFBridgingRelease(spanHandle);
     }
 }
 

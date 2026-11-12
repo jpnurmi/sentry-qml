@@ -34,6 +34,7 @@ extern "C" {
 #include <QtQml/qjsvalue.h>
 #include <QtQml/qqmlnetworkaccessmanagerfactory.h>
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -54,11 +55,21 @@ struct SentrySdkEventHookState
     QStringList integrationNames;
 };
 
+// read from the crash handler, so only lock-free atomics and sentry values
 struct SentrySdkCrashHookState
 {
-    SentrySdk *sdk = nullptr;
+    ~SentrySdkCrashHookState()
+    {
+        sentry_value_decref(fingerprint.load());
+    }
+
+    void setFingerprint(sentry_value_t value)
+    {
+        sentry_value_decref(fingerprint.exchange(value));
+    }
+
     SentrySdkEventHookState *qmlHook = nullptr;
-    QStringList integrationNames;
+    std::atomic<sentry_value_t> fingerprint {sentry_value_new_null()};
 };
 
 struct SentrySdkSpanState
@@ -348,16 +359,18 @@ sentry_value_t onCrashCallback(const sentry_ucontext_t *, sentry_value_t event, 
     if (!state) {
         return event;
     }
-    if (state->sdk) {
-        QVariantMap eventMap = nativeValueToVariant(event).toMap();
-        state->sdk->applyFingerprintToEvent(&eventMap);
-        if (!eventMap.isEmpty()) {
-            sentry_value_decref(event);
-            event = nativeValueFromVariant(eventMap);
-        }
+
+    const sentry_value_t fingerprint = state->fingerprint.load();
+    if (!sentry_value_is_null(fingerprint)) {
+        sentry_value_incref(fingerprint);
+        sentry_value_set_by_key(event, "fingerprint", fingerprint);
     }
-    event = invokeValueHook(event, state->qmlHook);
-    return applyIntegrationMetadata(event, state->integrationNames);
+
+    // opt-in and not signal-safe
+    if (state->qmlHook) {
+        event = invokeValueHook(event, state->qmlHook);
+    }
+    return event;
 }
 
 sentry_value_t beforeBreadcrumbCallback(sentry_value_t breadcrumb, void *userData)
@@ -796,7 +809,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
     auto crashHookState = std::make_unique<SentrySdkCrashHookState>();
-    crashHookState->sdk = this;
     crashHookState->qmlHook = onCrashState.get();
 
     m_integrationManager->beginInitialization(sentry, options, QStringLiteral("native"));
@@ -807,7 +819,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         beforeSendState = std::make_unique<SentrySdkEventHookState>();
     }
     beforeSendState->integrationNames = m_integrationManager->preparedIntegrationIds();
-    crashHookState->integrationNames = m_integrationManager->preparedIntegrationIds();
 
     sentry_options_t *nativeOptions = sentry_options_new();
     if (!nativeOptions) {
@@ -934,7 +945,6 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         return false;
     }
     m_beforeSendState->integrationNames = m_integrationManager->activeIntegrationIds();
-    m_crashHookState->integrationNames = m_integrationManager->activeIntegrationIds();
     setInitialized(true);
     emit userConsentRequiredChanged();
     emit userConsentChanged();
@@ -1332,6 +1342,7 @@ bool SentrySdk::setFingerprint(Sentry *sentry, const QStringList &fingerprint)
     }
 
     m_fingerprint = fingerprint;
+    m_crashHookState->setFingerprint(nativeFingerprintFromStringList(fingerprint));
     return true;
 }
 
@@ -1342,6 +1353,7 @@ bool SentrySdk::removeFingerprint(Sentry *sentry)
     }
 
     m_fingerprint.clear();
+    m_crashHookState->setFingerprint(sentry_value_new_null());
     sentry_remove_fingerprint();
     return true;
 }

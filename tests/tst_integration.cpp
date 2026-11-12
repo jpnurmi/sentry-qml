@@ -411,10 +411,12 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QCOMPARE(object->property("feedbackCaptured").toBool(), true);
     QCOMPARE(object->property("sessionStarted").toBool(), true);
     QCOMPARE(object->property("sessionEnded").toBool(), true);
+#if !defined(SENTRY_QML_SDK_ANDROID)
     QCOMPARE(object->property("consentRequired").toBool(), true);
     QCOMPARE(object->property("consentInitiallyUnknown").toBool(), true);
     QCOMPARE(object->property("consentGiven").toBool(), true);
     QCOMPARE(object->property("consentAfterGive").toBool(), true);
+#endif
     QCOMPARE(object->property("flushedBeforeConsent").toBool(), true);
     QCOMPARE(object->property("genericMetricCaptured").toBool(), true);
     QCOMPARE(object->property("countCaptured").toBool(), true);
@@ -479,7 +481,9 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
     QVERIFY(allBodies.contains("qml.integration.transaction_hook"));
     QVERIFY(allBodies.contains("qml.integration.span_hook"));
     QVERIFY(allBodies.contains("qml.integration.db"));
+#if !defined(SENTRY_QML_SDK_ANDROID)
     QVERIFY(!allBodies.contains("Integration consent blocked before user consent"));
+#endif
 
     const QList<EnvelopeItem> declarativeItems =
         findEnvelopeItems(server.bodies(), "Declarative options integration message");
@@ -623,10 +627,12 @@ void SentryQmlIntegrationTest::capturesSdkFeaturesThroughHttpTransport()
 
     QVERIFY(QMetaObject::invokeMethod(object.get(), "finish"));
     QCOMPARE(object->property("flushed").toBool(), true);
+#if !defined(SENTRY_QML_SDK_ANDROID)
     QCOMPARE(object->property("consentRevoked").toBool(), true);
     QCOMPARE(object->property("consentAfterRevoke").toBool(), true);
     QCOMPARE(object->property("consentReset").toBool(), true);
     QCOMPARE(object->property("consentAfterReset").toBool(), true);
+#endif
     QCOMPARE(object->property("closed").toBool(), true);
     QCOMPARE(object->property("fileInvalidated").toBool(), true);
     QCOMPARE(object->property("bytesInvalidated").toBool(), true);

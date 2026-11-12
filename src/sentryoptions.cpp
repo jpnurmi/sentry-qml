@@ -187,6 +187,21 @@ void SentryOptions::setAttachViewHierarchy(bool attachViewHierarchy)
     emit attachViewHierarchyChanged();
 }
 
+bool SentryOptions::attachStacktrace() const
+{
+    return m_attachStacktrace;
+}
+
+void SentryOptions::setAttachStacktrace(bool attachStacktrace)
+{
+    if (m_attachStacktrace == attachStacktrace) {
+        return;
+    }
+
+    m_attachStacktrace = attachStacktrace;
+    emit attachStacktraceChanged();
+}
+
 double SentryOptions::sampleRate() const
 {
     return m_sampleRate;

@@ -17,7 +17,7 @@ public:
     explicit SentryQmlEngine(QQmlEngine *engine, Sentry *sentry);
     ~SentryQmlEngine() override;
 
-    void installWarningHandler();
+    void installWarningHandler(bool attachStacktrace);
     void uninstallWarningHandler();
     void rememberThrownStackTrace(const QStringList &stackTrace);
     QString captureException(const QJSValue &exception);

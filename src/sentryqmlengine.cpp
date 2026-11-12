@@ -138,13 +138,15 @@ SentryQmlEngine::~SentryQmlEngine()
     uninstallWarningHandler();
 }
 
-void SentryQmlEngine::installWarningHandler()
+void SentryQmlEngine::installWarningHandler(bool attachStacktrace)
 {
     if (!m_engine || m_warningsConnection) {
         return;
     }
 
-    installThrowHook();
+    if (attachStacktrace) {
+        installThrowHook();
+    }
 
     m_warningsConnection = QObject::connect(
         m_engine,

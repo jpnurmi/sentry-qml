@@ -1625,6 +1625,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char *sentry_qml_wasm_before_send(char *ev
     const QVariantMap event = variantMapFromJsonString(QString::fromUtf8(eventJson));
     std::free(eventJson);
 
+    // a closing client may still capture events, which QML beforeSend can no longer filter
+    if (!bridgeBeforeSendState) {
+        return "null";
+    }
+
     const HookResult result = invokeValueHook(event, bridgeBeforeSendState);
     if (result.action == HookResult::Keep) {
         return nullptr;

@@ -220,19 +220,24 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     function bindSpan(span) {
         var S = sentry();
         if (S && S.setActiveSpanInBrowser) {
+            // bind a no-op end, so that the span can be unbound without ending it
+            var end = span.end;
+            span.end = function () {};
             S.setActiveSpanInBrowser(span);
-            return true;
+            var unbind = span.end;
+            span.end = function () {
+                unbind();
+                return end.apply(this, arguments);
+            };
+            return unbind;
         }
         var current = scope();
         if (current && current.setSpan) {
             current.setSpan(span);
-            return true;
-        }
-        if (current && current.setActiveSpan) {
+        } else if (current && current.setActiveSpan) {
             current.setActiveSpan(span);
-            return true;
         }
-        return false;
+        return null;
     }
 
     function setSpanData(span, key, value) {
@@ -260,7 +265,12 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         if (!span.setStatus) {
             return false;
         }
-        span.setStatus(status === "ok" ? { code: 1 } : { code: 2, message: status });
+        if (span.finish) {
+            // legacy spans take a status string
+            span.setStatus(status);
+        } else {
+            span.setStatus(status === "ok" ? { code: 1 } : { code: 2, message: status });
+        }
         return true;
     }
 
@@ -308,6 +318,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     }
 
     root.__sentryQmlWasmBridge = {
+        boundSpans: {},
         nextSpanHandle: 1,
         nextSampleRate: undefined,
         requireUserConsent: false,
@@ -433,6 +444,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         close: function (timeoutMs) {
             var S = sentry();
             var client = S && S.getClient ? S.getClient() : null;
+            Object.keys(this.boundSpans).forEach(this.releaseSpan, this);
             this.spans = {};
             if (client && client.close) {
                 var closed = client.close(timeoutMs);
@@ -730,10 +742,12 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (!span) {
                 return 0;
             }
-            if (bindToScope) {
-                bindSpan(span);
+            var handle = this.registerSpan(span);
+            var unbind = bindToScope ? bindSpan(span) : null;
+            if (unbind) {
+                this.boundSpans[handle] = unbind;
             }
-            return this.registerSpan(span);
+            return handle;
         },
 
         startSpan: function (parentHandle, name, operation, description, bindToScope) {
@@ -764,10 +778,12 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (!span) {
                 return 0;
             }
-            if (bindToScope) {
-                bindSpan(span);
+            var handle = this.registerSpan(span);
+            var unbind = bindToScope ? bindSpan(span) : null;
+            if (unbind) {
+                this.boundSpans[handle] = unbind;
             }
-            return this.registerSpan(span);
+            return handle;
         },
 
         finishSpan: function (handle, status) {
@@ -776,6 +792,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                 return false;
             }
             delete this.spans[handle];
+            delete this.boundSpans[handle];
             setSpanStatus(span, spanStatus(status));
             return finishSpan(span);
         },
@@ -824,7 +841,12 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         },
 
         releaseSpan: function (handle) {
+            var unbind = this.boundSpans[handle];
             delete this.spans[handle];
+            delete this.boundSpans[handle];
+            if (unbind) {
+                unbind();
+            }
             return true;
         },
 

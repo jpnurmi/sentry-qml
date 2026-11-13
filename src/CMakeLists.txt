@@ -54,6 +54,12 @@ if(sentry_qml_backend_dependencies)
     add_dependencies(SentryQml ${sentry_qml_backend_dependencies})
 endif()
 
+if(SENTRY_QML_SDK STREQUAL "COCOA")
+    set_source_files_properties("${PROJECT_SOURCE_DIR}/src/cocoa/sentryobjcbridge.mm" PROPERTIES
+        COMPILE_OPTIONS "-fobjc-arc"
+    )
+endif()
+
 set(sentry_qml_module_output_dir "${SENTRY_QML_OUTPUT_DIRECTORY}/${SENTRY_QML_IMPORT_URI}")
 get_cmake_property(SENTRY_QML_MULTI_CONFIG GENERATOR_IS_MULTI_CONFIG)
 if(SENTRY_QML_MULTI_CONFIG AND TARGET SentryQmlplugin)

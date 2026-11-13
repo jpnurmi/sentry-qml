@@ -52,7 +52,7 @@ bool Sentry::init(SentryOptions *options)
 
     const bool ok = SentrySdk::instance()->init(this, options);
     if (ok && m_qmlEngine) {
-        m_qmlEngine->installWarningHandler();
+        m_qmlEngine->installWarningHandler(options->attachStacktrace());
     }
     return ok;
 }

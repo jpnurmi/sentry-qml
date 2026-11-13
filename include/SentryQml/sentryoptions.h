@@ -30,6 +30,7 @@ class SENTRYQML_EXPORT SentryOptions : public QObject
     Q_PROPERTY(bool requireUserConsent READ requireUserConsent WRITE setRequireUserConsent NOTIFY requireUserConsentChanged)
     Q_PROPERTY(bool attachScreenshot READ attachScreenshot WRITE setAttachScreenshot NOTIFY attachScreenshotChanged)
     Q_PROPERTY(bool attachViewHierarchy READ attachViewHierarchy WRITE setAttachViewHierarchy NOTIFY attachViewHierarchyChanged)
+    Q_PROPERTY(bool attachStacktrace READ attachStacktrace WRITE setAttachStacktrace NOTIFY attachStacktraceChanged)
     Q_PROPERTY(double sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
     Q_PROPERTY(double tracesSampleRate READ tracesSampleRate WRITE setTracesSampleRate NOTIFY tracesSampleRateChanged)
     Q_PROPERTY(QStringList tracePropagationTargets READ tracePropagationTargets WRITE setTracePropagationTargets NOTIFY tracePropagationTargetsChanged)
@@ -86,6 +87,9 @@ public:
 
     bool attachViewHierarchy() const;
     void setAttachViewHierarchy(bool attachViewHierarchy);
+
+    bool attachStacktrace() const;
+    void setAttachStacktrace(bool attachStacktrace);
 
     double sampleRate() const;
     void setSampleRate(double sampleRate);
@@ -153,6 +157,7 @@ signals:
     void requireUserConsentChanged();
     void attachScreenshotChanged();
     void attachViewHierarchyChanged();
+    void attachStacktraceChanged();
     void sampleRateChanged();
     void tracesSampleRateChanged();
     void tracePropagationTargetsChanged();
@@ -189,6 +194,7 @@ private:
     bool m_requireUserConsent = false;
     bool m_attachScreenshot = false;
     bool m_attachViewHierarchy = false;
+    bool m_attachStacktrace = false;
     double m_sampleRate = 1.0;
     double m_tracesSampleRate = -1.0;
     QStringList m_tracePropagationTargets;

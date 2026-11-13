@@ -67,6 +67,7 @@ QtObject {
     property string messageEventId: ""
     property string rawEventId: ""
     property string exceptionEventId: ""
+    property string privateEventId: ""
     property int feedbackAttachmentCount: 0
     property var fileAttachment: null
     property var bytesAttachment: null
@@ -101,6 +102,11 @@ QtObject {
         }
         beforeSend: function(event) {
             beforeSendCalled = true
+            if (event.message && event.message.formatted === "Integration private message") {
+                delete event.user
+                delete event.tags
+                return event
+            }
             event.tags = event.tags || {}
             event.tags.before_send = "qml"
             return event
@@ -199,6 +205,7 @@ QtObject {
         feedbackAttachmentCount = feedbackHint.attachmentCount
         sessionStarted = Sentry.startSession()
         messageEventId = Sentry.captureMessage("Integration message")
+        privateEventId = Sentry.captureMessage("Integration private message")
         rawEventId = Sentry.captureEvent({
             level: "error",
             logger: "qml.raw",

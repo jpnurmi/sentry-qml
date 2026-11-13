@@ -218,16 +218,23 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     }
 
     function bindSpan(span) {
+        var S = sentry();
+        if (S && S.setActiveSpanInBrowser) {
+            // bind a no-op end, so that the span can be unbound without ending it
+            var end = span.end;
+            span.end = function () {};
+            S.setActiveSpanInBrowser(span);
+            var unbind = span.end;
+            span.end = end;
+            return unbind;
+        }
         var current = scope();
         if (current && current.setSpan) {
             current.setSpan(span);
-            return true;
-        }
-        if (current && current.setActiveSpan) {
+        } else if (current && current.setActiveSpan) {
             current.setActiveSpan(span);
-            return true;
         }
-        return false;
+        return null;
     }
 
     function setSpanData(span, key, value) {
@@ -255,10 +262,11 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         if (!span.setStatus) {
             return false;
         }
-        try {
+        if (span.finish) {
+            // legacy spans take a status string
             span.setStatus(status);
-        } catch (error) {
-            span.setStatus({ code: status === "ok" ? 1 : 2, message: status });
+        } else {
+            span.setStatus(status === "ok" ? { code: 1 } : { code: 2, message: status });
         }
         return true;
     }
@@ -307,7 +315,9 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
     }
 
     root.__sentryQmlWasmBridge = {
+        boundSpans: [],
         nextSpanHandle: 1,
+        nextSampleRate: undefined,
         requireUserConsent: false,
         pending: Promise.resolve(true),
         spans: {},
@@ -380,6 +390,16 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (typeof options.tracesSampleRate === "number" && options.tracesSampleRate >= 0) {
                 sentryOptions.tracesSampleRate = options.tracesSampleRate;
             }
+            if (options.tracesSampler) {
+                sentryOptions.tracesSampler = function (context) {
+                    var sampleRate = root.__sentryQmlWasmBridge.nextSampleRate;
+                    if (typeof sampleRate === "number" && sampleRate >= 0) {
+                        return sampleRate;
+                    }
+                    var fallback = sentryOptions.tracesSampleRate || 0;
+                    return context.inheritOrSampleWith ? context.inheritOrSampleWith(fallback) : fallback;
+                };
+            }
             if (Array.isArray(options.tracePropagationTargets)) {
                 sentryOptions.tracePropagationTargets = options.tracePropagationTargets;
             }
@@ -420,7 +440,17 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
 
         close: function (timeoutMs) {
             var S = sentry();
+            var client = S && S.getClient ? S.getClient() : null;
+            while (this.boundSpans.length) {
+                this.boundSpans.pop().unbind();
+            }
             this.spans = {};
+            if (client && client.close) {
+                var closed = client.close(timeoutMs);
+                return this.enqueue(function () {
+                    return closed;
+                });
+            }
             if (S && S.close) {
                 return this.enqueue(function () {
                     return S.close(timeoutMs);
@@ -688,13 +718,15 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (description) {
                 options.description = description;
             }
-            if (sampleRate >= 0) {
-                options.sampled = Math.random() < sampleRate;
-            }
 
             var span = null;
             if (S.startInactiveSpan) {
-                span = S.startInactiveSpan(options);
+                this.nextSampleRate = sampleRate;
+                try {
+                    span = S.startInactiveSpan(options);
+                } finally {
+                    this.nextSampleRate = undefined;
+                }
             } else if (S.startTransaction) {
                 var context = {
                     name: name,
@@ -702,17 +734,19 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                     description: description || undefined,
                 };
                 if (sampleRate >= 0) {
-                    context.sampled = options.sampled;
+                    context.sampled = Math.random() < sampleRate;
                 }
                 span = S.startTransaction(context, parseJson(customSamplingContextJson, {}));
             }
             if (!span) {
                 return 0;
             }
-            if (bindToScope) {
-                bindSpan(span);
+            var handle = this.registerSpan(span);
+            var unbind = bindToScope ? bindSpan(span) : null;
+            if (unbind) {
+                this.boundSpans.push({ handle: handle, unbind: unbind, done: false });
             }
-            return this.registerSpan(span);
+            return handle;
         },
 
         startSpan: function (parentHandle, name, operation, description, bindToScope) {
@@ -743,10 +777,12 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
             if (!span) {
                 return 0;
             }
-            if (bindToScope) {
-                bindSpan(span);
+            var handle = this.registerSpan(span);
+            var unbind = bindToScope ? bindSpan(span) : null;
+            if (unbind) {
+                this.boundSpans.push({ handle: handle, unbind: unbind, done: false });
             }
-            return this.registerSpan(span);
+            return handle;
         },
 
         finishSpan: function (handle, status) {
@@ -755,6 +791,7 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
                 return false;
             }
             delete this.spans[handle];
+            this.unbindSpan(handle);
             setSpanStatus(span, spanStatus(status));
             return finishSpan(span);
         },
@@ -804,7 +841,21 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
 
         releaseSpan: function (handle) {
             delete this.spans[handle];
+            this.unbindSpan(handle);
             return true;
+        },
+
+        // unbinds in reverse bind order, so that each restores a span that is still bound
+        unbindSpan: function (handle) {
+            var bound = this.boundSpans;
+            bound.forEach(function (entry) {
+                if (entry.handle === handle) {
+                    entry.done = true;
+                }
+            });
+            while (bound.length && bound[bound.length - 1].done) {
+                bound.pop().unbind();
+            }
         },
 
         recordBeforeSendError: function () {
@@ -1726,6 +1777,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
         {QStringLiteral("attachScreenshot"), options->attachScreenshot()},
         {QStringLiteral("sampleRate"), options->sampleRate()},
         {QStringLiteral("tracesSampleRate"), options->tracesSampleRate()},
+        {QStringLiteral("tracesSampler"), m_tracesSamplerState != nullptr},
         {QStringLiteral("tracePropagationTargets"), options->tracePropagationTargets()},
         {QStringLiteral("orgId"), options->orgId()},
         {QStringLiteral("strictTraceContinuation"), options->strictTraceContinuation()},

@@ -444,7 +444,8 @@ EM_JS(void, sentry_qml_wasm_ensure_bridge, (), {
         close: function (timeoutMs) {
             var S = sentry();
             var client = S && S.getClient ? S.getClient() : null;
-            Object.keys(this.boundSpans).forEach(this.releaseSpan, this);
+            // newest first, so that each restores a span that is still bound
+            Object.keys(this.boundSpans).reverse().forEach(this.releaseSpan, this);
             this.spans = {};
             if (client && client.close) {
                 var closed = client.close(timeoutMs);

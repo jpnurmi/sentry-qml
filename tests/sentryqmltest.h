@@ -26,6 +26,12 @@
 #define SENTRY_QML_SKIP_COCOA(reason) do {} while (false)
 #endif
 
+#if defined(SENTRY_QML_SDK_ANDROID)
+#define SENTRY_QML_SKIP_ANDROID(reason) QSKIP(reason)
+#else
+#define SENTRY_QML_SKIP_ANDROID(reason) do {} while (false)
+#endif
+
 #if defined(SENTRY_QML_BACKEND_CRASHPAD)
 #define SENTRY_QML_SKIP_CRASHPAD(reason) QSKIP(reason)
 #else

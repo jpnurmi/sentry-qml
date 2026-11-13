@@ -77,7 +77,9 @@ namespace {
 
 constexpr const char *bridgeClassName = "io/sentry/qml/SentryQmlBridge";
 thread_local int hookDepth = 0;
-std::atomic<SentrySdkEventHookState *> bridgeBeforeSendState {nullptr};
+// only accessed on bridgeBeforeSendThread, so that other threads never read a freed state
+SentrySdkEventHookState *bridgeBeforeSendState = nullptr;
+std::atomic<QThread *> bridgeBeforeSendThread {nullptr};
 
 struct HookResult
 {
@@ -455,12 +457,12 @@ bool callBridgeBool(const char *method, const char *signature, const QString &fi
 jstring JNICALL beforeSendFromBridge(JNIEnv *env, jclass, jstring eventJson)
 {
     // sentry-java may call beforeSend on any thread, but QML hooks only run on their engine thread
-    SentrySdkEventHookState *state = bridgeBeforeSendState.load();
-    if (!state || QThread::currentThread() != state->thread) {
+    if (QThread::currentThread() != bridgeBeforeSendThread.load()) {
         return nullptr;
     }
 
-    const HookResult result = invokeValueHook(variantMapFromJsonString(QJniObject(eventJson).toString()), state);
+    const HookResult result =
+        invokeValueHook(variantMapFromJsonString(QJniObject(eventJson).toString()), bridgeBeforeSendState);
     if (result.action == HookResult::Keep) {
         return nullptr;
     }
@@ -493,6 +495,7 @@ bool initBridge(const QVariantMap &options, SentrySdkEventHookState *beforeSendS
     }
 
     bridgeBeforeSendState = beforeSendState;
+    bridgeBeforeSendThread = beforeSendState ? beforeSendState->thread : nullptr;
     const QJniObject optionsJson = QJniObject::fromString(jsonStringFromVariant(options));
     const QJniObject sdkName = QJniObject::fromString(QStringLiteral(SENTRY_QML_SDK_NAME));
     const bool initialized =
@@ -504,6 +507,7 @@ bool initBridge(const QVariantMap &options, SentrySdkEventHookState *beforeSendS
                                                sdkName.object<jstring>())
         == JNI_TRUE;
     if (!initialized) {
+        bridgeBeforeSendThread = nullptr;
         bridgeBeforeSendState = nullptr;
     }
     return initialized;
@@ -517,6 +521,7 @@ bool flushBridge(int timeoutMs)
 void closeBridge()
 {
     QJniObject::callStaticMethod<void>(bridgeClassName, "close", "()V");
+    bridgeBeforeSendThread = nullptr;
     bridgeBeforeSendState = nullptr;
 }
 

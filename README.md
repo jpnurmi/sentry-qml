@@ -38,13 +38,6 @@ The default backend is inferred from the target platform: `android` on Android,
 For sentry-native builds, values such as `crashpad`, `breakpad`, `inproc`, and
 `none` select the native crash backend.
 
-## Stack traces
-
-Uncaught QML errors report the location of the error. Set
-`SentryOptions.attachStacktrace` to capture the full QML stack trace instead.
-This requires Qt's private QML module and disables the QML JIT for the engine's
-lifetime.
-
 ## Android
 
 Use a Qt for Android toolchain. App targets that link `SentryQml` must call:

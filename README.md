@@ -38,9 +38,6 @@ The default backend is inferred from the target platform: `android` on Android,
 For sentry-native builds, values such as `crashpad`, `breakpad`, `inproc`, and
 `none` select the native crash backend.
 
-With sentry-native, `SentryOptions.onCrash` runs inside the crash handler, where
-calling into QML is not async-signal-safe. Treat it as best-effort.
-
 ## Android
 
 Use a Qt for Android toolchain. App targets that link `SentryQml` must call:

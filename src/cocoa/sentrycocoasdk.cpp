@@ -91,11 +91,11 @@ bool createEventHookState(Sentry *sentry,
 
 SentryObjCBridge::HookResult invokeValueHook(const QVariant &value, SentrySdkEventHookState *state)
 {
-    if (!state || !state->engine || !state->callback.isCallable()) {
+    if (!state || (state->thread && QThread::currentThread() != state->thread)) {
         return {};
     }
 
-    if (state->thread && QThread::currentThread() != state->thread) {
+    if (!state->engine || !state->callback.isCallable()) {
         return {};
     }
 
@@ -363,7 +363,7 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     }
 
     std::unique_ptr<SentrySdkEventHookState> onCrashState;
-    if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), false, &onCrashState)) {
+    if (!createEventHookState(sentry, options, options->onCrash(), QStringLiteral("onCrash"), true, &onCrashState)) {
         return false;
     }
 
@@ -410,7 +410,19 @@ bool SentrySdk::init(Sentry *sentry, SentryOptions *options)
     nativeOptions.beforeSendMetric = hookFromState(m_beforeSendMetricState.get());
     nativeOptions.beforeSend = m_applyHooksLocally ? SentryObjCBridge::Hook {} : hookFromState(m_beforeSendState.get());
     nativeOptions.tracesSampler = hookFromState(m_tracesSamplerState.get());
-    nativeOptions.onCrash = hookFromState(m_onCrashState.get());
+    if (m_onCrashState) {
+        // crash reports are sent from a background queue
+        nativeOptions.onCrash = [this](const QVariant &value) {
+            SentryObjCBridge::HookResult result;
+            const auto invoke = [this, &value, &result] { result = invokeValueHook(value, m_onCrashState.get()); };
+            if (QThread::currentThread() == thread()) {
+                invoke();
+            } else {
+                QMetaObject::invokeMethod(this, invoke, Qt::BlockingQueuedConnection);
+            }
+            return result;
+        };
+    }
     m_release = nativeOptions.release;
     m_environment = nativeOptions.environment;
     m_dist = nativeOptions.dist;
@@ -1110,7 +1122,13 @@ SentrySpan *SentrySdk::startSpan(Sentry *sentry,
         return nullptr;
     }
 
-    void *nativeSpan = SentryObjCBridge::startSpan(parentSpan ? static_cast<SentrySdkSpanState *>(parentSpan->handle())->nativeSpan : nullptr,
+    auto *parent = parentSpan ? static_cast<SentrySdkSpanState *>(parentSpan->handle()) : nullptr;
+    if (parentSpan && (!parent || !parent->nativeSpan)) {
+        emit sentry->errorOccurred(QStringLiteral("Sentry.startSpan requires a parent span."));
+        return nullptr;
+    }
+
+    void *nativeSpan = SentryObjCBridge::startSpan(parent ? parent->nativeSpan : nullptr,
                                                   operation,
                                                   description,
                                                   bindToScope);

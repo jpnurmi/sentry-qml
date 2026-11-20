@@ -83,7 +83,7 @@ public final class SentryQmlBridge {
                     options.setTracesSampleRate(json.optDouble("tracesSampleRate"));
                 }
                 JSONArray tracePropagationTargets = json.optJSONArray("tracePropagationTargets");
-                if (tracePropagationTargets != null) {
+                if (tracePropagationTargets != null && tracePropagationTargets.length() > 0) {
                     options.setTracePropagationTargets(stringList(tracePropagationTargets));
                 }
                 setStringOption(json, "orgId", options::setOrgId);
@@ -685,7 +685,7 @@ public final class SentryQmlBridge {
     }
 
     private static void setStringOption(JSONObject json, String key, StringSetter setter) {
-        String value = optString(json, key);
+        String value = emptyToNull(optString(json, key));
         if (value != null) {
             setter.set(value);
         }

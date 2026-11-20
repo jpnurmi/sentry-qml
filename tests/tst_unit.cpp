@@ -707,6 +707,7 @@ void SentryQmlUnitTest::sendsEnvelope()
     options.setDsn(QStringLiteral("http://public@127.0.0.1:%1/42").arg(server.serverPort()));
     options.setDatabasePath(QDir(temporaryDir.path()).filePath(QStringLiteral("sentry")));
     options.setShutdownTimeout(2000);
+    options.setAutoSessionTracking(false);
 
     QVERIFY(sentry.init(&options));
 #if defined(SENTRY_QML_SDK_NATIVE) && defined(SENTRY_TRANSPORT_CUSTOM)
@@ -733,6 +734,7 @@ void SentryQmlUnitTest::sendsEnvelope()
 void SentryQmlUnitTest::handlesUserConsent()
 {
     SENTRY_QML_SKIP_COCOA("SentryCocoa does not expose user consent.");
+    SENTRY_QML_SKIP_ANDROID("SentryAndroid does not expose user consent.");
     SENTRY_QML_SKIP_CRASHPAD("crashpad transport does not use the HTTP envelope path this test inspects.");
     SENTRY_QML_SKIP_WASM("WebAssembly cannot listen for local TCP connections in the browser sandbox.");
 

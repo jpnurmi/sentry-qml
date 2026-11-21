@@ -2403,8 +2403,6 @@ void SentryQmlUnitTest::reusesFileAttachments()
 
 void SentryQmlUnitTest::beforeSendSeesScopeOnce()
 {
-    SENTRY_QML_SKIP_COCOA("SentryCocoa beforeSend events do not expose breadcrumbs or users yet.");
-
     QTemporaryDir temporaryDir;
     QVERIFY(temporaryDir.isValid());
 

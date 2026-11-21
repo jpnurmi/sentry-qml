@@ -7,7 +7,6 @@ import io.sentry.Attachment;
 import io.sentry.BaggageHeader;
 import io.sentry.Breadcrumb;
 import io.sentry.CustomSamplingContext;
-import io.sentry.DataCategory;
 import io.sentry.Hint;
 import io.sentry.ISerializer;
 import io.sentry.ISpan;
@@ -24,7 +23,6 @@ import io.sentry.TransactionContext;
 import io.sentry.TransactionOptions;
 import io.sentry.TracesSamplingDecision;
 import io.sentry.android.core.SentryAndroid;
-import io.sentry.clientreport.DiscardReason;
 import io.sentry.logger.SentryLogParameters;
 import io.sentry.metrics.SentryMetricsParameters;
 import io.sentry.protocol.Feedback;
@@ -60,6 +58,7 @@ public final class SentryQmlBridge {
     public static boolean init(Context context, String optionsJson, String sdkName) {
         try {
             final JSONObject json = object(optionsJson);
+            final boolean qmlBeforeSend = json.optBoolean("beforeSend");
             setIntegrationNames(json.optJSONArray("integrations"));
             SentryAndroid.init(context, options -> {
                 setStringOption(json, "dsn", options::setDsn);
@@ -111,7 +110,10 @@ public final class SentryQmlBridge {
                 options.setEnableNdk(true);
                 options.setEnableScopeSync(true);
                 // This bridge owns beforeSend; keep future decoration and user hooks in this callback.
-                options.setBeforeSend((event, hint) -> applyIntegrationMetadata(event, options));
+                options.setBeforeSend((event, hint) -> {
+                    SentryEvent result = qmlBeforeSend ? applyQmlBeforeSend(event, options) : event;
+                    return result == null ? null : applyIntegrationMetadata(result, options);
+                });
             });
 
             if (json.has("user") && !json.isNull("user")) {
@@ -158,6 +160,28 @@ public final class SentryQmlBridge {
         integrationNames = integrations == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(stringList(integrations));
+    }
+
+    private static native String beforeSend(String eventJson);
+
+    private static SentryEvent applyQmlBeforeSend(SentryEvent event, io.sentry.SentryOptions options) {
+        try {
+            StringWriter serialized = new StringWriter();
+            options.getSerializer().serialize(event, serialized);
+            // Null keeps the event, an empty string drops it, and anything else replaces it.
+            String result = beforeSend(serialized.toString());
+            if (result == null) {
+                return event;
+            }
+            if (result.isEmpty()) {
+                return null;
+            }
+            SentryEvent replaced = options.getSerializer().deserialize(new StringReader(result), SentryEvent.class);
+            return replaced != null ? replaced : event;
+        } catch (Throwable t) {
+            Log.e(TAG, "Could not apply QML beforeSend.", t);
+            return event;
+        }
     }
 
     private static SentryEvent applyIntegrationMetadata(SentryEvent event, io.sentry.SentryOptions options) {
@@ -619,23 +643,10 @@ public final class SentryQmlBridge {
             }
 
             SentryId eventId = Sentry.captureEvent(event, hintFromAttachments(attachmentsJson));
-            return eventId == null ? "" : eventId.toString();
+            return eventId == null || SentryId.EMPTY_ID.equals(eventId) ? "" : eventId.toString();
         } catch (Throwable t) {
             Log.e(TAG, "Could not capture event.", t);
             return "";
-        }
-    }
-
-    public static boolean recordBeforeSendError() {
-        try {
-            Sentry.getCurrentScopes()
-                    .getOptions()
-                    .getClientReportRecorder()
-                    .recordLostEvent(DiscardReason.BEFORE_SEND, DataCategory.Error);
-            return true;
-        } catch (Throwable t) {
-            Log.e(TAG, "Could not record beforeSend client report.", t);
-            return false;
         }
     }
 

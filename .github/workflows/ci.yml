@@ -394,8 +394,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {qt: {track: LTS, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28}
-          - {qt: {track: latest, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36}
+          - {qt: {track: LTS, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 28, ndk: $ANDROID_NDK_ROOT}
+          - {qt: {track: latest, host: all_os, target: android, arch: android_x86_64, archives: "qtbase qtdeclarative"}, host_qt: {host: linux, arch: linux_gcc_64, path: gcc_64, archives: icu}, android_api: 36, ndk: $ANDROID_NDK_LATEST_HOME}
 
     steps:
       - name: Check out sources
@@ -479,6 +479,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DCMAKE_TOOLCHAIN_FILE="${{ steps.android-qt-paths.outputs.android_path }}/lib/cmake/Qt6/qt.toolchain.cmake"
           -DQT_HOST_PATH="${{ steps.android-qt-paths.outputs.host_path }}"
+          -DANDROID_NDK_ROOT="${{ matrix.ndk }}"
           -DANDROID_ABI=x86_64
           -DANDROID_PLATFORM=android-28
           -DSENTRY_QML_TEST_JUNIT=ON
